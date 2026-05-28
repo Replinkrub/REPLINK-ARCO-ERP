@@ -3,6 +3,10 @@
 Status: planning-only  
 Perfis oficiais MVP: `ADMIN`, `REPRESENTANTE`
 
+Observação de governança:
+- `OWNER` é perfil administrativo de governança e herda permissões de `ADMIN`.
+- Na matriz abaixo, a coluna `ADMIN` deve ser interpretada como `ADMIN/OWNER`.
+
 ## Regras base
 
 - REPRESENTANTE opera apenas dados da própria carteira comercial.
@@ -31,7 +35,7 @@ Perfis oficiais MVP: `ADMIN`, `REPRESENTANTE`
 | Pedidos | Visualizar ORDER_CONFIRMED | Allow | Allow | Representante apenas próprios |
 | Pedidos | Editar fora da própria carteira | Allow | Deny | Escopo obrigatório por ownership |
 | Pedidos | Cancelar ORDER_CONFIRMED | Allow | Deny | Motivo obrigatório |
-| Pedidos | Ajuste administrativo | Allow | Deny | Gera `order_revision` + `ORDER_ADJUSTED` |
+| Pedidos | Ajuste administrativo | Allow | Deny | Mantém `ORDER_CONFIRMED` + gera `order_revision` e `lifecycle_event ORDER_ADJUSTED` |
 | Pedidos | Registrar faturamento | Allow | Deny | Transição para `INVOICED` |
 | Comunicação | Registrar output_event | Allow | Allow | Nunca altera estado comercial |
 | Relatórios | Visualizar 8 relatórios MVP | Allow | Allow | Recorte obrigatório por tenant_id + representante_id para REPRESENTANTE |
@@ -63,8 +67,8 @@ Perfis oficiais MVP: `ADMIN`, `REPRESENTANTE`
 
 - `confirmar pedido`: `QUOTE_DRAFT -> ORDER_CONFIRMED`
 - `cancelar orçamento`: `QUOTE_DRAFT -> CANCELED`
-- `cancelar pedido`: `ORDER_CONFIRMED -> CANCELED` (ADMIN)
-- `faturar`: `ORDER_CONFIRMED -> INVOICED` (ADMIN)
+- `cancelar pedido`: `ORDER_CONFIRMED -> CANCELED` (ADMIN/OWNER)
+- `faturar`: `ORDER_CONFIRMED -> INVOICED` (ADMIN/OWNER)
 - `ajuste admin`: `ORDER_CONFIRMED -> ORDER_CONFIRMED` + revisão/evento
 
 ## Definition of Done (RBAC)
