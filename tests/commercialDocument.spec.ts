@@ -27,6 +27,28 @@ describe('commercialDocument core', () => {
     }
   });
 
+  it('bloquear addItem com id duplicado', () => {
+    const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const first = addItem(doc, { id: 'i1', sku: 'SKU-1', description: 'Item 1', quantity: 1, unitPrice: 100 });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const duplicated = addItem(first.document, { id: 'i1', sku: 'SKU-2', description: 'Item 2', quantity: 1, unitPrice: 50 });
+    expect(duplicated.ok).toBe(false);
+  });
+
+  it('bloquear desconto negativo no addItem', () => {
+    const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const result = addItem(doc, { id: 'i1', sku: 'SKU-1', description: 'Item 1', quantity: 1, unitPrice: 100, discount: -1 });
+    expect(result.ok).toBe(false);
+  });
+
+  it('bloquear desconto maior que subtotal no addItem', () => {
+    const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const result = addItem(doc, { id: 'i1', sku: 'SKU-1', description: 'Item 1', quantity: 1, unitPrice: 100, discount: 101 });
+    expect(result.ok).toBe(false);
+  });
+
   it('remover item e recalcular total', () => {
     const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
     const withA = addItem(doc, { id: 'a', sku: 'A', description: 'A', quantity: 1, unitPrice: 100 });
@@ -43,6 +65,12 @@ describe('commercialDocument core', () => {
       expect(removed.document.items).toHaveLength(1);
       expect(removed.document.totals.total).toBe(100);
     }
+  });
+
+  it('bloquear removeItem para item inexistente', () => {
+    const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const result = removeItem(doc, 'missing');
+    expect(result.ok).toBe(false);
   });
 
   it('ajustar quantidade/preço/desconto básico e recalcular total', () => {
@@ -62,12 +90,39 @@ describe('commercialDocument core', () => {
     }
   });
 
-  it('confirmar orçamento para pedido com permissão válida', () => {
+  it('bloquear updateItem para item inexistente', () => {
     const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
-    const result = confirmQuote(doc, repContext);
+    const result = updateItem(doc, 'missing', { quantity: 2 });
+    expect(result.ok).toBe(false);
+  });
+
+  it('bloquear mutação de item fora de QUOTE_DRAFT', () => {
+    const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const confirmed = confirmQuote(base, repContext);
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const addResult = addItem(confirmed.document, { id: 'i1', sku: 'SKU-1', description: 'Item 1', quantity: 1, unitPrice: 100 });
+    const removeResult = removeItem(confirmed.document, 'i1');
+    const updateResult = updateItem(confirmed.document, 'i1', { quantity: 2 });
+
+    expect(addResult.ok).toBe(false);
+    expect(removeResult.ok).toBe(false);
+    expect(updateResult.ok).toBe(false);
+  });
+
+  it('confirmar orçamento para pedido com permissão válida', () => {
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+    const confirmAt = new Date('2026-01-01T01:00:00.000Z');
+    const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1', now: createdAt });
+    const result = confirmQuote(doc, repContext, confirmAt);
 
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.document.status).toBe('ORDER_CONFIRMED');
+    if (result.ok) {
+      expect(result.document.status).toBe('ORDER_CONFIRMED');
+      expect(result.document.confirmedAt).toEqual(confirmAt);
+      expect(result.document.updatedAt).toEqual(confirmAt);
+    }
   });
 
   it('bloquear confirmação sem permissão', () => {
@@ -83,11 +138,17 @@ describe('commercialDocument core', () => {
   });
 
   it('cancelar com motivo válido', () => {
-    const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
-    const result = cancelDocument(doc, repContext, 'CLIENTE_DESISTIU');
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+    const canceledAt = new Date('2026-01-01T02:00:00.000Z');
+    const doc = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1', now: createdAt });
+    const result = cancelDocument(doc, repContext, 'CLIENTE_DESISTIU', undefined, canceledAt);
 
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.document.status).toBe('CANCELED');
+    if (result.ok) {
+      expect(result.document.status).toBe('CANCELED');
+      expect(result.document.canceledAt).toEqual(canceledAt);
+      expect(result.document.updatedAt).toEqual(canceledAt);
+    }
   });
 
   it('bloquear cancelamento com OUTROS sem observação', () => {
