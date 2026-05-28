@@ -1,0 +1,331 @@
+openapi: 3.0.3
+info:
+  title: ARCO-ERP MVP API Contract
+  version: 0.1.0-planning
+  description: |
+    Contrato funcional MVP derivado da SPEC v1.
+    Planning-only: sem API freeze e sem autorização de implementação.
+    Escopo multi-tenant: toda leitura/escrita deve respeitar tenant + ownership.
+    REPRESENTANTE opera somente registros da própria carteira.
+servers:
+  - url: https://api.arco-erp.local
+tags:
+  - name: Quotes
+  - name: Orders
+  - name: Invoices
+  - name: Events
+security:
+  - bearerAuth: []
+
+paths:
+  /v0/quotes:
+    post:
+      tags: [Quotes]
+      summary: Cria orçamento em QUOTE_DRAFT
+      operationId: createQuote
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuoteRequest'
+      responses:
+        '201':
+          description: Orçamento criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v0/quotes/{quoteId}/confirm:
+    post:
+      tags: [Orders]
+      summary: Confirma orçamento e converte para ORDER_CONFIRMED
+      operationId: confirmQuote
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/QuoteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Pedido confirmado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v0/quotes/{quoteId}/cancel:
+    post:
+      tags: [Quotes]
+      summary: Cancela orçamento em QUOTE_DRAFT
+      operationId: cancelQuote
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/QuoteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+      responses:
+        '200':
+          description: Orçamento cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusChangeResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v0/orders/{orderId}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancela pedido em ORDER_CONFIRMED (ADMIN)
+      operationId: cancelOrder
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+      responses:
+        '200':
+          description: Pedido cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusChangeResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v0/orders/{orderId}/adjust:
+    post:
+      tags: [Orders]
+      summary: Ajuste administrativo de pedido confirmado (ADMIN)
+      operationId: adjustOrder
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdjustOrderRequest'
+      responses:
+        '200':
+          description: Ajuste aplicado sem mudança de estado comercial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v0/orders/{orderId}/invoice:
+    post:
+      tags: [Invoices]
+      summary: Registra faturamento simples (ADMIN)
+      operationId: registerInvoice
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceRequest'
+      responses:
+        '200':
+          description: Pedido faturado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusChangeResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v0/output-events:
+    post:
+      tags: [Events]
+      summary: Registra evento de comunicação
+      operationId: registerOutputEvent
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutputEventRequest'
+      responses:
+        '201':
+          description: Evento registrado
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    TenantId:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema: { type: string, minLength: 3 }
+      description: Tenant lógico da operação (deve bater com token autenticado).
+    QuoteId:
+      name: quoteId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8 }
+
+  schemas:
+    CreateQuoteRequest:
+      type: object
+      required: [customerId, items]
+      properties:
+        customerId: { type: string, format: uuid }
+        paymentTermId: { type: string, format: uuid }
+        notes: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [productId, quantity, unitPrice]
+            properties:
+              productId: { type: string, format: uuid }
+              quantity: { type: number, minimum: 0.01 }
+              unitPrice: { type: number, minimum: 0 }
+
+    QuoteResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        quoteNumber: { type: string, example: ORC-0001 }
+        commercialStatus: { type: string, enum: [QUOTE_DRAFT] }
+
+    OrderResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderNumber: { type: string, example: PED-0001 }
+        commercialStatus: { type: string, enum: [ORDER_CONFIRMED, CANCELED, INVOICED] }
+
+    CancelRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3 }
+
+    AdjustOrderRequest:
+      type: object
+      required: [reason, changes]
+      properties:
+        reason: { type: string, minLength: 3 }
+        changes:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              from: {}
+              to: {}
+
+    InvoiceRequest:
+      type: object
+      required: [invoiceDate, amount]
+      properties:
+        invoiceDate: { type: string, format: date }
+        amount: { type: number, minimum: 0 }
+        noteReference: { type: string }
+        notes: { type: string }
+
+    OutputEventRequest:
+      type: object
+      required: [entityId, channel]
+      properties:
+        entityId: { type: string, format: uuid }
+        channel:
+          type: string
+          enum: [SEND_WHATSAPP, SEND_EMAIL, GENERATE_PDF, PRINT, COPY_LINK, SHARE]
+        metadata: { type: object, additionalProperties: true }
+
+    StatusChangeResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        commercialStatus:
+          type: string
+          enum: [QUOTE_DRAFT, ORDER_CONFIRMED, INVOICED, CANCELED]
+        updatedAt: { type: string, format: date-time }
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: RBAC_FORBIDDEN }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+
+  responses:
+    Unauthorized:
+      description: Token ausente/inválido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Ação não permitida para o perfil/ownership
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: Erro de validação de entrada/regra
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ConflictError:
+      description: Conflito de concorrência ou estado inválido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
