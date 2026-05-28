@@ -1,12 +1,12 @@
 # ARCO-ERP (v0)
 
-Status atual: **Sprint 0 concluída na `main` + Sprint 1 em kickoff controlado (pré-implementação)**.
+Status atual: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 em planejamento SPEC-led (sem implementação iniciada)**.
 
 Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 
-## Regras do v0
+## Regra canônica de execução
 
-- A fase **planning-only / no-go implementação** foi superada por decisão executiva registrada.
+- **SPEC é a fonte de verdade.**
 - SAGRADO-PEDIDOS é legado e serve apenas para consulta pontual histórica.
 - Qualquer mudança de escopo deve ser registrada em decisão formal.
 
@@ -14,43 +14,42 @@ Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 
 - `docs/SPEC.md`
 
-## Gate atual
+## Arquivo de retomada da próxima sessão
 
-- `docs/SPEC_REVIEW.md`
-- `docs/DECISION_SPEC_APPROVAL.md`
-- `docs/TEST-AND-RELEASE-GATE.md`
+- `START.md`
 
-## Sprint 0 — escopo implementado (já mergeado na `main`)
+## Estado entregue até agora
 
-- Fundação técnica inicial de domínio:
-  - state machine
-  - RBAC/ownership
-  - reasons de cancelamento/ajuste
-  - testes de domínio
+- Sprint 0: fundação inicial de domínio (state machine, RBAC/ownership, reasons, testes base).
+- Sprint 1: núcleo de documento comercial + hardening inicial + lifecycle/invoicing.
+- Sprint 2: domain hardening & validation layer + refinamento semântico de erro de ajuste.
 
 ## Validações atuais
 
 - `npm run typecheck`: **PASS**
-- `npm run test`: **PASS (16/16)**
+- `npm run test`: **PASS (39/39)**
 
-## Sprint 1 — kickoff autorizado (somente gate)
+## Sprint 3 planejada
 
-- Kickoff da Sprint 1 autorizado em modo controlado.
-- Esta fase **não inicia implementação automaticamente**.
-- Implementação da Sprint 1 depende de comando/gate explícito subsequente.
+Nome: **Sprint 3 — SPEC-Led Domain Foundation Completion**
+
+Direção:
+- fechar lacunas **REQUIRED_BY_SPEC** antes de fluxo operacional mais amplo;
+- evitar hardening genérico e abstrações sem caso real na SPEC.
 
 ## Limites obrigatórios
 
 - `main` protegida.
-- Sem ampliação de escopo além da SPEC v1.
-- Sem merge automático de PR.
+- sem ampliação de escopo fora da SPEC.
+- sem merge automático de PR.
+- sem frontend/camada externa/banco/integrações de legado nesta fase.
 
 ## Próximo gate obrigatório
 
-- Autorizar explicitamente o primeiro slice técnico da Sprint 1 (com escopo e critérios de aceite fechados).
+- Autorizar explicitamente a implementação da Sprint 3 em branch técnica:
+  - `feat/sprint3-spec-led-domain-foundation`
 
-## Rastreabilidade
+## Rastreabilidade recente
 
-- Issue de kickoff: `https://github.com/Replinkrub/REPLINK-ARCO-ERP/issues/1`
-- Branch de implementação inicial (Sprint 0): `feat/sprint0-bootstrap`
-- PR Sprint 0 mergeado: `https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/2`
+- PR Sprint 2 (hardening): `https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/7`
+- PR Sprint 2 (refino semântico): `https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/8`

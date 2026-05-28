@@ -1,13 +1,14 @@
 # Test and Release Gate — ARCO-ERP MVP (pré-código)
 
-Status: **Sprint 1 kickoff controlado (pré-implementação)**
-Objetivo: definir e validar critérios de liberação para execução técnica da Sprint 1 com segurança.
+Status: **Sprints 0, 1 e 2 concluídas + Sprint 3 em planejamento SPEC-led (pré-implementação)**
+Objetivo: manter critérios de liberação e governança para execução técnica por gates explícitos, com foco atual na Sprint 3 SPEC-led.
 
 ## Premissas
 
-- Este documento **não autoriza** implementação direta sem gate explícito do primeiro slice da Sprint 1.
+- Este documento **não autoriza** implementação direta sem gate explícito do ciclo ativo.
 - Gate de execução técnica depende do fechamento dos artefatos derivados da SPEC.
 - SAGRADO-PEDIDOS permanece legado de consulta pontual.
+- Hardening genérico sem requisito explícito da SPEC deve ser evitado.
 
 ## Suíte mínima de validação (documental)
 
@@ -99,3 +100,28 @@ Status do gate: **PASS (kickoff pronto)**
 
 - Kickoff Sprint 1 concluído => **pronto para solicitar gate do primeiro slice de implementação**.
 - Implementação segue bloqueada até decisão formal subsequente em `DECISION_SPEC_APPROVAL.md`.
+
+## Estado factual pós Sprint 2
+
+- Sprint 1 concluída e mergeada na `main` (PRs #4, #5, #6).
+- Sprint 2 concluída e mergeada na `main` (PRs #7 e #8).
+- Validação atual de baseline:
+  - `npm run typecheck` PASS
+  - `npm run test` PASS (39/39)
+
+## Gate Sprint 3 — SPEC-Led Domain Foundation Completion (planejamento)
+
+Status do gate: **PENDING_APPROVAL_FOR_IMPLEMENTATION**
+
+Direção canônica:
+- seguir a SPEC como fonte de verdade;
+- fechar apenas lacunas `REQUIRED_BY_SPEC`;
+- manter escopo local ao domínio/testes;
+- não avançar para fluxo operacional amplo antes da fundação exigida pela SPEC.
+
+Próximo gate obrigatório:
+- Aprovar implementação da Sprint 3 na branch:
+  - `feat/sprint3-spec-led-domain-foundation`
+
+Arquivo de retomada da próxima sessão:
+- `START.md`
