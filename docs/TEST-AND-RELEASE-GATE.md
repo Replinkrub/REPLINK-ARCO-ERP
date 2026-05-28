@@ -1,11 +1,11 @@
 # Test and Release Gate — ARCO-ERP MVP (pré-código)
 
-Status: planning-only  
-Objetivo: definir critérios de validação para liberar execução técnica com segurança.
+Status: **Sprint 1 kickoff controlado (pré-implementação)**
+Objetivo: definir e validar critérios de liberação para execução técnica da Sprint 1 com segurança.
 
 ## Premissas
 
-- Este documento **não autoriza** implementação direta.
+- Este documento **não autoriza** implementação direta sem gate explícito do primeiro slice da Sprint 1.
 - Gate de execução técnica depende do fechamento dos artefatos derivados da SPEC.
 - SAGRADO-PEDIDOS permanece legado de consulta pontual.
 
@@ -51,6 +51,24 @@ Objetivo: definir critérios de validação para liberar execução técnica com
 2. Lista de riscos residuais com owner e prazo.
 3. Registro de decisão final (Go/No-Go) em documento de decisão do projeto.
 
+## Gate Sprint 1 Kickoff (pós-merge Sprint 0)
+
+Status do gate: **PASS (kickoff pronto)**
+
+### Evidências do gate
+
+- Sprint 0 mergeada na `main` via PR `#2`.
+- Validação pós-merge executada:
+  - `npm run typecheck` PASS
+  - `npm run test` PASS (16/16)
+- Documentação de decisão e README alinhadas para o novo estado de fase.
+
+### Limites mantidos
+
+- Kickoff Sprint 1 **não** inicia implementação automaticamente.
+- Início técnico depende de novo gate com escopo do primeiro slice, riscos e critérios de aceite.
+- Sem ampliação de escopo além da SPEC v1.
+
 ## Aprovação interna por artefato (2026-05-28)
 
 | Artefato | Status interno | Evidência resumida |
@@ -75,9 +93,9 @@ Objetivo: definir critérios de validação para liberar execução técnica com
 
 | Risco residual | Severidade | Owner | Prazo |
 |---|---|---|---|
-| Formalizar decisão executiva final de Go/No-Go para implementação | High | Toni + Atlas | 2026-05-30 |
+| Definir e aprovar o primeiro slice técnico da Sprint 1 com rollback e métricas | Medium | Toni + Atlas | 2026-05-30 |
 
 ## Resultado esperado desta fase
 
-- Checklist documental concluído => **GO para solicitar gate de implementação**.
-- Implementação segue bloqueada até decisão formal em `DECISION_SPEC_APPROVAL.md`.
+- Kickoff Sprint 1 concluído => **pronto para solicitar gate do primeiro slice de implementação**.
+- Implementação segue bloqueada até decisão formal subsequente em `DECISION_SPEC_APPROVAL.md`.

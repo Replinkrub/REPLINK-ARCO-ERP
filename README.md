@@ -1,6 +1,6 @@
 # ARCO-ERP (v0)
 
-Status atual: **GO CONTROLADO (Sprint 0) em branch isolada `feat/sprint0-bootstrap`**.
+Status atual: **Sprint 0 concluída na `main` + Sprint 1 em kickoff controlado (pré-implementação)**.
 
 Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 
@@ -18,8 +18,9 @@ Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 
 - `docs/SPEC_REVIEW.md`
 - `docs/DECISION_SPEC_APPROVAL.md`
+- `docs/TEST-AND-RELEASE-GATE.md`
 
-## Sprint 0 — escopo já implementado (na branch `feat/sprint0-bootstrap`)
+## Sprint 0 — escopo implementado (já mergeado na `main`)
 
 - Fundação técnica inicial de domínio:
   - state machine
@@ -32,18 +33,24 @@ Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 - `npm run typecheck`: **PASS**
 - `npm run test`: **PASS (16/16)**
 
+## Sprint 1 — kickoff autorizado (somente gate)
+
+- Kickoff da Sprint 1 autorizado em modo controlado.
+- Esta fase **não inicia implementação automaticamente**.
+- Implementação da Sprint 1 depende de comando/gate explícito subsequente.
+
 ## Limites obrigatórios
 
 - `main` protegida.
-- PR **não** autorizado automaticamente.
-- Merge **não** autorizado.
-- Sprint 1 **não** autorizada.
+- Sem ampliação de escopo além da SPEC v1.
+- Sem merge automático de PR.
 
 ## Próximo gate obrigatório
 
-- Revisão final da Sprint 0 + autorização explícita para abrir PR.
+- Autorizar explicitamente o primeiro slice técnico da Sprint 1 (com escopo e critérios de aceite fechados).
 
 ## Rastreabilidade
 
 - Issue de kickoff: `https://github.com/Replinkrub/REPLINK-ARCO-ERP/issues/1`
-- Branch de implementação inicial: `feat/sprint0-bootstrap`
+- Branch de implementação inicial (Sprint 0): `feat/sprint0-bootstrap`
+- PR Sprint 0 mergeado: `https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/2`
