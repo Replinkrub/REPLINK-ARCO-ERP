@@ -18,3 +18,8 @@ Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 
 - `docs/SPEC_REVIEW.md`
 - `docs/DECISION_SPEC_APPROVAL.md`
+
+## Implementação (iniciada)
+
+- Issue de kickoff: `https://github.com/Replinkrub/REPLINK-ARCO-ERP/issues/1`
+- Branch de implementação inicial: `feat/sprint0-bootstrap`

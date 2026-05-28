@@ -54,9 +54,9 @@ O projeto está pronto para sair de planning e entrar em execução técnica **s
 
 ### Registro da decisão executiva
 
-- `DECISAO_EXECUTIVA:` _pendente_
+- `DECISAO_EXECUTIVA:` GO controlado para início da implementação (Sprint 0)
 - `RESPONSAVEL_DECISAO:` Toni
-- `DATA_DECISAO:` _pendente_
+- `DATA_DECISAO:` 2026-05-28
 
 ## Critérios para virar APPROVED
 
