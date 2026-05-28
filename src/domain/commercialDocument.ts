@@ -83,6 +83,7 @@ export interface AddItemInput {
 export function addItem(document: CommercialDocument, item: AddItemInput): OperationResult {
   const mutation = ensureDraft(document);
   if (mutation) return mutation;
+  if (document.items.some((existing) => existing.id === item.id)) return fail('Item já existe no documento');
   if (item.quantity <= 0) return fail('Quantidade deve ser maior que zero');
   if (item.unitPrice < 0) return fail('Preço unitário não pode ser negativo');
 
