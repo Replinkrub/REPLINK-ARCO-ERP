@@ -1,9 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { addItem, cancelDocument, confirmQuote, createQuote, removeItem, updateItem, type AccessContext } from '../src/index.js';
+import {
+  addItem,
+  adjustConfirmedOrder,
+  cancelDocument,
+  confirmQuote,
+  createQuote,
+  invoiceOrder,
+  registerOutputEvent,
+  removeItem,
+  updateItem,
+  type AccessContext,
+} from '../src/index.js';
 
 const repContext: AccessContext = {
   role: 'REPRESENTANTE',
   actorId: 'rep-1',
+  actorTenantId: 'tenant-1',
+};
+
+const adminContext: AccessContext = {
+  role: 'ADMIN',
+  actorId: 'admin-1',
+  actorTenantId: 'tenant-1',
+};
+
+const ownerContext: AccessContext = {
+  role: 'OWNER',
+  actorId: 'owner-1',
   actorTenantId: 'tenant-1',
 };
 
@@ -165,6 +188,118 @@ describe('commercialDocument core', () => {
       actorTenantId: 'tenant-1',
     });
 
+    expect(result.ok).toBe(false);
+  });
+
+  it('ajuste permitido para ADMIN/OWNER em ORDER_CONFIRMED e mantém status', () => {
+    const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const confirmed = confirmQuote(base, repContext);
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const adjustedByAdmin = adjustConfirmedOrder(
+      confirmed.document,
+      adminContext,
+      'AJUSTE_PRECO',
+      'correção comercial',
+      new Date('2026-01-01T03:00:00.000Z')
+    );
+    expect(adjustedByAdmin.ok).toBe(true);
+    if (!adjustedByAdmin.ok) return;
+    expect(adjustedByAdmin.document.status).toBe('ORDER_CONFIRMED');
+    expect(adjustedByAdmin.document.lifecycleEvents.at(-1)?.type).toBe('ORDER_ADJUSTED');
+
+    const adjustedByOwner = adjustConfirmedOrder(adjustedByAdmin.document, ownerContext, 'AJUSTE_ITEM', 'ajuste final');
+    expect(adjustedByOwner.ok).toBe(true);
+    if (adjustedByOwner.ok) {
+      expect(adjustedByOwner.document.status).toBe('ORDER_CONFIRMED');
+    }
+  });
+
+  it('ajuste negado para REPRESENTANTE', () => {
+    const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const confirmed = confirmQuote(base, repContext);
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const adjusted = adjustConfirmedOrder(confirmed.document, repContext, 'AJUSTE_PRECO', 'tentativa sem permissão');
+    expect(adjusted.ok).toBe(false);
+  });
+
+  it('OUTROS sem observação falha em ajuste', () => {
+    const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const confirmed = confirmQuote(base, repContext);
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const adjusted = adjustConfirmedOrder(confirmed.document, adminContext, 'OUTROS');
+    expect(adjusted.ok).toBe(false);
+  });
+
+  it('faturamento permitido para ADMIN/OWNER em ORDER_CONFIRMED -> INVOICED', () => {
+    const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const confirmed = confirmQuote(base, repContext);
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const invoiceAt = new Date('2026-01-01T04:00:00.000Z');
+    const invoicedByAdmin = invoiceOrder(confirmed.document, adminContext, 'NF-123', invoiceAt);
+    expect(invoicedByAdmin.ok).toBe(true);
+    if (!invoicedByAdmin.ok) return;
+    expect(invoicedByAdmin.document.status).toBe('INVOICED');
+    expect(invoicedByAdmin.document.invoicedAt).toEqual(invoiceAt);
+    expect(invoicedByAdmin.document.invoiceManualReference).toBe('NF-123');
+    expect(invoicedByAdmin.document.lifecycleEvents.at(-1)?.type).toBe('ORDER_INVOICED');
+
+    const secondBase = createQuote({ id: 'doc-2', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const secondConfirmed = confirmQuote(secondBase, repContext);
+    expect(secondConfirmed.ok).toBe(true);
+    if (!secondConfirmed.ok) return;
+
+    const invoicedByOwner = invoiceOrder(secondConfirmed.document, ownerContext);
+    expect(invoicedByOwner.ok).toBe(true);
+    if (invoicedByOwner.ok) {
+      expect(invoicedByOwner.document.status).toBe('INVOICED');
+    }
+  });
+
+  it('faturamento negado para REPRESENTANTE', () => {
+    const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const confirmed = confirmQuote(base, repContext);
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const invoiced = invoiceOrder(confirmed.document, repContext);
+    expect(invoiced.ok).toBe(false);
+  });
+
+  it('output events não alteram status', () => {
+    const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const outputOnDraft = registerOutputEvent(base, repContext, 'SEND_WHATSAPP', 'whatsapp enviado');
+    expect(outputOnDraft.ok).toBe(true);
+    if (!outputOnDraft.ok) return;
+    expect(outputOnDraft.document.status).toBe('QUOTE_DRAFT');
+    expect(outputOnDraft.document.lifecycleEvents.at(-1)?.type).toBe('OUTPUT_EVENT_REGISTERED');
+
+    const confirmed = confirmQuote(outputOnDraft.document, repContext);
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const outputOnConfirmed = registerOutputEvent(confirmed.document, repContext, 'SEND_EMAIL', 'email enviado');
+    expect(outputOnConfirmed.ok).toBe(true);
+    if (outputOnConfirmed.ok) {
+      expect(outputOnConfirmed.document.status).toBe('ORDER_CONFIRMED');
+    }
+  });
+
+  it('bloquear por tenant em operação sensível', () => {
+    const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const confirmed = confirmQuote(base, repContext);
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const wrongTenantAdmin: AccessContext = { role: 'ADMIN', actorId: 'admin-2', actorTenantId: 'tenant-2' };
+    const result = invoiceOrder(confirmed.document, wrongTenantAdmin);
     expect(result.ok).toBe(false);
   });
 });

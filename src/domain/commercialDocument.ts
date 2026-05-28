@@ -1,7 +1,7 @@
 import { canAccessRecord, type AccessContext } from './ownership.js';
-import { validateCancelReason } from './reasons.js';
+import { validateAdjustmentReason, validateCancelReason } from './reasons.js';
 import { applyTransition } from './stateMachine.js';
-import type { CancelReason, CommercialStatus } from './types.js';
+import type { AdjustmentReason, CancelReason, CommercialStatus, OutputEventChannel } from './types.js';
 
 export interface CommercialDocumentItem {
   id: string;
@@ -31,9 +31,24 @@ export interface CommercialDocument {
   createdAt: Date;
   updatedAt: Date;
   confirmedAt?: Date;
+  invoicedAt?: Date;
+  invoiceManualReference?: string;
   canceledAt?: Date;
   cancelReason?: CancelReason;
   cancelNote?: string;
+  lifecycleEvents: CommercialDocumentLifecycleEvent[];
+}
+
+export interface CommercialDocumentLifecycleEvent {
+  type: 'ORDER_ADJUSTED' | 'ORDER_INVOICED' | 'OUTPUT_EVENT_REGISTERED';
+  at: Date;
+  actorId: string;
+  role: AccessContext['role'];
+  reason?: AdjustmentReason;
+  note?: string;
+  manualReference?: string;
+  channel?: OutputEventChannel;
+  event?: string;
 }
 
 interface OperationSuccess {
@@ -68,6 +83,7 @@ export function createQuote(input: CreateQuoteInput): CommercialDocument {
     totals: emptyTotals(),
     createdAt: now,
     updatedAt: now,
+    lifecycleEvents: [],
   };
 }
 
@@ -176,6 +192,71 @@ export function cancelDocument(
   });
 }
 
+export function adjustConfirmedOrder(
+  document: CommercialDocument,
+  actor: AccessContext,
+  reason: AdjustmentReason,
+  note?: string,
+  now = new Date()
+): OperationResult {
+  const access = ensureAccess(document, actor);
+  if (access) return access;
+
+  const reasonValidation = validateAdjustmentReason(reason, note);
+  if (!reasonValidation.valid) return fail(reasonValidation.error ?? 'Motivo inválido');
+
+  const transition = applyTransition({ current: document.status, action: 'ADMIN_ADJUST', role: actor.role });
+  if (!transition.allowed) return fail(transition.reason ?? 'Transição inválida');
+
+  const lifecycleEvents = [...document.lifecycleEvents, buildLifecycleEvent('ORDER_ADJUSTED', actor, now, { reason, note })];
+  return ok({ ...document, status: transition.next, lifecycleEvents, updatedAt: now });
+}
+
+export function invoiceOrder(
+  document: CommercialDocument,
+  actor: AccessContext,
+  manualReference?: string,
+  now = new Date()
+): OperationResult {
+  const access = ensureAccess(document, actor);
+  if (access) return access;
+
+  const transition = applyTransition({ current: document.status, action: 'INVOICE', role: actor.role });
+  if (!transition.allowed) return fail(transition.reason ?? 'Transição inválida');
+
+  const lifecycleEvents = [
+    ...document.lifecycleEvents,
+    buildLifecycleEvent('ORDER_INVOICED', actor, now, { manualReference }),
+  ];
+
+  return ok({
+    ...document,
+    status: transition.next,
+    invoicedAt: now,
+    invoiceManualReference: manualReference,
+    lifecycleEvents,
+    updatedAt: now,
+  });
+}
+
+export function registerOutputEvent(
+  document: CommercialDocument,
+  actor: AccessContext,
+  channel: OutputEventChannel,
+  event: string,
+  now = new Date()
+): OperationResult {
+  const access = ensureAccess(document, actor);
+  if (access) return access;
+
+  const lifecycleEvents = [
+    ...document.lifecycleEvents,
+    buildLifecycleEvent('OUTPUT_EVENT_REGISTERED', actor, now, { channel, event }),
+  ];
+
+  return ok({ ...document, lifecycleEvents, updatedAt: now });
+}
+
 function buildItem(item: AddItemInput): CommercialDocumentItem {
   const discount = item.discount ?? 0;
   if (discount < 0) throw new Error('Desconto não pode ser negativo');
@@ -230,4 +311,19 @@ function ok(document: CommercialDocument): OperationSuccess {
 
 function fail(error: string): OperationFailure {
   return { ok: false, error };
+}
+
+function buildLifecycleEvent(
+  type: CommercialDocumentLifecycleEvent['type'],
+  actor: AccessContext,
+  at: Date,
+  extra?: Partial<CommercialDocumentLifecycleEvent>
+): CommercialDocumentLifecycleEvent {
+  return {
+    type,
+    at,
+    actorId: actor.actorId,
+    role: actor.role,
+    ...extra,
+  };
 }
