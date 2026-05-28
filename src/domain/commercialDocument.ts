@@ -227,7 +227,13 @@ export function adjustConfirmedOrder(
 
   const reasonValidation = validateAdjustmentReason(reason, note);
   if (!reasonValidation.valid) {
-    return fail(document, 'ADMIN_ADJUST', DOMAIN_ERROR_CODES.INVALID_CANCEL_REASON, reasonValidation.error ?? 'Motivo inválido', actor);
+    return fail(
+      document,
+      'ADMIN_ADJUST',
+      DOMAIN_ERROR_CODES.INVALID_ADJUSTMENT_REASON,
+      reasonValidation.error ?? 'Motivo inválido',
+      actor
+    );
   }
 
   const transition = applyTransition({ current: document.status, action: 'ADMIN_ADJUST', role: actor.role });

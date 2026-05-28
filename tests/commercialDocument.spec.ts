@@ -125,12 +125,12 @@ describe('commercialDocument core', () => {
     expectFailureCode(result, DOMAIN_ERROR_CODES.INVALID_CANCEL_REASON);
   });
 
-  it('ajuste OUTROS sem observação retorna INVALID_CANCEL_REASON', () => {
+  it('ajuste OUTROS sem observação retorna INVALID_ADJUSTMENT_REASON', () => {
     const draft = createQuote({ id: 'doc-c2', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
     const confirmed = confirmQuote(draft, repContext);
     if (!confirmed.ok) return;
     const result = adjustConfirmedOrder(confirmed.document, adminContext, 'OUTROS');
-    expectFailureCode(result, DOMAIN_ERROR_CODES.INVALID_CANCEL_REASON);
+    expectFailureCode(result, DOMAIN_ERROR_CODES.INVALID_ADJUSTMENT_REASON);
   });
 
   it('mutação de item em CANCELED gera OPERATION_DENIED + payload mínimo', () => {
