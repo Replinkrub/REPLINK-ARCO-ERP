@@ -3,6 +3,10 @@
 Status: planning-only  
 Perfis oficiais MVP: `ADMIN`, `REPRESENTANTE`
 
+Observação de governança:
+- `OWNER` é perfil administrativo de governança e herda permissões de `ADMIN`.
+- Na matriz abaixo, a coluna `ADMIN` deve ser interpretada como `ADMIN/OWNER`.
+
 ## Regras base
 
 - REPRESENTANTE opera apenas dados da própria carteira comercial.
@@ -63,8 +67,8 @@ Perfis oficiais MVP: `ADMIN`, `REPRESENTANTE`
 
 - `confirmar pedido`: `QUOTE_DRAFT -> ORDER_CONFIRMED`
 - `cancelar orçamento`: `QUOTE_DRAFT -> CANCELED`
-- `cancelar pedido`: `ORDER_CONFIRMED -> CANCELED` (ADMIN)
-- `faturar`: `ORDER_CONFIRMED -> INVOICED` (ADMIN)
+- `cancelar pedido`: `ORDER_CONFIRMED -> CANCELED` (ADMIN/OWNER)
+- `faturar`: `ORDER_CONFIRMED -> INVOICED` (ADMIN/OWNER)
 - `ajuste admin`: `ORDER_CONFIRMED -> ORDER_CONFIRMED` + revisão/evento
 
 ## Definition of Done (RBAC)

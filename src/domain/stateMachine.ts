@@ -1,5 +1,11 @@
 import type { CommercialStatus, Role, TransitionAction } from './types.js';
 
+const ROLES_CAN_CONFIRM_ORDER: ReadonlySet<Role> = new Set(['ADMIN', 'OWNER', 'REPRESENTANTE']);
+const ROLES_CAN_CANCEL_QUOTE: ReadonlySet<Role> = new Set(['ADMIN', 'OWNER', 'REPRESENTANTE']);
+const ROLES_CAN_CANCEL_ORDER_CONFIRMED: ReadonlySet<Role> = new Set(['ADMIN', 'OWNER']);
+const ROLES_CAN_INVOICE: ReadonlySet<Role> = new Set(['ADMIN', 'OWNER']);
+const ROLES_CAN_ADMIN_ADJUST: ReadonlySet<Role> = new Set(['ADMIN', 'OWNER']);
+
 export interface TransitionRequest {
   current: CommercialStatus;
   action: TransitionAction;
@@ -16,6 +22,9 @@ export function applyTransition(input: TransitionRequest): TransitionResult {
   const { current, action, role } = input;
 
   if (action === 'CONFIRM_ORDER') {
+    if (!ROLES_CAN_CONFIRM_ORDER.has(role)) {
+      return deny(current, 'Role sem permissão para confirmar pedido');
+    }
     if (current !== 'QUOTE_DRAFT') {
       return deny(current, 'CONFIRM_ORDER só é permitido em QUOTE_DRAFT');
     }
@@ -23,7 +32,7 @@ export function applyTransition(input: TransitionRequest): TransitionResult {
   }
 
   if (action === 'INVOICE') {
-    if (role !== 'ADMIN' && role !== 'OWNER') {
+    if (!ROLES_CAN_INVOICE.has(role)) {
       return deny(current, 'Apenas ADMIN/OWNER podem faturar');
     }
     if (current !== 'ORDER_CONFIRMED') {
@@ -33,11 +42,15 @@ export function applyTransition(input: TransitionRequest): TransitionResult {
   }
 
   if (action === 'CANCEL') {
+    if (current === 'QUOTE_DRAFT' && !ROLES_CAN_CANCEL_QUOTE.has(role)) {
+      return deny(current, 'Role sem permissão para cancelar QUOTE_DRAFT');
+    }
+
     if (current === 'INVOICED' || current === 'CANCELED') {
       return deny(current, 'Não é permitido cancelar estado final');
     }
 
-    if (current === 'ORDER_CONFIRMED' && role !== 'ADMIN' && role !== 'OWNER') {
+    if (current === 'ORDER_CONFIRMED' && !ROLES_CAN_CANCEL_ORDER_CONFIRMED.has(role)) {
       return deny(current, 'Apenas ADMIN/OWNER podem cancelar ORDER_CONFIRMED');
     }
 
@@ -45,7 +58,7 @@ export function applyTransition(input: TransitionRequest): TransitionResult {
   }
 
   if (action === 'ADMIN_ADJUST') {
-    if (role !== 'ADMIN' && role !== 'OWNER') {
+    if (!ROLES_CAN_ADMIN_ADJUST.has(role)) {
       return deny(current, 'Apenas ADMIN/OWNER podem ajustar pedido');
     }
     if (current !== 'ORDER_CONFIRMED') {
