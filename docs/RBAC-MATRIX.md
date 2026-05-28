@@ -35,7 +35,7 @@ Observação de governança:
 | Pedidos | Visualizar ORDER_CONFIRMED | Allow | Allow | Representante apenas próprios |
 | Pedidos | Editar fora da própria carteira | Allow | Deny | Escopo obrigatório por ownership |
 | Pedidos | Cancelar ORDER_CONFIRMED | Allow | Deny | Motivo obrigatório |
-| Pedidos | Ajuste administrativo | Allow | Deny | Gera `order_revision` + `ORDER_ADJUSTED` |
+| Pedidos | Ajuste administrativo | Allow | Deny | Mantém `ORDER_CONFIRMED` + gera `order_revision` e `lifecycle_event ORDER_ADJUSTED` |
 | Pedidos | Registrar faturamento | Allow | Deny | Transição para `INVOICED` |
 | Comunicação | Registrar output_event | Allow | Allow | Nunca altera estado comercial |
 | Relatórios | Visualizar 8 relatórios MVP | Allow | Allow | Recorte obrigatório por tenant_id + representante_id para REPRESENTANTE |

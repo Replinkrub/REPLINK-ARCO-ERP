@@ -15,6 +15,12 @@ describe('state machine', () => {
     expect(result.next).toBe('ORDER_CONFIRMED');
   });
 
+  it('permite confirmação para OWNER em QUOTE_DRAFT', () => {
+    const result = applyTransition({ current: 'QUOTE_DRAFT', action: 'CONFIRM_ORDER', role: 'OWNER' });
+    expect(result.allowed).toBe(true);
+    expect(result.next).toBe('ORDER_CONFIRMED');
+  });
+
   it('nega confirmação para role sem permissão (deny-by-default)', () => {
     const result = applyTransition({ current: 'QUOTE_DRAFT', action: 'CONFIRM_ORDER', role: 'GESTOR_COMERCIAL' });
     expect(result.allowed).toBe(false);
@@ -40,6 +46,17 @@ describe('state machine', () => {
     const result = applyTransition({ current: 'ORDER_CONFIRMED', action: 'INVOICE', role: 'REPRESENTANTE' });
     expect(result.allowed).toBe(false);
     expect(result.next).toBe('ORDER_CONFIRMED');
+    expect(result.reason).toContain('ADMIN/OWNER');
+  });
+
+  it('nega faturamento para perfis sem permissão fora do MVP', () => {
+    const managerResult = applyTransition({ current: 'ORDER_CONFIRMED', action: 'INVOICE', role: 'GESTOR_COMERCIAL' });
+    const supportResult = applyTransition({ current: 'ORDER_CONFIRMED', action: 'INVOICE', role: 'SUPORTE_OPERACAO' });
+
+    expect(managerResult.allowed).toBe(false);
+    expect(managerResult.next).toBe('ORDER_CONFIRMED');
+    expect(supportResult.allowed).toBe(false);
+    expect(supportResult.next).toBe('ORDER_CONFIRMED');
   });
 
   it('permite faturamento para ADMIN e OWNER', () => {
@@ -81,6 +98,16 @@ describe('state machine', () => {
     const result = applyTransition({ current: 'ORDER_CONFIRMED', action: 'ADMIN_ADJUST', role: 'REPRESENTANTE' });
     expect(result.allowed).toBe(false);
     expect(result.next).toBe('ORDER_CONFIRMED');
+  });
+
+  it('nega ADMIN_ADJUST para perfis sem permissão fora do MVP', () => {
+    const managerResult = applyTransition({ current: 'ORDER_CONFIRMED', action: 'ADMIN_ADJUST', role: 'GESTOR_COMERCIAL' });
+    const supportResult = applyTransition({ current: 'ORDER_CONFIRMED', action: 'ADMIN_ADJUST', role: 'SUPORTE_OPERACAO' });
+
+    expect(managerResult.allowed).toBe(false);
+    expect(managerResult.next).toBe('ORDER_CONFIRMED');
+    expect(supportResult.allowed).toBe(false);
+    expect(supportResult.next).toBe('ORDER_CONFIRMED');
   });
 
   it('permite ADMIN_ADJUST para ADMIN/OWNER mantendo ORDER_CONFIRMED', () => {
