@@ -2,7 +2,13 @@ import { canAccessRecord, type AccessContext } from './ownership.js';
 import { DOMAIN_ERROR_CODES } from './validation.js';
 import { validateAdjustmentReason, validateCancelReason } from './reasons.js';
 import { applyTransition } from './stateMachine.js';
-import type { AdjustmentReason, CancelReason, CommercialStatus, OutputEventChannel } from './types.js';
+import type {
+  AdjustmentReason,
+  CancelReason,
+  CommercialDocumentType,
+  CommercialStatus,
+  OutputEventChannel,
+} from './types.js';
 import { domainError, failure, success, type DomainEvent, type DomainResult } from './validation.js';
 
 export interface CommercialDocumentItem {
@@ -22,8 +28,40 @@ export interface CommercialDocumentTotals {
   total: number;
 }
 
+export interface CommercialDocumentSourceItemSnapshot {
+  id?: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discount?: number;
+  total: number;
+}
+
+export interface CommercialDocumentSourceTotalsSnapshot {
+  subtotal: number;
+  discountTotal?: number;
+  tax?: number;
+  freight?: number;
+  fees?: number;
+  total: number;
+}
+
+export interface CommercialDocumentSourceQuoteSnapshot {
+  source_quote_id: string;
+  source_quote_number: string;
+  source_quote_revision?: string | number;
+  customerId?: string;
+  ownerId: string;
+  representativeId: string;
+  converted_at: Date;
+  items: CommercialDocumentSourceItemSnapshot[];
+  totals: CommercialDocumentSourceTotalsSnapshot;
+}
+
 export interface CommercialDocument {
   id: string;
+  documentType: CommercialDocumentType;
+  number: string;
   tenantId: string;
   ownerId: string;
   representativeId: string;
@@ -35,6 +73,11 @@ export interface CommercialDocument {
   confirmedAt?: Date;
   invoicedAt?: Date;
   invoiceManualReference?: string;
+  source_quote_id?: string;
+  source_quote_number?: string;
+  source_quote_revision?: string | number;
+  converted_at?: Date;
+  sourceQuoteSnapshot?: CommercialDocumentSourceQuoteSnapshot;
   canceledAt?: Date;
   cancelReason?: CancelReason;
   cancelNote?: string;
@@ -59,13 +102,65 @@ export interface CreateQuoteInput {
   tenantId: string;
   ownerId: string;
   representativeId: string;
+  numberSequence?: number;
   now?: Date;
+}
+
+export interface GenerateCommercialDocumentNumberInput {
+  type: CommercialDocumentType;
+  sequence: number;
+}
+
+const DOCUMENT_PREFIX: Record<CommercialDocumentType, 'ORC' | 'PED'> = {
+  quote: 'ORC',
+  order: 'PED',
+};
+
+const DOCUMENT_NUMBER_REGEX = /^(ORC|PED)-(\d{6})$/;
+
+export function generateCommercialDocumentNumber(input: GenerateCommercialDocumentNumberInput): string {
+  if (!Number.isInteger(input.sequence) || input.sequence <= 0) {
+    throw new Error('Sequence must be a positive integer');
+  }
+
+  const prefix = DOCUMENT_PREFIX[input.type];
+  return `${prefix}-${String(input.sequence).padStart(6, '0')}`;
+}
+
+export function validateCommercialDocumentNumber(number: string, type: CommercialDocumentType): DomainResult<string> {
+  const parsed = DOCUMENT_NUMBER_REGEX.exec(number);
+  if (!parsed) {
+    return {
+      ok: false,
+      error: domainError(DOMAIN_ERROR_CODES.INVALID_DOCUMENT_NUMBER_FORMAT, 'Número deve seguir o formato ORC-000001/PED-000001'),
+      events: [],
+    };
+  }
+
+  const expectedPrefix = DOCUMENT_PREFIX[type];
+  const receivedPrefix = parsed[1];
+  if (expectedPrefix !== receivedPrefix) {
+    return {
+      ok: false,
+      error: domainError(
+        DOMAIN_ERROR_CODES.INVALID_DOCUMENT_NUMBER_TYPE,
+        `Número ${number} incompatível com tipo ${type}`,
+        { expectedPrefix, receivedPrefix }
+      ),
+      events: [],
+    };
+  }
+
+  return success(number);
 }
 
 export function createQuote(input: CreateQuoteInput): CommercialDocument {
   const now = input.now ?? new Date();
+  const number = generateCommercialDocumentNumber({ type: 'quote', sequence: input.numberSequence ?? 1 });
   return {
     id: input.id,
+    documentType: 'quote',
+    number,
     tenantId: input.tenantId,
     ownerId: input.ownerId,
     representativeId: input.representativeId,
@@ -76,6 +171,109 @@ export function createQuote(input: CreateQuoteInput): CommercialDocument {
     updatedAt: now,
     lifecycleEvents: [],
   };
+}
+
+export function convertQuoteToOrder(
+  quote: CommercialDocument,
+  orderSequence: number,
+  now = new Date()
+): DomainResult<CommercialDocument> {
+  if (quote.documentType === 'order' || quote.status === 'ORDER_CONFIRMED') {
+    return failure({
+      code: DOMAIN_ERROR_CODES.DOCUMENT_ALREADY_CONFIRMED,
+      message: 'Documento já confirmado',
+      at: now,
+      operation: 'CONFIRM_ORDER',
+      tenantId: quote.tenantId,
+      documentId: quote.id,
+      currentStatus: quote.status,
+      withDeniedEvent: true,
+    });
+  }
+
+  if (quote.documentType !== 'quote') {
+    return failure({
+      code: DOMAIN_ERROR_CODES.INVALID_DOCUMENT_NUMBER_TYPE,
+      message: 'Apenas quote pode ser convertido para order',
+      at: now,
+      operation: 'CONFIRM_ORDER',
+      tenantId: quote.tenantId,
+      documentId: quote.id,
+      currentStatus: quote.status,
+    });
+  }
+
+  if (quote.status !== 'QUOTE_DRAFT') {
+    return failure({
+      code: DOMAIN_ERROR_CODES.INVALID_DOCUMENT_STATE,
+      message: 'Somente quote em QUOTE_DRAFT pode ser convertido para order',
+      at: now,
+      operation: 'CONFIRM_ORDER',
+      tenantId: quote.tenantId,
+      documentId: quote.id,
+      currentStatus: quote.status,
+    });
+  }
+
+  const orderNumber = generateCommercialDocumentNumber({ type: 'order', sequence: orderSequence });
+  const sourceQuoteSnapshot = buildSourceQuoteSnapshot(quote, now);
+  return success({
+    ...quote,
+    documentType: 'order',
+    number: orderNumber,
+    source_quote_id: quote.id,
+    source_quote_number: quote.number,
+    source_quote_revision: sourceQuoteSnapshot.source_quote_revision,
+    converted_at: now,
+    sourceQuoteSnapshot,
+    status: 'ORDER_CONFIRMED',
+    confirmedAt: now,
+    updatedAt: now,
+  });
+}
+
+function buildSourceQuoteSnapshot(quote: CommercialDocument, convertedAt: Date): CommercialDocumentSourceQuoteSnapshot {
+  const rawQuote = quote as CommercialDocument & Record<string, unknown>;
+  const rawTotals = quote.totals as CommercialDocumentTotals & Record<string, unknown>;
+
+  const snapshot: CommercialDocumentSourceQuoteSnapshot = {
+    source_quote_id: quote.id,
+    source_quote_number: quote.number,
+    ownerId: quote.ownerId,
+    representativeId: quote.representativeId,
+    converted_at: new Date(convertedAt),
+    items: quote.items.map((item) => ({
+      ...(item.id ? { id: item.id } : {}),
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      ...(item.discount !== undefined ? { discount: item.discount } : {}),
+      total: item.total,
+    })),
+    totals: {
+      subtotal: quote.totals.subtotal,
+      ...(quote.totals.discountTotal !== undefined ? { discountTotal: quote.totals.discountTotal } : {}),
+      ...pickOptionalNumber(rawTotals, 'tax'),
+      ...pickOptionalNumber(rawTotals, 'freight'),
+      ...pickOptionalNumber(rawTotals, 'fees'),
+      total: quote.totals.total,
+    },
+  };
+
+  if ('source_quote_revision' in rawQuote && (typeof rawQuote.source_quote_revision === 'string' || typeof rawQuote.source_quote_revision === 'number')) {
+    snapshot.source_quote_revision = rawQuote.source_quote_revision;
+  }
+
+  if ('customerId' in rawQuote && typeof rawQuote.customerId === 'string') {
+    snapshot.customerId = rawQuote.customerId;
+  }
+
+  return snapshot;
+}
+
+function pickOptionalNumber(source: Record<string, unknown>, key: 'tax' | 'freight' | 'fees'): Partial<Record<'tax' | 'freight' | 'fees', number>> {
+  const value = source[key];
+  return typeof value === 'number' ? { [key]: value } : {};
 }
 
 export interface AddItemInput {

@@ -1,5 +1,7 @@
 export type CommercialStatus = 'QUOTE_DRAFT' | 'ORDER_CONFIRMED' | 'INVOICED' | 'CANCELED';
 
+export type CommercialDocumentType = 'quote' | 'order';
+
 export type Role = 'ADMIN' | 'REPRESENTANTE' | 'OWNER' | 'GESTOR_COMERCIAL' | 'SUPORTE_OPERACAO';
 
 export type OutputEventChannel =

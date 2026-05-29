@@ -5,7 +5,9 @@ import {
   adjustConfirmedOrder,
   cancelDocument,
   confirmQuote,
+  convertQuoteToOrder,
   createQuote,
+  generateCommercialDocumentNumber,
   invoiceOrder,
   registerOutputEvent,
   removeItem,
@@ -251,5 +253,109 @@ describe('commercialDocument core', () => {
     const outputOnDraft = registerOutputEvent(base, repContext, 'SEND_WHATSAPP', 'whatsapp enviado');
     expect(outputOnDraft.ok).toBe(true);
     if (outputOnDraft.ok) expect(outputOnDraft.document.status).toBe('QUOTE_DRAFT');
+  });
+
+  it('determinismo: mesmo tipo + sequência => mesmo número', () => {
+    expect(generateCommercialDocumentNumber({ type: 'quote', sequence: 7 })).toBe('ORC-000007');
+    expect(generateCommercialDocumentNumber({ type: 'quote', sequence: 7 })).toBe('ORC-000007');
+    expect(generateCommercialDocumentNumber({ type: 'order', sequence: 7 })).toBe('PED-000007');
+  });
+
+  it('conversão quote→order gera PED novo sem reaproveitar ORC', () => {
+    const quote = createQuote({
+      id: 'doc-conv',
+      tenantId: 'tenant-1',
+      ownerId: 'owner-1',
+      representativeId: 'rep-1',
+      numberSequence: 31,
+    });
+    expect(quote.number).toBe('ORC-000031');
+
+    const converted = convertQuoteToOrder(quote, 77);
+    expect(converted.ok).toBe(true);
+    if (!converted.ok) return;
+
+    expect(converted.document.documentType).toBe('order');
+    expect(converted.document.number).toBe('PED-000077');
+    expect(converted.document.number).not.toBe(quote.number);
+    expect(converted.document.source_quote_id).toBe('doc-conv');
+    expect(converted.document.source_quote_number).toBe('ORC-000031');
+    expect(converted.document.sourceQuoteSnapshot).toMatchObject({
+      source_quote_id: 'doc-conv',
+      source_quote_number: 'ORC-000031',
+      ownerId: 'owner-1',
+      representativeId: 'rep-1',
+      totals: { subtotal: 0, discountTotal: 0, total: 0 },
+      items: [],
+    });
+  });
+
+  it('quote cancelado não converte para order', () => {
+    const quote = createQuote({ id: 'doc-canceled', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const canceled = cancelDocument(quote, repContext, 'CLIENTE_DESISTIU');
+    if (!canceled.ok) return;
+
+    const converted = convertQuoteToOrder(canceled.document, 90);
+    expect(converted.ok).toBe(false);
+    if (!converted.ok) {
+      expect(converted.error.code).toBe(DOMAIN_ERROR_CODES.INVALID_DOCUMENT_STATE);
+    }
+  });
+
+  it('snapshot do quote é imutável após conversão', () => {
+    const base = createQuote({ id: 'doc-immut', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const withItem = addItem(base, {
+      id: 'i1',
+      sku: 'SKU-1',
+      description: 'Item base',
+      quantity: 2,
+      unitPrice: 100,
+      discount: 10,
+    });
+    if (!withItem.ok) return;
+
+    const converted = convertQuoteToOrder(withItem.document, 88);
+    if (!converted.ok) return;
+
+    const originalSnapshot = converted.document.sourceQuoteSnapshot;
+    expect(originalSnapshot?.items[0]).toMatchObject({
+      id: 'i1',
+      description: 'Item base',
+      quantity: 2,
+      unitPrice: 100,
+      discount: 10,
+      total: 190,
+    });
+
+    const mutatedQuote = updateItem(withItem.document, 'i1', { quantity: 10, discount: 0 });
+    if (!mutatedQuote.ok) return;
+
+    expect(mutatedQuote.document.items[0]?.total).toBe(1000);
+    expect(converted.document.sourceQuoteSnapshot).toEqual(originalSnapshot);
+    expect(converted.document.sourceQuoteSnapshot?.items[0]?.total).toBe(190);
+  });
+
+  it('dupla conversão bloqueia com DOCUMENT_ALREADY_CONFIRMED sem duplicar pedido/evento', () => {
+    const quote = createQuote({ id: 'doc-double', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const first = convertQuoteToOrder(quote, 90);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const second = convertQuoteToOrder(first.document, 91);
+    expect(second.ok).toBe(false);
+    if (!second.ok) {
+      expect(second.error.code).toBe(DOMAIN_ERROR_CODES.DOCUMENT_ALREADY_CONFIRMED);
+      expect(second.events).toHaveLength(1);
+      expect(second.events[0]?.type).toBe('OPERATION_DENIED');
+      expect(second.events[0]?.payload).toMatchObject({
+        operation: 'CONFIRM_ORDER',
+        documentId: 'doc-double',
+        tenantId: 'tenant-1',
+        code: DOMAIN_ERROR_CODES.DOCUMENT_ALREADY_CONFIRMED,
+      });
+    }
+
+    expect(first.document.number).toBe('PED-000090');
+    expect(first.document.source_quote_number).toBe('ORC-000001');
   });
 });
