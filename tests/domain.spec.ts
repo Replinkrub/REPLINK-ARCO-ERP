@@ -4,8 +4,10 @@ import {
   canAccessRecord,
   canChangeOwnership,
   canDeleteCommercialRecord,
+  validateCommercialDocumentNumber,
   validateAdjustmentReason,
   validateCancelReason,
+  DOMAIN_ERROR_CODES,
 } from '../src/index.js';
 
 describe('state machine', () => {
@@ -150,5 +152,19 @@ describe('reason validation', () => {
     expect(validateAdjustmentReason('OUTROS').valid).toBe(false);
     expect(validateCancelReason('OUTROS', 'detalhe').valid).toBe(true);
     expect(validateAdjustmentReason('OUTROS', 'detalhe').valid).toBe(true);
+  });
+});
+
+describe('commercial document numbering', () => {
+  it('rejeita prefixo/tipo incompatível', () => {
+    const result = validateCommercialDocumentNumber('ORC-000123', 'order');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(DOMAIN_ERROR_CODES.INVALID_DOCUMENT_NUMBER_TYPE);
+  });
+
+  it('rejeita formato inválido', () => {
+    const result = validateCommercialDocumentNumber('PED-123', 'order');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe(DOMAIN_ERROR_CODES.INVALID_DOCUMENT_NUMBER_FORMAT);
   });
 });
