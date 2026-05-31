@@ -3,16 +3,16 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: Sprint 3 em execução (Slices 1, 2, 3 e 4 concluídos)
+- Estado: Sprint 3 concluída localmente na branch (Slices 1, 2, 3, 4 e 5 concluídos; aguardando decisão operacional de push/PR)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Main: sincronizada com origin/main após merge do PR #10
 - Typecheck: PASS
 - Tests: PASS — 50/50
-- Próximo trabalho: Sprint 3 — Slice 5 (atualização documental final da sprint)
+- Trabalho atual: pós-fechamento da Sprint 3 (consolidação final da sessão)
 
-## Checkpoint da sessão (2026-05-29)
+## Checkpoint da sessão (2026-05-31)
 
 - PR mergeado: `#10` — `feat(sprint3): establish spec-led domain foundation slices 1+2`
 - Commit base da entrega: `9bac840`
@@ -21,9 +21,10 @@
   - Slice 1: numeração canônica ORC/PED + validações de formato/prefixo/tipo + testes
   - Slice 2: conversão quote→order com `source_quote_id`, `source_quote_number`, snapshot mínimo imutável + testes
   - Hotfix de gate: bloqueio de conversão para status diferente de `QUOTE_DRAFT`
-- Escopo não entregue nesta sessão:
-  - Slice 4 (output_events vs lifecycle_events)
-  - Slice 5 (atualização documental final da sprint)
+- Escopo posterior entregue localmente na branch de trabalho:
+  - Slice 3: ajuste administrativo (order_revision + ORDER_ADJUSTED)
+  - Slice 4: output_events vs lifecycle_events
+  - Slice 5: fechamento documental e gate final da Sprint 3
 
 ## Decisão canônica
 
@@ -65,9 +66,9 @@ Lacunas REQUIRED_BY_SPEC (status):
 - contrato canônico de negação/conflito para confirmação duplicada
 - sem modelagem distribuída/lock avançado nesta fase
 
-6. Documentação de gate — ⏳ pendente (fechamento final da sprint)
-- atualizar estado real pós Sprint 2
-- manter rastreabilidade com SPEC
+6. Documentação de gate — ✅ concluído
+- atualizar estado real pós Slices 1-4
+- manter rastreabilidade com SPEC e baseline de validação atual
 
 ## Escopo permitido da Sprint 3
 
@@ -114,8 +115,16 @@ order_revision explícito no ajuste administrativo + testes.
 Slice 4: ✅ concluído
 Separação output_events vs lifecycle_events + testes de regressão.
 
-Slice 5: ⏳ pendente
-Atualização documental final e checklist anti-overengineering.
+Slice 5: ✅ concluído
+Atualização documental final, baseline factual de validação e checklist anti-overengineering aplicado.
+
+## Checklist anti-overengineering aplicado no fechamento (Slice 5)
+
+- [x] Item alterado está explícito na SPEC/Addendum/RBAC.
+- [x] Mudança protege regra comercial central (sem ampliar escopo).
+- [x] Mantido escopo documental; sem tocar código/testes/scripts.
+- [x] Rastreabilidade entre `START.md`, `README.md`, `docs/TEST-AND-RELEASE-GATE.md` e `docs/DECISION_SPEC_APPROVAL.md`.
+- [x] Nenhuma proposta de Slice 6 (não existe canonicamente nesta sprint).
 
 ## Stash técnico preservado
 
@@ -137,9 +146,7 @@ git status -sb
 npm run typecheck
 npm run test
 
-Depois abrir branch técnica da continuidade da Sprint 3:
-
-git switch -c feat/sprint3-slice4-output-events
+Se houver continuidade pós-gate, manter na branch atual de Sprint 3 (sem abrir Slice 6 sem decisão formal).
 
 Depois ler:
 
@@ -155,8 +162,4 @@ Depois ler:
 
 ## Gate seguinte
 
-Autorizar implementação do Slice 4 em branch técnica:
-
-feat/sprint3-slice4-output-events
-
-Não implementar antes desse gate.
+Sprint 3 finalizada localmente. Próxima decisão operacional: push/PR da sessão completa quando autorizado.

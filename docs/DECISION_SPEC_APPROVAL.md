@@ -1,7 +1,7 @@
 # DECISION — SPEC Approval Gate (ARCO-ERP v0)
 
 Data: 2026-05-28
-Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 planejada em modo SPEC-led (sem implementação iniciada)**
+Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 com Slices 1-5 concluídos localmente na branch**
 
 ## Decisão canônica registrada
 
@@ -9,8 +9,9 @@ Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 planejada em modo SP
 - A implementação inicial da fundação de domínio foi executada na branch `feat/sprint0-bootstrap` e mergeada na `main` via PR #2.
 - Sprint 1 foi concluída e mergeada na `main` (PRs #4, #5, #6).
 - Sprint 2 foi concluída e mergeada na `main` (PRs #7 e #8).
-- O próximo ciclo autorizado é **Sprint 3 — SPEC-Led Domain Foundation Completion**, ainda em planejamento.
-- Este gate **não autoriza automaticamente** implementação de código da Sprint 3.
+- O ciclo autorizado é **Sprint 3 — SPEC-Led Domain Foundation Completion**.
+- Slices 1-4 da Sprint 3 foram concluídos localmente na branch de trabalho.
+- Slice 5 (fechamento documental e gate final da Sprint 3) foi concluído localmente.
 - Este gate **não autoriza automaticamente** merge de futuros PRs.
 
 ## Escopo entregue até o último gate
@@ -22,29 +23,28 @@ Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 planejada em modo SP
 ## Validações do checkpoint
 
 - `npm run typecheck`: **PASS**
-- `npm run test`: **PASS (39/39)**
+- `npm run test`: **PASS (50/50)**
 - PRs relevantes mergeados: **#2, #4, #5, #6, #7, #8**
 
 ## Limites obrigatórios
 
 - `main` protegida.
 - Sem ampliação de escopo além da SPEC v1.
-- Kickoff da Sprint 3 não implica início automático de implementação.
+- Fechamento do Slice 5 não implica abertura automática de novo slice.
 - Merge de futuros PRs continua dependente de aprovação explícita.
 - Evitar hardening genérico/abstrações sem requisito objetivo da SPEC.
 
 ## Próximo gate obrigatório
 
-- Autorizar explicitamente o primeiro slice técnico da Sprint 3 em branch:
-  - `feat/sprint3-spec-led-domain-foundation`
-  - escopo restrito a lacunas `REQUIRED_BY_SPEC`, testáveis e locais ao domínio.
+- Registrar decisão operacional de push/PR da sessão completa após revisão final.
+- Não há Slice 6 canônico nesta sprint sem nova decisão formal.
 
 ## Histórico de decisão executiva
 
 - `DECISAO_EXECUTIVA:` GO controlado para início da implementação (Sprint 0)
 - `RESPONSAVEL_DECISAO:` Toni
 - `DATA_DECISAO:` 2026-05-28
-- `ATUALIZACAO_GATE:` Sprint 2 concluída + Sprint 3 planejada como SPEC-Led Domain Foundation Completion
+- `ATUALIZACAO_GATE:` Sprint 3 com Slices 1-5 concluídos localmente (fechamento documental finalizado)
 - `PRS_REFERENCIA:`
   - https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/2
   - https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/4
