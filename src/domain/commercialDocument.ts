@@ -82,6 +82,7 @@ export interface CommercialDocument {
   cancelReason?: CancelReason;
   cancelNote?: string;
   lifecycleEvents: CommercialDocumentLifecycleEvent[];
+  orderRevisions: CommercialDocumentOrderRevision[];
 }
 
 export interface CommercialDocumentLifecycleEvent {
@@ -91,9 +92,31 @@ export interface CommercialDocumentLifecycleEvent {
   role: AccessContext['role'];
   reason?: AdjustmentReason;
   note?: string;
+  revisionNumber?: number;
   manualReference?: string;
   channel?: OutputEventChannel;
   event?: string;
+}
+
+export interface CommercialDocumentOrderRevisionPayload {
+  status: CommercialStatus;
+  items: CommercialDocumentItem[];
+  totals: CommercialDocumentTotals;
+}
+
+export interface CommercialDocumentOrderRevision {
+  revisionNumber: number;
+  reason: AdjustmentReason;
+  note?: string;
+  createdAt: Date;
+  createdBy: string;
+  beforePayload: CommercialDocumentOrderRevisionPayload;
+  afterPayload: CommercialDocumentOrderRevisionPayload;
+}
+
+export interface CommercialDocumentAdminAdjustmentChanges {
+  items?: CommercialDocumentItem[];
+  totals?: Partial<CommercialDocumentTotals>;
 }
 export type OperationResult = DomainResult<CommercialDocument>;
 
@@ -170,6 +193,7 @@ export function createQuote(input: CreateQuoteInput): CommercialDocument {
     createdAt: now,
     updatedAt: now,
     lifecycleEvents: [],
+    orderRevisions: [],
   };
 }
 
@@ -418,6 +442,7 @@ export function adjustConfirmedOrder(
   actor: AccessContext,
   reason: AdjustmentReason,
   note?: string,
+  changes?: CommercialDocumentAdminAdjustmentChanges,
   now = new Date()
 ): OperationResult {
   const access = ensureAccess(document, actor, 'ADMIN_ADJUST');
@@ -439,9 +464,34 @@ export function adjustConfirmedOrder(
     return operationDeniedTransition(document, actor, 'ADMIN_ADJUST', transition.reason ?? 'Transição inválida', 'INVALID_DOCUMENT_STATE');
   }
 
-  const lifecycleEvent = buildLifecycleEvent('ORDER_ADJUSTED', actor, now, { reason, note });
-  const lifecycleEvents = [...document.lifecycleEvents, lifecycleEvent];
-  return ok({ ...document, status: transition.next, lifecycleEvents, updatedAt: now }, [toDomainEvent(lifecycleEvent)]);
+  const beforePayload = buildOrderRevisionPayload(document);
+  const adjustedDocument = applyAdminAdjustmentChanges(document, changes, transition.next, now);
+  const afterPayload = buildOrderRevisionPayload(adjustedDocument);
+
+  if (sameOrderRevisionPayload(beforePayload, afterPayload)) {
+    return fail(
+      document,
+      'ADMIN_ADJUST',
+      DOMAIN_ERROR_CODES.INVALID_ADJUSTMENT_REASON,
+      'Ajuste administrativo sem alteração efetiva',
+      actor,
+      true
+    );
+  }
+
+  const nextRevisionNumber = getNextOrderRevisionNumber(document.orderRevisions);
+  const revision = buildOrderRevision(actor, reason, note, nextRevisionNumber, now, beforePayload, afterPayload);
+
+  const lifecycleEvent = buildLifecycleEvent('ORDER_ADJUSTED', actor, now, { reason, note, revisionNumber: nextRevisionNumber });
+  const lifecycleEvents = [...adjustedDocument.lifecycleEvents, lifecycleEvent];
+  return ok(
+    {
+      ...adjustedDocument,
+      lifecycleEvents,
+      orderRevisions: [...adjustedDocument.orderRevisions, revision],
+    },
+    [toDomainEvent(lifecycleEvent)]
+  );
 }
 
 export function invoiceOrder(
@@ -642,9 +692,71 @@ function toDomainEvent(event: CommercialDocumentLifecycleEvent): DomainEvent {
       role: event.role,
       reason: event.reason,
       note: event.note,
+      revisionNumber: event.revisionNumber,
       manualReference: event.manualReference,
       channel: event.channel,
       event: event.event,
     },
+  };
+}
+
+function buildOrderRevision(
+  actor: AccessContext,
+  reason: AdjustmentReason,
+  note: string | undefined,
+  revisionNumber: number,
+  createdAt: Date,
+  beforePayload: CommercialDocumentOrderRevisionPayload,
+  afterPayload: CommercialDocumentOrderRevisionPayload
+): CommercialDocumentOrderRevision {
+  return {
+    revisionNumber,
+    reason,
+    note,
+    createdAt,
+    createdBy: actor.actorId,
+    beforePayload,
+    afterPayload,
+  };
+}
+
+function applyAdminAdjustmentChanges(
+  document: CommercialDocument,
+  changes: CommercialDocumentAdminAdjustmentChanges | undefined,
+  nextStatus: CommercialStatus,
+  updatedAt: Date
+): CommercialDocument {
+  const nextItems = changes?.items
+    ? changes.items.map((item) => ({ ...item }))
+    : document.items.map((item) => ({ ...item }));
+
+  const nextTotals = changes?.totals ? { ...document.totals, ...changes.totals } : { ...document.totals };
+
+  return {
+    ...document,
+    status: nextStatus,
+    items: nextItems,
+    totals: nextTotals,
+    updatedAt,
+  };
+}
+
+function sameOrderRevisionPayload(
+  left: CommercialDocumentOrderRevisionPayload,
+  right: CommercialDocumentOrderRevisionPayload
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function getNextOrderRevisionNumber(revisions: CommercialDocumentOrderRevision[]): number {
+  const maxRevision = revisions.reduce((max, revision) => Math.max(max, revision.revisionNumber), 0);
+  return maxRevision + 1;
+}
+
+function buildOrderRevisionPayload(document: CommercialDocument): CommercialDocumentOrderRevisionPayload {
+  return {
+    status: document.status,
+    items: document.items.map((item) => ({ ...item })),
+    totals: { ...document.totals },
   };
 }

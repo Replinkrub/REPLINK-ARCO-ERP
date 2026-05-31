@@ -221,12 +221,85 @@ describe('commercialDocument core', () => {
     const base = createQuote({ id: 'doc-aj', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
     const confirmed = confirmQuote(base, repContext);
     if (!confirmed.ok) return;
-    const byAdmin = adjustConfirmedOrder(confirmed.document, adminContext, 'AJUSTE_PRECO', 'ok');
+    const byAdmin = adjustConfirmedOrder(
+      confirmed.document,
+      adminContext,
+      'AJUSTE_PRECO',
+      'ok',
+      {
+        items: [
+          {
+            id: 'rev-1',
+            sku: 'SKU-REV-1',
+            description: 'Item revisado',
+            quantity: 2,
+            unitPrice: 50,
+            discount: 10,
+            total: 90,
+          },
+        ],
+        totals: { itemsCount: 1, subtotal: 100, discountTotal: 10, total: 90 },
+      }
+    );
     expect(byAdmin.ok).toBe(true);
     if (!byAdmin.ok) return;
     expect(byAdmin.document.status).toBe('ORDER_CONFIRMED');
-    const byOwner = adjustConfirmedOrder(byAdmin.document, ownerContext, 'AJUSTE_ITEM', 'ok2');
+    expect(byAdmin.document.totals.total).toBe(90);
+    expect(byAdmin.document.orderRevisions).toHaveLength(1);
+    expect(byAdmin.document.orderRevisions[0]).toMatchObject({
+      revisionNumber: 1,
+      reason: 'AJUSTE_PRECO',
+      note: 'ok',
+      createdBy: 'admin-1',
+      beforePayload: { status: 'ORDER_CONFIRMED' },
+      afterPayload: { status: 'ORDER_CONFIRMED', totals: { total: 90 }, items: [{ id: 'rev-1' }] },
+    });
+    expect(byAdmin.document.orderRevisions[0]?.beforePayload.totals.total).toBe(0);
+    expect(byAdmin.document.orderRevisions[0]?.afterPayload.totals.total).toBe(90);
+    expect(byAdmin.document.lifecycleEvents.at(-1)).toMatchObject({
+      type: 'ORDER_ADJUSTED',
+      reason: 'AJUSTE_PRECO',
+      revisionNumber: 1,
+    });
+    expect(byAdmin.events.at(-1)?.payload).toMatchObject({
+      reason: 'AJUSTE_PRECO',
+      revisionNumber: 1,
+      actorId: 'admin-1',
+    });
+
+    const byOwner = adjustConfirmedOrder(
+      byAdmin.document,
+      ownerContext,
+      'AJUSTE_ITEM',
+      'ok2',
+      {
+        items: [
+          {
+            id: 'rev-1',
+            sku: 'SKU-REV-1',
+            description: 'Item revisado owner',
+            quantity: 3,
+            unitPrice: 50,
+            discount: 0,
+            total: 150,
+          },
+        ],
+        totals: { itemsCount: 1, subtotal: 150, discountTotal: 0, total: 150 },
+      }
+    );
     expect(byOwner.ok).toBe(true);
+    if (!byOwner.ok) return;
+    expect(byOwner.document.status).toBe('ORDER_CONFIRMED');
+    expect(byOwner.document.totals.total).toBe(150);
+    expect(byOwner.document.orderRevisions).toHaveLength(2);
+    expect(byOwner.document.orderRevisions[1]).toMatchObject({
+      revisionNumber: 2,
+      reason: 'AJUSTE_ITEM',
+      note: 'ok2',
+      createdBy: 'owner-1',
+      beforePayload: { status: 'ORDER_CONFIRMED', totals: { total: 90 } },
+      afterPayload: { status: 'ORDER_CONFIRMED', totals: { total: 150 } },
+    });
   });
 
   it('ajuste negado para representante', () => {
@@ -235,6 +308,32 @@ describe('commercialDocument core', () => {
     if (!confirmed.ok) return;
     const result = adjustConfirmedOrder(confirmed.document, repContext, 'AJUSTE_PRECO', 'tentativa');
     expect(result.ok).toBe(false);
+  });
+
+  it('ajuste sem alteração efetiva é negado', () => {
+    const base = createQuote({ id: 'doc-aj3', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const confirmed = confirmQuote(base, repContext);
+    if (!confirmed.ok) return;
+
+    const result = adjustConfirmedOrder(confirmed.document, adminContext, 'AJUSTE_PRECO', 'sem mudança');
+    expectFailureCode(result, DOMAIN_ERROR_CODES.INVALID_ADJUSTMENT_REASON);
+    if (!result.ok) {
+      expect(result.error.message).toBe('Ajuste administrativo sem alteração efetiva');
+      expect(result.events.at(-1)?.type).toBe('OPERATION_DENIED');
+    }
+  });
+
+  it('ajuste em estado diferente de ORDER_CONFIRMED é negado', () => {
+    const draft = createQuote({ id: 'doc-aj4', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const result = adjustConfirmedOrder(draft, adminContext, 'AJUSTE_PRECO', 'tentativa em draft');
+    expectFailureCode(result, DOMAIN_ERROR_CODES.INVALID_DOCUMENT_STATE);
+    if (!result.ok) {
+      expect(result.events.at(-1)?.type).toBe('OPERATION_DENIED');
+      expect(result.events.at(-1)?.payload).toMatchObject({
+        operation: 'ADMIN_ADJUST',
+        currentStatus: 'QUOTE_DRAFT',
+      });
+    }
   });
 
   it('payload mínimo em evento de negação por ownership/tenant', () => {

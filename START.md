@@ -3,14 +3,27 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: pronto para iniciar Sprint 3
+- Estado: Sprint 3 em execução (Slices 1, 2 e 3 concluídos)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
-- Main: sincronizada com origin/main no último gate conhecido
+- Main: sincronizada com origin/main após merge do PR #10
 - Typecheck: PASS
-- Tests: PASS — 39/39
-- Próximo trabalho: Sprint 3 — SPEC-Led Domain Foundation Completion
+- Tests: PASS — 48/48
+- Próximo trabalho: Sprint 3 — Slice 4 (output_events separado de lifecycle_events)
+
+## Checkpoint da sessão (2026-05-29)
+
+- PR mergeado: `#10` — `feat(sprint3): establish spec-led domain foundation slices 1+2`
+- Commit base da entrega: `9bac840`
+- Merge commit em `main`: `38f31a3`
+- Escopo entregue:
+  - Slice 1: numeração canônica ORC/PED + validações de formato/prefixo/tipo + testes
+  - Slice 2: conversão quote→order com `source_quote_id`, `source_quote_number`, snapshot mínimo imutável + testes
+  - Hotfix de gate: bloqueio de conversão para status diferente de `QUOTE_DRAFT`
+- Escopo não entregue nesta sessão:
+  - Slice 4 (output_events vs lifecycle_events)
+  - Slice 5 (atualização documental final da sprint)
 
 ## Decisão canônica
 
@@ -30,29 +43,29 @@ Regra:
 Objetivo:
 Fechar lacunas de fundação de domínio exigidas pela SPEC.
 
-Lacunas REQUIRED_BY_SPEC:
+Lacunas REQUIRED_BY_SPEC (status):
 
-1. Numeração canônica
+1. Numeração canônica — ✅ concluído
 - ORC-####
 - PED-####
 
-2. Conversão quote → order
+2. Conversão quote → order — ✅ concluído
 - vínculo explícito source_quote_id
 - snapshot mínimo dedicado
 
-3. Ajuste administrativo
+3. Ajuste administrativo — ✅ concluído
 - estrutura explícita de order_revision
 - evento ORDER_ADJUSTED
 
-4. Output events
+4. Output events — ⏳ pendente
 - separar semanticamente output_events de lifecycle_events
 - output_event não altera status comercial
 
-5. Dupla confirmação
+5. Dupla confirmação — ✅ concluído no escopo da Sprint 3 (código canônico mantido)
 - contrato canônico de negação/conflito para confirmação duplicada
 - sem modelagem distribuída/lock avançado nesta fase
 
-6. Documentação de gate
+6. Documentação de gate — ⏳ pendente (fechamento final da sprint)
 - atualizar estado real pós Sprint 2
 - manter rastreabilidade com SPEC
 
@@ -89,19 +102,19 @@ Se qualquer resposta for NÃO, deixar fora da Sprint 3.
 
 ## Plano recomendado
 
-Slice 1:
+Slice 1: ✅ concluído
 Numeração canônica ORC/PED + testes.
 
-Slice 2:
+Slice 2: ✅ concluído
 Conversão quote→order com source_quote_id e snapshot mínimo + testes.
 
-Slice 3:
+Slice 3: ✅ concluído
 order_revision explícito no ajuste administrativo + testes.
 
-Slice 4:
+Slice 4: ⏳ pendente
 Separação output_events vs lifecycle_events + testes de regressão.
 
-Slice 5:
+Slice 5: ⏳ pendente
 Atualização documental final e checklist anti-overengineering.
 
 ## Stash técnico preservado
@@ -124,6 +137,10 @@ git status -sb
 npm run typecheck
 npm run test
 
+Depois abrir branch técnica da continuidade da Sprint 3:
+
+git switch -c feat/sprint3-slice4-output-events
+
 Depois ler:
 
 1. START.md
@@ -138,8 +155,8 @@ Depois ler:
 
 ## Gate seguinte
 
-Autorizar implementação da Sprint 3 em branch técnica:
+Autorizar implementação do Slice 4 em branch técnica:
 
-feat/sprint3-spec-led-domain-foundation
+feat/sprint3-slice4-output-events
 
 Não implementar antes desse gate.
