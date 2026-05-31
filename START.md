@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: Sprint 3 em execução (Slices 1, 2 e 3 concluídos)
+- Estado: Sprint 3 em execução (Slices 1, 2, 3 e 4 concluídos)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Main: sincronizada com origin/main após merge do PR #10
 - Typecheck: PASS
-- Tests: PASS — 48/48
-- Próximo trabalho: Sprint 3 — Slice 4 (output_events separado de lifecycle_events)
+- Tests: PASS — 50/50
+- Próximo trabalho: Sprint 3 — Slice 5 (atualização documental final da sprint)
 
 ## Checkpoint da sessão (2026-05-29)
 
@@ -57,7 +57,7 @@ Lacunas REQUIRED_BY_SPEC (status):
 - estrutura explícita de order_revision
 - evento ORDER_ADJUSTED
 
-4. Output events — ⏳ pendente
+4. Output events — ✅ concluído
 - separar semanticamente output_events de lifecycle_events
 - output_event não altera status comercial
 
@@ -111,7 +111,7 @@ Conversão quote→order com source_quote_id e snapshot mínimo + testes.
 Slice 3: ✅ concluído
 order_revision explícito no ajuste administrativo + testes.
 
-Slice 4: ⏳ pendente
+Slice 4: ✅ concluído
 Separação output_events vs lifecycle_events + testes de regressão.
 
 Slice 5: ⏳ pendente

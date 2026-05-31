@@ -82,11 +82,12 @@ export interface CommercialDocument {
   cancelReason?: CancelReason;
   cancelNote?: string;
   lifecycleEvents: CommercialDocumentLifecycleEvent[];
+  outputEvents: CommercialDocumentOutputEvent[];
   orderRevisions: CommercialDocumentOrderRevision[];
 }
 
 export interface CommercialDocumentLifecycleEvent {
-  type: 'ORDER_ADJUSTED' | 'ORDER_INVOICED' | 'OUTPUT_EVENT_REGISTERED';
+  type: 'ORDER_ADJUSTED' | 'ORDER_INVOICED';
   at: Date;
   actorId: string;
   role: AccessContext['role'];
@@ -94,6 +95,13 @@ export interface CommercialDocumentLifecycleEvent {
   note?: string;
   revisionNumber?: number;
   manualReference?: string;
+}
+
+export interface CommercialDocumentOutputEvent {
+  type: 'OUTPUT_EVENT_REGISTERED';
+  at: Date;
+  actorId: string;
+  role: AccessContext['role'];
   channel?: OutputEventChannel;
   event?: string;
 }
@@ -193,6 +201,7 @@ export function createQuote(input: CreateQuoteInput): CommercialDocument {
     createdAt: now,
     updatedAt: now,
     lifecycleEvents: [],
+    outputEvents: [],
     orderRevisions: [],
   };
 }
@@ -539,8 +548,15 @@ export function registerOutputEvent(
   const access = ensureAccess(document, actor, 'ADMIN_ADJUST');
   if (access) return access;
 
-  const lifecycleEvent = buildLifecycleEvent('OUTPUT_EVENT_REGISTERED', actor, now, { channel, event });
-  return ok({ ...document, lifecycleEvents: [...document.lifecycleEvents, lifecycleEvent], updatedAt: now }, [toDomainEvent(lifecycleEvent)]);
+  const outputEvent = buildOutputEvent(actor, now, channel, event);
+  return ok(
+    {
+      ...document,
+      outputEvents: [...document.outputEvents, outputEvent],
+      updatedAt: now,
+    },
+    [toDomainEvent(outputEvent)]
+  );
 }
 
 function buildItem(item: AddItemInput): DomainResult<CommercialDocumentItem> {
@@ -683,20 +699,38 @@ function buildLifecycleEvent(
   };
 }
 
-function toDomainEvent(event: CommercialDocumentLifecycleEvent): DomainEvent {
+function toDomainEvent(event: CommercialDocumentLifecycleEvent | CommercialDocumentOutputEvent): DomainEvent {
+  const lifecyclePayload = {
+    reason: 'reason' in event ? event.reason : undefined,
+    note: 'note' in event ? event.note : undefined,
+    revisionNumber: 'revisionNumber' in event ? event.revisionNumber : undefined,
+    manualReference: 'manualReference' in event ? event.manualReference : undefined,
+  };
+  const outputPayload = {
+    channel: 'channel' in event ? event.channel : undefined,
+    event: 'event' in event ? event.event : undefined,
+  };
+
   return {
     type: event.type,
     at: event.at,
     payload: {
       actorId: event.actorId,
       role: event.role,
-      reason: event.reason,
-      note: event.note,
-      revisionNumber: event.revisionNumber,
-      manualReference: event.manualReference,
-      channel: event.channel,
-      event: event.event,
+      ...lifecyclePayload,
+      ...outputPayload,
     },
+  };
+}
+
+function buildOutputEvent(actor: AccessContext, at: Date, channel: OutputEventChannel, event: string): CommercialDocumentOutputEvent {
+  return {
+    type: 'OUTPUT_EVENT_REGISTERED',
+    at,
+    actorId: actor.actorId,
+    role: actor.role,
+    channel,
+    event,
   };
 }
 

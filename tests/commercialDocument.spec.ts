@@ -349,9 +349,47 @@ describe('commercialDocument core', () => {
 
   it('regressão: output event não altera status', () => {
     const base = createQuote({ id: 'doc-1', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const lifecycleBefore = base.lifecycleEvents.length;
+    const outputBefore = base.outputEvents.length;
     const outputOnDraft = registerOutputEvent(base, repContext, 'SEND_WHATSAPP', 'whatsapp enviado');
     expect(outputOnDraft.ok).toBe(true);
-    if (outputOnDraft.ok) expect(outputOnDraft.document.status).toBe('QUOTE_DRAFT');
+    if (outputOnDraft.ok) {
+      expect(outputOnDraft.document.status).toBe('QUOTE_DRAFT');
+      expect(outputOnDraft.document.lifecycleEvents).toHaveLength(lifecycleBefore);
+      expect(outputOnDraft.document.outputEvents).toHaveLength(outputBefore + 1);
+      expect(outputOnDraft.events.at(-1)?.type).toBe('OUTPUT_EVENT_REGISTERED');
+    }
+  });
+
+  it('output events aceita todos canais F-11 sem mutar status/lifecycle', () => {
+    const base = createQuote({ id: 'doc-out-all', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const channels = ['SEND_WHATSAPP', 'SEND_EMAIL', 'GENERATE_PDF', 'PRINT', 'COPY_LINK', 'SHARE'] as const;
+
+    const result = channels.reduce((acc, channel) => {
+      if (!acc.ok) return acc;
+      return registerOutputEvent(acc.document, repContext, channel, `evento ${channel}`);
+    }, { ok: true, document: base } as { ok: true; document: typeof base } | ReturnType<typeof registerOutputEvent>);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.document.status).toBe('QUOTE_DRAFT');
+    expect(result.document.lifecycleEvents).toHaveLength(0);
+    expect(result.document.outputEvents).toHaveLength(channels.length);
+    expect(result.document.outputEvents.map((item) => item.channel)).toEqual(channels);
+  });
+
+  it('output event negado por acesso não muta lifecycle/output', () => {
+    const base = createQuote({ id: 'doc-out-denied', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const wrongTenant: AccessContext = { role: 'ADMIN', actorId: 'admin-2', actorTenantId: 'tenant-2' };
+
+    const result = registerOutputEvent(base, wrongTenant, 'SEND_EMAIL', 'tentativa');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(DOMAIN_ERROR_CODES.TENANT_MISMATCH);
+      expect(base.lifecycleEvents).toHaveLength(0);
+      expect(base.outputEvents).toHaveLength(0);
+    }
   });
 
   it('determinismo: mesmo tipo + sequência => mesmo número', () => {
