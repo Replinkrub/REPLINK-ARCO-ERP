@@ -82,18 +82,49 @@ export interface CommercialDocument {
   cancelReason?: CancelReason;
   cancelNote?: string;
   lifecycleEvents: CommercialDocumentLifecycleEvent[];
+  outputEvents: CommercialDocumentOutputEvent[];
+  orderRevisions: CommercialDocumentOrderRevision[];
 }
 
 export interface CommercialDocumentLifecycleEvent {
-  type: 'ORDER_ADJUSTED' | 'ORDER_INVOICED' | 'OUTPUT_EVENT_REGISTERED';
+  type: 'ORDER_ADJUSTED' | 'ORDER_INVOICED';
   at: Date;
   actorId: string;
   role: AccessContext['role'];
   reason?: AdjustmentReason;
   note?: string;
+  revisionNumber?: number;
   manualReference?: string;
+}
+
+export interface CommercialDocumentOutputEvent {
+  type: 'OUTPUT_EVENT_REGISTERED';
+  at: Date;
+  actorId: string;
+  role: AccessContext['role'];
   channel?: OutputEventChannel;
   event?: string;
+}
+
+export interface CommercialDocumentOrderRevisionPayload {
+  status: CommercialStatus;
+  items: CommercialDocumentItem[];
+  totals: CommercialDocumentTotals;
+}
+
+export interface CommercialDocumentOrderRevision {
+  revisionNumber: number;
+  reason: AdjustmentReason;
+  note?: string;
+  createdAt: Date;
+  createdBy: string;
+  beforePayload: CommercialDocumentOrderRevisionPayload;
+  afterPayload: CommercialDocumentOrderRevisionPayload;
+}
+
+export interface CommercialDocumentAdminAdjustmentChanges {
+  items?: CommercialDocumentItem[];
+  totals?: Partial<CommercialDocumentTotals>;
 }
 export type OperationResult = DomainResult<CommercialDocument>;
 
@@ -170,6 +201,8 @@ export function createQuote(input: CreateQuoteInput): CommercialDocument {
     createdAt: now,
     updatedAt: now,
     lifecycleEvents: [],
+    outputEvents: [],
+    orderRevisions: [],
   };
 }
 
@@ -418,6 +451,7 @@ export function adjustConfirmedOrder(
   actor: AccessContext,
   reason: AdjustmentReason,
   note?: string,
+  changes?: CommercialDocumentAdminAdjustmentChanges,
   now = new Date()
 ): OperationResult {
   const access = ensureAccess(document, actor, 'ADMIN_ADJUST');
@@ -439,9 +473,34 @@ export function adjustConfirmedOrder(
     return operationDeniedTransition(document, actor, 'ADMIN_ADJUST', transition.reason ?? 'Transição inválida', 'INVALID_DOCUMENT_STATE');
   }
 
-  const lifecycleEvent = buildLifecycleEvent('ORDER_ADJUSTED', actor, now, { reason, note });
-  const lifecycleEvents = [...document.lifecycleEvents, lifecycleEvent];
-  return ok({ ...document, status: transition.next, lifecycleEvents, updatedAt: now }, [toDomainEvent(lifecycleEvent)]);
+  const beforePayload = buildOrderRevisionPayload(document);
+  const adjustedDocument = applyAdminAdjustmentChanges(document, changes, transition.next, now);
+  const afterPayload = buildOrderRevisionPayload(adjustedDocument);
+
+  if (sameOrderRevisionPayload(beforePayload, afterPayload)) {
+    return fail(
+      document,
+      'ADMIN_ADJUST',
+      DOMAIN_ERROR_CODES.INVALID_ADJUSTMENT_REASON,
+      'Ajuste administrativo sem alteração efetiva',
+      actor,
+      true
+    );
+  }
+
+  const nextRevisionNumber = getNextOrderRevisionNumber(document.orderRevisions);
+  const revision = buildOrderRevision(actor, reason, note, nextRevisionNumber, now, beforePayload, afterPayload);
+
+  const lifecycleEvent = buildLifecycleEvent('ORDER_ADJUSTED', actor, now, { reason, note, revisionNumber: nextRevisionNumber });
+  const lifecycleEvents = [...adjustedDocument.lifecycleEvents, lifecycleEvent];
+  return ok(
+    {
+      ...adjustedDocument,
+      lifecycleEvents,
+      orderRevisions: [...adjustedDocument.orderRevisions, revision],
+    },
+    [toDomainEvent(lifecycleEvent)]
+  );
 }
 
 export function invoiceOrder(
@@ -489,8 +548,15 @@ export function registerOutputEvent(
   const access = ensureAccess(document, actor, 'ADMIN_ADJUST');
   if (access) return access;
 
-  const lifecycleEvent = buildLifecycleEvent('OUTPUT_EVENT_REGISTERED', actor, now, { channel, event });
-  return ok({ ...document, lifecycleEvents: [...document.lifecycleEvents, lifecycleEvent], updatedAt: now }, [toDomainEvent(lifecycleEvent)]);
+  const outputEvent = buildOutputEvent(actor, now, channel, event);
+  return ok(
+    {
+      ...document,
+      outputEvents: [...document.outputEvents, outputEvent],
+      updatedAt: now,
+    },
+    [toDomainEvent(outputEvent)]
+  );
 }
 
 function buildItem(item: AddItemInput): DomainResult<CommercialDocumentItem> {
@@ -633,18 +699,98 @@ function buildLifecycleEvent(
   };
 }
 
-function toDomainEvent(event: CommercialDocumentLifecycleEvent): DomainEvent {
+function toDomainEvent(event: CommercialDocumentLifecycleEvent | CommercialDocumentOutputEvent): DomainEvent {
+  const lifecyclePayload = {
+    reason: 'reason' in event ? event.reason : undefined,
+    note: 'note' in event ? event.note : undefined,
+    revisionNumber: 'revisionNumber' in event ? event.revisionNumber : undefined,
+    manualReference: 'manualReference' in event ? event.manualReference : undefined,
+  };
+  const outputPayload = {
+    channel: 'channel' in event ? event.channel : undefined,
+    event: 'event' in event ? event.event : undefined,
+  };
+
   return {
     type: event.type,
     at: event.at,
     payload: {
       actorId: event.actorId,
       role: event.role,
-      reason: event.reason,
-      note: event.note,
-      manualReference: event.manualReference,
-      channel: event.channel,
-      event: event.event,
+      ...lifecyclePayload,
+      ...outputPayload,
     },
+  };
+}
+
+function buildOutputEvent(actor: AccessContext, at: Date, channel: OutputEventChannel, event: string): CommercialDocumentOutputEvent {
+  return {
+    type: 'OUTPUT_EVENT_REGISTERED',
+    at,
+    actorId: actor.actorId,
+    role: actor.role,
+    channel,
+    event,
+  };
+}
+
+function buildOrderRevision(
+  actor: AccessContext,
+  reason: AdjustmentReason,
+  note: string | undefined,
+  revisionNumber: number,
+  createdAt: Date,
+  beforePayload: CommercialDocumentOrderRevisionPayload,
+  afterPayload: CommercialDocumentOrderRevisionPayload
+): CommercialDocumentOrderRevision {
+  return {
+    revisionNumber,
+    reason,
+    note,
+    createdAt,
+    createdBy: actor.actorId,
+    beforePayload,
+    afterPayload,
+  };
+}
+
+function applyAdminAdjustmentChanges(
+  document: CommercialDocument,
+  changes: CommercialDocumentAdminAdjustmentChanges | undefined,
+  nextStatus: CommercialStatus,
+  updatedAt: Date
+): CommercialDocument {
+  const nextItems = changes?.items
+    ? changes.items.map((item) => ({ ...item }))
+    : document.items.map((item) => ({ ...item }));
+
+  const nextTotals = changes?.totals ? { ...document.totals, ...changes.totals } : { ...document.totals };
+
+  return {
+    ...document,
+    status: nextStatus,
+    items: nextItems,
+    totals: nextTotals,
+    updatedAt,
+  };
+}
+
+function sameOrderRevisionPayload(
+  left: CommercialDocumentOrderRevisionPayload,
+  right: CommercialDocumentOrderRevisionPayload
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function getNextOrderRevisionNumber(revisions: CommercialDocumentOrderRevision[]): number {
+  const maxRevision = revisions.reduce((max, revision) => Math.max(max, revision.revisionNumber), 0);
+  return maxRevision + 1;
+}
+
+function buildOrderRevisionPayload(document: CommercialDocument): CommercialDocumentOrderRevisionPayload {
+  return {
+    status: document.status,
+    items: document.items.map((item) => ({ ...item })),
+    totals: { ...document.totals },
   };
 }

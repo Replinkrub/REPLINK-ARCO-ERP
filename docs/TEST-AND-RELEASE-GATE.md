@@ -1,7 +1,7 @@
-# Test and Release Gate — ARCO-ERP MVP (pré-código)
+# Test and Release Gate — ARCO-ERP MVP
 
-Status: **Sprints 0, 1 e 2 concluídas + Sprint 3 em planejamento SPEC-led (pré-implementação)**
-Objetivo: manter critérios de liberação e governança para execução técnica por gates explícitos, com foco atual na Sprint 3 SPEC-led.
+Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 com Slices 1-5 concluídos localmente na branch (fechamento documental finalizado)**
+Objetivo: manter critérios de liberação e governança por gates explícitos, com foco na decisão operacional pós-fechamento da Sprint 3 em modo SPEC-led.
 
 ## Premissas
 
@@ -94,24 +94,25 @@ Status do gate: **PASS (kickoff pronto)**
 
 | Risco residual | Severidade | Owner | Prazo |
 |---|---|---|---|
-| Definir e aprovar o primeiro slice técnico da Sprint 1 com rollback e métricas | Medium | Toni + Atlas | 2026-05-30 |
+| Decidir janela e estratégia de push/PR da sessão completa da Sprint 3 | Medium | Toni + Atlas | próxima sessão operacional |
 
-## Resultado esperado desta fase
+## Histórico de fase anterior (Sprint 1 Kickoff)
 
 - Kickoff Sprint 1 concluído => **pronto para solicitar gate do primeiro slice de implementação**.
 - Implementação segue bloqueada até decisão formal subsequente em `DECISION_SPEC_APPROVAL.md`.
 
-## Estado factual pós Sprint 2
+## Estado factual baseline (branch de trabalho)
 
 - Sprint 1 concluída e mergeada na `main` (PRs #4, #5, #6).
 - Sprint 2 concluída e mergeada na `main` (PRs #7 e #8).
+- Sprint 3: Slices 1-5 concluídos localmente na branch de trabalho.
 - Validação atual de baseline:
   - `npm run typecheck` PASS
-  - `npm run test` PASS (39/39)
+  - `npm run test` PASS (50/50)
 
-## Gate Sprint 3 — SPEC-Led Domain Foundation Completion (planejamento)
+## Gate Sprint 3 — SPEC-Led Domain Foundation Completion (fechamento)
 
-Status do gate: **PENDING_APPROVAL_FOR_IMPLEMENTATION**
+Status do gate: **PASS_LOCAL_CLOSURE (Slice 5 concluído localmente)**
 
 Direção canônica:
 - seguir a SPEC como fonte de verdade;
@@ -120,8 +121,15 @@ Direção canônica:
 - não avançar para fluxo operacional amplo antes da fundação exigida pela SPEC.
 
 Próximo gate obrigatório:
-- Aprovar implementação da Sprint 3 na branch:
-  - `feat/sprint3-spec-led-domain-foundation`
+- Decisão operacional de push/PR da sessão completa, mantendo governança de aprovação explícita.
+
+## Checklist anti-overengineering (aplicado no fechamento da Sprint 3)
+
+- [x] Somente lacunas REQUIRED_BY_SPEC e documentação de gate.
+- [x] Sem expansão para frontend/API/banco/integrações.
+- [x] Sem hardening genérico sem requisito explícito.
+- [x] Sem criação de novos artefatos fora do escopo autorizado.
+- [x] Sem inventar Slice 6 (não existe canonicamente nesta sprint).
 
 Arquivo de retomada da próxima sessão:
 - `START.md`

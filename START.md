@@ -3,14 +3,28 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: pronto para iniciar Sprint 3
+- Estado: Sprint 3 concluída localmente na branch (Slices 1, 2, 3, 4 e 5 concluídos; aguardando decisão operacional de push/PR)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
-- Main: sincronizada com origin/main no último gate conhecido
+- Main: sincronizada com origin/main após merge do PR #10
 - Typecheck: PASS
-- Tests: PASS — 39/39
-- Próximo trabalho: Sprint 3 — SPEC-Led Domain Foundation Completion
+- Tests: PASS — 50/50
+- Trabalho atual: pós-fechamento da Sprint 3 (consolidação final da sessão)
+
+## Checkpoint da sessão (2026-05-31)
+
+- PR mergeado: `#10` — `feat(sprint3): establish spec-led domain foundation slices 1+2`
+- Commit base da entrega: `9bac840`
+- Merge commit em `main`: `38f31a3`
+- Escopo entregue:
+  - Slice 1: numeração canônica ORC/PED + validações de formato/prefixo/tipo + testes
+  - Slice 2: conversão quote→order com `source_quote_id`, `source_quote_number`, snapshot mínimo imutável + testes
+  - Hotfix de gate: bloqueio de conversão para status diferente de `QUOTE_DRAFT`
+- Escopo posterior entregue localmente na branch de trabalho:
+  - Slice 3: ajuste administrativo (order_revision + ORDER_ADJUSTED)
+  - Slice 4: output_events vs lifecycle_events
+  - Slice 5: fechamento documental e gate final da Sprint 3
 
 ## Decisão canônica
 
@@ -30,31 +44,31 @@ Regra:
 Objetivo:
 Fechar lacunas de fundação de domínio exigidas pela SPEC.
 
-Lacunas REQUIRED_BY_SPEC:
+Lacunas REQUIRED_BY_SPEC (status):
 
-1. Numeração canônica
+1. Numeração canônica — ✅ concluído
 - ORC-####
 - PED-####
 
-2. Conversão quote → order
+2. Conversão quote → order — ✅ concluído
 - vínculo explícito source_quote_id
 - snapshot mínimo dedicado
 
-3. Ajuste administrativo
+3. Ajuste administrativo — ✅ concluído
 - estrutura explícita de order_revision
 - evento ORDER_ADJUSTED
 
-4. Output events
+4. Output events — ✅ concluído
 - separar semanticamente output_events de lifecycle_events
 - output_event não altera status comercial
 
-5. Dupla confirmação
+5. Dupla confirmação — ✅ concluído no escopo da Sprint 3 (código canônico mantido)
 - contrato canônico de negação/conflito para confirmação duplicada
 - sem modelagem distribuída/lock avançado nesta fase
 
-6. Documentação de gate
-- atualizar estado real pós Sprint 2
-- manter rastreabilidade com SPEC
+6. Documentação de gate — ✅ concluído
+- atualizar estado real pós Slices 1-4
+- manter rastreabilidade com SPEC e baseline de validação atual
 
 ## Escopo permitido da Sprint 3
 
@@ -89,20 +103,28 @@ Se qualquer resposta for NÃO, deixar fora da Sprint 3.
 
 ## Plano recomendado
 
-Slice 1:
+Slice 1: ✅ concluído
 Numeração canônica ORC/PED + testes.
 
-Slice 2:
+Slice 2: ✅ concluído
 Conversão quote→order com source_quote_id e snapshot mínimo + testes.
 
-Slice 3:
+Slice 3: ✅ concluído
 order_revision explícito no ajuste administrativo + testes.
 
-Slice 4:
+Slice 4: ✅ concluído
 Separação output_events vs lifecycle_events + testes de regressão.
 
-Slice 5:
-Atualização documental final e checklist anti-overengineering.
+Slice 5: ✅ concluído
+Atualização documental final, baseline factual de validação e checklist anti-overengineering aplicado.
+
+## Checklist anti-overengineering aplicado no fechamento (Slice 5)
+
+- [x] Item alterado está explícito na SPEC/Addendum/RBAC.
+- [x] Mudança protege regra comercial central (sem ampliar escopo).
+- [x] Mantido escopo documental; sem tocar código/testes/scripts.
+- [x] Rastreabilidade entre `START.md`, `README.md`, `docs/TEST-AND-RELEASE-GATE.md` e `docs/DECISION_SPEC_APPROVAL.md`.
+- [x] Nenhuma proposta de Slice 6 (não existe canonicamente nesta sprint).
 
 ## Stash técnico preservado
 
@@ -124,6 +146,8 @@ git status -sb
 npm run typecheck
 npm run test
 
+Se houver continuidade pós-gate, manter na branch atual de Sprint 3 (sem abrir Slice 6 sem decisão formal).
+
 Depois ler:
 
 1. START.md
@@ -138,8 +162,4 @@ Depois ler:
 
 ## Gate seguinte
 
-Autorizar implementação da Sprint 3 em branch técnica:
-
-feat/sprint3-spec-led-domain-foundation
-
-Não implementar antes desse gate.
+Sprint 3 finalizada localmente. Próxima decisão operacional: push/PR da sessão completa quando autorizado.

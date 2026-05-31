@@ -1,6 +1,6 @@
 # ARCO-ERP (v0)
 
-Status atual: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 em planejamento SPEC-led (sem implementação iniciada)**.
+Status atual: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 (Slices 1-5) concluída localmente na branch de trabalho**.
 
 Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 
@@ -27,15 +27,23 @@ Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 ## Validações atuais
 
 - `npm run typecheck`: **PASS**
-- `npm run test`: **PASS (39/39)**
+- `npm run test`: **PASS (50/50)**
 
-## Sprint 3 planejada
+## Sprint 3 — estado atual
 
 Nome: **Sprint 3 — SPEC-Led Domain Foundation Completion**
 
 Direção:
 - fechar lacunas **REQUIRED_BY_SPEC** antes de fluxo operacional mais amplo;
 - evitar hardening genérico e abstrações sem caso real na SPEC.
+
+Status por slice:
+- Slice 1: concluído localmente na branch de trabalho.
+- Slice 2: concluído localmente na branch de trabalho.
+- Slice 3: concluído localmente na branch de trabalho.
+- Slice 4: concluído localmente na branch de trabalho.
+- Slice 5: fechamento documental e gate final da Sprint 3 (concluído localmente).
+- Não existe Slice 6 canônico nesta sprint sem nova decisão formal.
 
 ## Limites obrigatórios
 
@@ -44,10 +52,9 @@ Direção:
 - sem merge automático de PR.
 - sem frontend/camada externa/banco/integrações de legado nesta fase.
 
-## Próximo gate obrigatório
+## Gate atual obrigatório
 
-- Autorizar explicitamente a implementação da Sprint 3 em branch técnica:
-  - `feat/sprint3-spec-led-domain-foundation`
+- Sprint 3 concluída localmente: seguir para decisão operacional de push/PR quando autorizado.
 
 ## Rastreabilidade recente
 
