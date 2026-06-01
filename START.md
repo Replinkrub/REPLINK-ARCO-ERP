@@ -3,27 +3,29 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: Etapa 9 concluída e mergeada na `main` (PR #23)
+- Estado: fechamento técnico P0+P1 concluído e mergeado na `main` (PR #25)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
-- Main: sincronizada com origin/main após merge do PR #23
+- Main: sincronizada com origin/main após merge do PR #25
 - Typecheck: PASS
-- Tests: PASS — 83/83
-- Trabalho atual: fechamento documental da Etapa 9 + registro do plano do próximo ciclo (sem implementação)
+- Tests: PASS — 87/87
+- Trabalho atual: fechamento documental do ciclo P0+P1 + registro do plano P2 Frontend/UX (somente planejamento)
 
 ## Checkpoint da sessão (2026-06-01)
 
-- PR mergeado: `#23` — `feat(etapa9): add simple invoice application flow`
-- Merge commit em `main`: `af75aa2`
-- Escopo entregue na Etapa 9:
-  - `registerSimpleInvoiceUseCase` na camada application
-  - faturamento simples com mudança controlada para `INVOICED`
-  - negações críticas para representante, inexistente e tenant mismatch
-  - validação de entrada (`VALIDATION_ERROR`)
-  - sem escopo fiscal avançado/NF-e
-  - testes positivos e negativos da Etapa 9
-  - validação pós-merge em `main` com typecheck/test PASS (83/83)
+- PR mergeado: `#25` — `feat(p0-p1): add postgres persistence and minimal http api`
+- Merge commit em `main`: `9985552`
+- Escopo entregue no fechamento técnico P0+P1:
+  - adapters Postgres para repositórios do fluxo comercial
+  - migration inicial de persistência real
+  - API HTTP mínima para operações essenciais
+  - testes de persistência (`postgresRepositories.spec.ts`) e API (`minimalApi.spec.ts`)
+  - validação pós-merge em `main` com typecheck/test PASS (87/87)
+- Fora de escopo mantido:
+  - frontend
+  - fiscal avançado / NF-e
+  - integrações externas
 
 ## Decisão canônica
 
@@ -161,5 +163,5 @@ Depois ler:
 
 ## Gate seguinte
 
-Etapa 9 concluída em `main`.
-Próxima decisão operacional: **não iniciar novo ciclo de evolução automaticamente**; executar apenas gate de planejamento da fase seguinte e aguardar autorização explícita.
+Fechamento técnico P0+P1 concluído em `main`.
+Próxima decisão operacional: **não iniciar implementação P2 automaticamente**; executar apenas planejamento Frontend/UX e aguardar autorização explícita.
