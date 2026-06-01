@@ -3,27 +3,27 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: Etapa 8 concluída e mergeada na `main` (PR #21)
+- Estado: Etapa 9 concluída e mergeada na `main` (PR #23)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
-- Main: sincronizada com origin/main após merge do PR #21
+- Main: sincronizada com origin/main após merge do PR #23
 - Typecheck: PASS
-- Tests: PASS — 77/77
-- Trabalho atual: fechamento documental da Etapa 8 + registro do plano da Etapa 9 (sem implementação)
+- Tests: PASS — 83/83
+- Trabalho atual: fechamento documental da Etapa 9 + registro do plano do próximo ciclo (sem implementação)
 
 ## Checkpoint da sessão (2026-06-01)
 
-- PR mergeado: `#21` — `feat(etapa8): add order closure application flow`
-- Merge commit em `main`: `c6260de`
-- Escopo entregue na Etapa 8:
-  - `cancelOrderUseCase` na camada application
-  - `adjustOrderUseCase` na camada application
-  - reforço de RBAC no fechamento de pedido confirmado
-  - negações críticas para inexistente/tenant mismatch/entrada inválida
-  - trilhas auditáveis de cancelamento/ajuste preservadas
-  - testes positivos e negativos da Etapa 8
-  - validação pós-merge em `main` com typecheck/test PASS (77/77)
+- PR mergeado: `#23` — `feat(etapa9): add simple invoice application flow`
+- Merge commit em `main`: `af75aa2`
+- Escopo entregue na Etapa 9:
+  - `registerSimpleInvoiceUseCase` na camada application
+  - faturamento simples com mudança controlada para `INVOICED`
+  - negações críticas para representante, inexistente e tenant mismatch
+  - validação de entrada (`VALIDATION_ERROR`)
+  - sem escopo fiscal avançado/NF-e
+  - testes positivos e negativos da Etapa 9
+  - validação pós-merge em `main` com typecheck/test PASS (83/83)
 
 ## Decisão canônica
 
@@ -161,5 +161,5 @@ Depois ler:
 
 ## Gate seguinte
 
-Etapa 8 concluída em `main`.
-Próxima decisão operacional: **não iniciar Etapa 9 automaticamente**; executar apenas o gate de planejamento/escopo e aguardar autorização explícita para implementação.
+Etapa 9 concluída em `main`.
+Próxima decisão operacional: **não iniciar novo ciclo de evolução automaticamente**; executar apenas gate de planejamento da fase seguinte e aguardar autorização explícita.
