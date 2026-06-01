@@ -13,5 +13,6 @@ export * from './application/useCases/createQuote.js';
 export * from './application/useCases/updateQuote.js';
 export * from './application/useCases/confirmQuote.js';
 export * from './application/useCases/registerDocumentCommunication.js';
+export * from './application/useCases/closeOrder.js';
 export * from './infrastructure/repositories/inMemoryQuoteRepository.js';
 export * from './infrastructure/repositories/inMemoryOrderRepository.js';
