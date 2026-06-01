@@ -22,14 +22,27 @@ export async function confirmQuoteUseCase(
   deps: ConfirmQuoteUseCaseDeps,
   input: ConfirmQuoteUseCaseInput
 ): Promise<ApplicationResult<CommercialDocument>> {
-  const quote = await deps.quoteRepository.getById(input.quoteId);
+  const quoteId = input.quoteId.trim();
+  if (!quoteId) {
+    return applicationFailure(APPLICATION_ERROR_CODES.VALIDATION_ERROR, 'quoteId deve ser informado', {
+      quoteId: input.quoteId,
+    });
+  }
+
+  if (!Number.isInteger(input.orderSequence) || input.orderSequence <= 0) {
+    return applicationFailure(APPLICATION_ERROR_CODES.VALIDATION_ERROR, 'orderSequence deve ser inteiro positivo', {
+      orderSequence: input.orderSequence,
+    });
+  }
+
+  const quote = await deps.quoteRepository.getById(quoteId);
   if (!quote) {
-    return applicationFailure(APPLICATION_ERROR_CODES.DOCUMENT_NOT_FOUND, 'Orçamento não encontrado', { id: input.quoteId });
+    return applicationFailure(APPLICATION_ERROR_CODES.DOCUMENT_NOT_FOUND, 'Orçamento não encontrado', { id: quoteId });
   }
 
   if (quote.documentType !== 'quote') {
-    return applicationFailure(APPLICATION_ERROR_CODES.DOCUMENT_NOT_QUOTE, 'A confirmação só aceita quote', {
-      id: input.quoteId,
+      return applicationFailure(APPLICATION_ERROR_CODES.DOCUMENT_NOT_QUOTE, 'A confirmação só aceita quote', {
+      id: quoteId,
       documentType: quote.documentType,
     });
   }
@@ -58,7 +71,19 @@ export async function confirmQuoteUseCase(
     });
   }
 
-  const converted = convertQuoteToOrder(quote, input.orderSequence, now);
+  let converted: ReturnType<typeof convertQuoteToOrder>;
+  try {
+    converted = convertQuoteToOrder(quote, input.orderSequence, now);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Sequence must be a positive integer') {
+      return applicationFailure(APPLICATION_ERROR_CODES.VALIDATION_ERROR, error.message, {
+        orderSequence: input.orderSequence,
+      });
+    }
+
+    throw error;
+  }
+
   if (!converted.ok) {
     if (converted.error.code === DOMAIN_ERROR_CODES.DOCUMENT_ALREADY_CONFIRMED) {
       return applicationFailure(APPLICATION_ERROR_CODES.CONFLICT_ALREADY_CONFIRMED, 'Orçamento já confirmado', {

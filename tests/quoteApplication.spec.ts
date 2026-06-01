@@ -390,4 +390,69 @@ describe('quote application flow', () => {
       expect(result.error.code).toBe(APPLICATION_ERROR_CODES.DOCUMENT_NOT_FOUND);
     }
   });
+
+  it('confirmQuote retorna VALIDATION_ERROR para quoteId vazio ou em branco', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+
+    const empty = await confirmQuoteUseCase(
+      { quoteRepository, orderRepository },
+      {
+        quoteId: '',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        orderSequence: 1,
+      }
+    );
+
+    const blank = await confirmQuoteUseCase(
+      { quoteRepository, orderRepository },
+      {
+        quoteId: '   ',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        orderSequence: 1,
+      }
+    );
+
+    expect(empty.ok).toBe(false);
+    expect(blank.ok).toBe(false);
+    if (!empty.ok) {
+      expect(empty.error.code).toBe(APPLICATION_ERROR_CODES.VALIDATION_ERROR);
+    }
+    if (!blank.ok) {
+      expect(blank.error.code).toBe(APPLICATION_ERROR_CODES.VALIDATION_ERROR);
+    }
+  });
+
+  it('confirmQuote retorna VALIDATION_ERROR para orderSequence inválido', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+
+    await createQuoteUseCase(
+      { quoteRepository },
+      {
+        id: 'q-invalid-seq',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const invalidSequences = [0, -1, 1.5];
+    for (const orderSequence of invalidSequences) {
+      const result = await confirmQuoteUseCase(
+        { quoteRepository, orderRepository },
+        {
+          quoteId: 'q-invalid-seq',
+          actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+          orderSequence,
+        }
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe(APPLICATION_ERROR_CODES.VALIDATION_ERROR);
+      }
+    }
+  });
 });
