@@ -3,27 +3,27 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: Etapa 7 concluída e mergeada na `main` (PR #19)
+- Estado: Etapa 8 concluída e mergeada na `main` (PR #21)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
-- Main: sincronizada com origin/main após merge do PR #19
+- Main: sincronizada com origin/main após merge do PR #21
 - Typecheck: PASS
-- Tests: PASS — 70/70
-- Trabalho atual: fechamento documental da Etapa 7 + registro do plano da Etapa 8 (sem implementação)
+- Tests: PASS — 77/77
+- Trabalho atual: fechamento documental da Etapa 8 + registro do plano da Etapa 9 (sem implementação)
 
 ## Checkpoint da sessão (2026-06-01)
 
-- PR mergeado: `#19` — `feat(etapa7): add document communication output events`
-- Merge commit em `main`: `cd1a3d8`
-- Escopo entregue na Etapa 7:
-  - `registerDocumentCommunicationUseCase` na camada application
-  - suporte de comunicação para `quote` e `order`
-  - validações de entrada (`VALIDATION_ERROR`) e negações (`FORBIDDEN`)
-  - persistência in-memory de `output_events` para order
-  - garantia de não mutação de `commercial_status` em comunicação
-  - testes positivos e negativos da Etapa 7
-  - validação pós-merge em `main` com typecheck/test PASS (70/70)
+- PR mergeado: `#21` — `feat(etapa8): add order closure application flow`
+- Merge commit em `main`: `c6260de`
+- Escopo entregue na Etapa 8:
+  - `cancelOrderUseCase` na camada application
+  - `adjustOrderUseCase` na camada application
+  - reforço de RBAC no fechamento de pedido confirmado
+  - negações críticas para inexistente/tenant mismatch/entrada inválida
+  - trilhas auditáveis de cancelamento/ajuste preservadas
+  - testes positivos e negativos da Etapa 8
+  - validação pós-merge em `main` com typecheck/test PASS (77/77)
 
 ## Decisão canônica
 
@@ -161,5 +161,5 @@ Depois ler:
 
 ## Gate seguinte
 
-Etapa 7 concluída em `main`.
-Próxima decisão operacional: **não iniciar Etapa 8 automaticamente**; executar apenas o gate de planejamento/escopo e aguardar autorização explícita para implementação.
+Etapa 8 concluída em `main`.
+Próxima decisão operacional: **não iniciar Etapa 9 automaticamente**; executar apenas o gate de planejamento/escopo e aguardar autorização explícita para implementação.
