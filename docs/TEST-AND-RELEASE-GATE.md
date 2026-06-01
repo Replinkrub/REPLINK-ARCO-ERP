@@ -1,6 +1,6 @@
 # Test and Release Gate — ARCO-ERP MVP
 
-Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 5 concluída (PR #14) + Etapa 6 concluída e mergeada na `main` (PR #17)**
+Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 5 concluída (PR #14) + Etapa 6 concluída (PR #17) + Etapa 7 concluída e mergeada na `main` (PR #19)**
 Objetivo: manter critérios de liberação e governança por gates explícitos, com foco em decisões de avanço por etapa sem pular gate.
 
 ## Premissas
@@ -161,6 +161,31 @@ Fora de escopo mantido:
 
 Próxima regra de gate:
 - **não iniciar Etapa 7 automaticamente**; avanço depende de autorização explícita + gate de planejamento aprovado.
+
+## Gate Etapa 7 — Comunicação do documento / output events (P1)
+
+Status do gate: **PASS (mergeado em main)**
+
+Evidências:
+- PR de entrega: **#19**
+- merge commit em `main`: **cd1a3d8e394659f465ca3f0612918a09402ae8f2**
+- validação pós-merge em `main`:
+  - `npm run typecheck` PASS
+  - `npm run test` PASS (70/70)
+
+Escopo confirmado da Etapa 7:
+- `registerDocumentCommunicationUseCase` na camada application
+- registro de `output_events` para quote e order
+- garantias de não mutação de `commercial_status` em comunicação
+- negações críticas para inexistente/tenant mismatch/entrada inválida
+
+Fora de escopo mantido:
+- sem frontend/API HTTP/banco real/migrations/fiscal
+- sem integrações reais WhatsApp/e-mail/impressão/PDF
+- sem implementação da Etapa 8
+
+Próxima regra de gate:
+- **não iniciar Etapa 8 automaticamente**; avanço depende de autorização explícita + gate de planejamento aprovado.
 
 ## Gate Sprint 3 — SPEC-Led Domain Foundation Completion (fechamento)
 

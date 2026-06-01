@@ -31,10 +31,11 @@ Regras centrais:
 - Sprint 0, Sprint 1 e Sprint 2 mergeadas em `main`.
 - Sprint 3 (Slices 1-5) concluída no escopo técnico/documental.
 - Etapa 6 concluída e mergeada em `main` via PR #17.
+- Etapa 7 concluída e mergeada em `main` via PR #19.
 
 ### Falta fechar no ciclo atual (não é evolução nova de produto)
-- fechamento documental do ciclo da Etapa 6;
-- registro do gate de planejamento da Etapa 7 (sem implementação);
+- fechamento documental do ciclo da Etapa 7;
+- registro do gate de planejamento da Etapa 8 (sem implementação);
 - validação final de escopo/no-regression.
 
 ## 3) Ordem de prioridade (régua de execução)
@@ -150,7 +151,7 @@ Ação "Gerar Pedido" convertendo orçamento em pedido com vínculo rastreável.
 
 ## Etapa 7 — Comunicação do documento (**P1**)
 
-**Status atual (2026-06-01):** planejamento registrado, implementação ainda não iniciada.
+**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #19.
 
 **Objetivo da fase**  
 Separar definitivamente comunicação de estado comercial.
@@ -181,6 +182,8 @@ Ações de enviar/imprimir registradas como `output_events` com rastreabilidade.
 - automação comercial fora do fluxo core.
 
 ## Etapa 8 — Fechamento de pedido (**P0**)
+
+**Status atual (2026-06-01):** planejamento registrado, implementação ainda não iniciada.
 
 **Objetivo da fase**  
 Consolidar ciclo de vida de pedido confirmado com regras administrativas e auditoria.
