@@ -34,10 +34,11 @@ Regras centrais:
 - Etapa 7 concluída e mergeada em `main` via PR #19.
 - Etapa 8 concluída e mergeada em `main` via PR #21.
 - Etapa 9 concluída e mergeada em `main` via PR #23.
+- Fechamento técnico P0+P1 (persistência real + API HTTP mínima) concluído e mergeado em `main` via PR #25.
 
 ### Falta fechar no ciclo atual (não é evolução nova de produto)
-- fechamento documental do ciclo da Etapa 9;
-- registro do gate de planejamento da próxima fase (sem implementação);
+- fechamento documental do ciclo P0+P1 após PR #25;
+- registro do gate de planejamento P2 Frontend/UX (sem implementação);
 - validação final de escopo/no-regression.
 
 ## 3) Ordem de prioridade (régua de execução)
@@ -320,5 +321,5 @@ Janela estimada total: **3 a 8 semanas**, com revisão por gate.
 
 ## 9) Próxima fase (pós-Etapa 9)
 
-- Registrar plano da fase seguinte em documento dedicado de gate, sem implementação automática.
-- Qualquer expansão para escopo fiscal avançado, integrações externas ou novas áreas do produto exige autorização explícita.
+- Registrar plano P2 Frontend/UX em documento dedicado de gate, sem implementação automática.
+- Qualquer expansão para fiscal avançado/NF-e, integrações externas ou novas áreas do produto exige autorização explícita.

@@ -1,6 +1,6 @@
 # Test and Release Gate — ARCO-ERP MVP
 
-Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 5 concluída (PR #14) + Etapa 6 concluída (PR #17) + Etapa 7 concluída (PR #19) + Etapa 8 concluída (PR #21) + Etapa 9 concluída e mergeada na `main` (PR #23)**
+Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 5 concluída (PR #14) + Etapa 6 concluída (PR #17) + Etapa 7 concluída (PR #19) + Etapa 8 concluída (PR #21) + Etapa 9 concluída (PR #23) + fechamento técnico P0+P1 (persistência real + API HTTP mínima) mergeado na `main` (PR #25)**
 Objetivo: manter critérios de liberação e governança por gates explícitos, com foco em decisões de avanço por etapa sem pular gate.
 
 ## Premissas
@@ -234,6 +234,31 @@ Fora de escopo mantido:
 
 Próxima regra de gate:
 - **não iniciar nova fase automaticamente**; avanço depende de autorização explícita + gate de planejamento da fase seguinte.
+
+## Gate Fechamento técnico P0+P1 — Persistência real + API HTTP mínima
+
+Status do gate: **PASS (mergeado em main)**
+
+Evidências:
+- PR de entrega: **#25**
+- merge commit em `main`: **9985552**
+- validação pós-merge em `main`:
+  - `npm run typecheck` PASS
+  - `npm run test` PASS (87/87)
+
+Escopo confirmado:
+- adapters Postgres para persistência de entidades do fluxo comercial
+- migration inicial para banco real
+- API HTTP mínima para operações essenciais
+- cobertura de testes para persistência Postgres e API mínima
+
+Fora de escopo mantido:
+- sem frontend
+- sem fiscal avançado / NF-e
+- sem integrações externas reais
+
+Próxima regra de gate:
+- **não iniciar implementação P2 automaticamente**; avanço depende de autorização explícita + gate de planejamento P2 Frontend/UX.
 
 ## Gate Sprint 3 — SPEC-Led Domain Foundation Completion (fechamento)
 
