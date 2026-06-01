@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   APPLICATION_ERROR_CODES,
+  InMemoryOrderRepository,
   InMemoryQuoteRepository,
+  confirmQuoteUseCase,
   convertQuoteToOrder,
   createQuote,
   createQuoteUseCase,
@@ -221,5 +223,171 @@ describe('quote application flow', () => {
     expect(reloaded?.status).toBe('QUOTE_DRAFT');
     expect(reloaded?.documentType).toBe('quote');
     expect(reloaded?.totals.total).toBe(120);
+  });
+
+  it('F-03: confirma quote e gera order confirmado com source_quote_id', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+
+    await createQuoteUseCase(
+      { quoteRepository },
+      {
+        id: 'q-confirm-1',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+        numberSequence: 7,
+      }
+    );
+
+    const result = await confirmQuoteUseCase(
+      { quoteRepository, orderRepository },
+      {
+        quoteId: 'q-confirm-1',
+        actor: { role: 'REPRESENTANTE', actorId: 'rep-1', actorTenantId: 'tenant-1' },
+        orderSequence: 91,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.documentType).toBe('order');
+    expect(result.data.status).toBe('ORDER_CONFIRMED');
+    expect(result.data.number).toBe('PED-000091');
+    expect(result.data.source_quote_id).toBe('q-confirm-1');
+    expect(result.data.confirmedAt).toBeInstanceOf(Date);
+
+    const persistedOrder = await orderRepository.getBySourceQuoteId('q-confirm-1');
+    expect(persistedOrder?.id).toBe('q-confirm-1');
+
+    const originalQuote = await quoteRepository.getById('q-confirm-1');
+    expect(originalQuote?.documentType).toBe('quote');
+    expect(originalQuote?.status).toBe('QUOTE_DRAFT');
+  });
+
+  it('F-04: confirmações concorrentes geram 1 sucesso + 1 conflito', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+
+    await createQuoteUseCase(
+      { quoteRepository },
+      {
+        id: 'q-race-1',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const payload = {
+      quoteId: 'q-race-1',
+      actor: { role: 'ADMIN' as const, actorId: 'admin-1', actorTenantId: 'tenant-1' },
+      orderSequence: 92,
+    };
+
+    const [first, second] = await Promise.all([
+      confirmQuoteUseCase({ quoteRepository, orderRepository }, payload),
+      confirmQuoteUseCase({ quoteRepository, orderRepository }, payload),
+    ]);
+
+    const successes = [first, second].filter((result) => result.ok);
+    const failures = [first, second].filter((result) => !result.ok);
+
+    expect(successes).toHaveLength(1);
+    expect(failures).toHaveLength(1);
+    if (!failures[0].ok) {
+      expect(failures[0].error.code).toBe(APPLICATION_ERROR_CODES.CONFLICT_ALREADY_CONFIRMED);
+    }
+  });
+
+  it('confirmQuote retorna FORBIDDEN para representante fora da carteira/tenant', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+
+    await createQuoteUseCase(
+      { quoteRepository },
+      {
+        id: 'q-forbidden-1',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const outOfWallet = await confirmQuoteUseCase(
+      { quoteRepository, orderRepository },
+      {
+        quoteId: 'q-forbidden-1',
+        actor: { role: 'REPRESENTANTE', actorId: 'rep-2', actorTenantId: 'tenant-1' },
+        orderSequence: 93,
+      }
+    );
+
+    expect(outOfWallet.ok).toBe(false);
+    if (!outOfWallet.ok) {
+      expect(outOfWallet.error.code).toBe(APPLICATION_ERROR_CODES.FORBIDDEN);
+    }
+  });
+
+  it('confirmQuote retorna FORBIDDEN para tenant mismatch sem criar order nem converter quote', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+
+    await createQuoteUseCase(
+      { quoteRepository },
+      {
+        id: 'q-forbidden-tenant-1',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const result = await confirmQuoteUseCase(
+      { quoteRepository, orderRepository },
+      {
+        quoteId: 'q-forbidden-tenant-1',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-2' },
+        orderSequence: 95,
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(APPLICATION_ERROR_CODES.FORBIDDEN);
+    }
+
+    const persistedOrder = await orderRepository.getBySourceQuoteId('q-forbidden-tenant-1');
+    expect(persistedOrder).toBeNull();
+
+    const originalQuote = await quoteRepository.getById('q-forbidden-tenant-1');
+    expect(originalQuote?.documentType).toBe('quote');
+    expect(originalQuote?.status).toBe('QUOTE_DRAFT');
+    expect(originalQuote?.outputEvents).toHaveLength(0);
+    expect(originalQuote?.lifecycleEvents).toHaveLength(0);
+  });
+
+  it('confirmQuote retorna DOCUMENT_NOT_FOUND para quote inexistente', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+
+    const result = await confirmQuoteUseCase(
+      { quoteRepository, orderRepository },
+      {
+        quoteId: 'missing-quote',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        orderSequence: 94,
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(APPLICATION_ERROR_CODES.DOCUMENT_NOT_FOUND);
+    }
   });
 });
