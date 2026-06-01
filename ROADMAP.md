@@ -1,145 +1,307 @@
-# ROADMAP — ARCO-ERP (v0)
+# ROADMAP — ARCO-ERP (Produto + Execução Técnica)
 
 > Última atualização: 2026-06-01  
 > Dono operacional: Atlas  
-> Dono da prioridade executiva: Toni
+> Dono da prioridade executiva: Toni  
+> Fonte de verdade funcional: `docs/SPEC.md`
 
-## 1) Objetivo do produto
+## 0) Papel deste arquivo (e separação de responsabilidades)
 
-Entregar o ARCO-ERP como frente canônica de operação comercial (orçamento -> pedido -> faturamento simples), com execução guiada pela `docs/SPEC.md`, sem regressão de regras de domínio e com gates explícitos até entrega operacional.
+Este `ROADMAP.md` define **evolução de produto + evolução técnica por fases**, com prioridades, gates e critérios de aceite.
 
-## 2) Status atual
+Não é arquivo de diário de sessão.
 
-- Sprints 0, 1 e 2 concluídas e mergeadas em `main`.
-- Sprint 3 (Slices 1-5) concluída localmente na branch de trabalho, com fechamento documental de gate.
-- Baseline de validação registrada:
-  - `npm run typecheck` PASS
-  - `npm run test` PASS (50/50)
-- SAGRADO-PEDIDOS permanece legado de consulta pontual (sem evolução de produto).
+- Estado da sessão, branch, PR, comandos de retomada => `START.md` (ou futuro `session_start.md` local).
+- Decisão e gate de ciclo => `docs/DECISION_SPEC_APPROVAL.md` e `docs/TEST-AND-RELEASE-GATE.md`.
 
-## 3) Fase/sprint atual
+## 1) Visão do produto
 
-**Pós-fechamento da Sprint 3 (SPEC-Led Domain Foundation Completion)** em modo de decisão operacional.
+O ARCO-ERP deve operar como fluxo comercial canônico, previsível e auditável:
 
-## 4) Última entrega fechada
+**cliente -> orçamento -> pedido -> envio/impressão -> faturamento simples**
 
-Fechamento do Slice 5 da Sprint 3 (consolidação documental e gate final local), com lacunas `REQUIRED_BY_SPEC` de fundação tratadas nos slices 1-4 e rastreabilidade atualizada.
+Regras centrais:
+- SPEC governa nomenclatura, estados e permissões;
+- comunicação (enviar/imprimir) é evento de saída, não mudança de status comercial;
+- SAGRADO-PEDIDOS é legado de consulta pontual, sem acoplamento funcional.
 
-## 5) Próximo gate aprovado
+## 2) Fase atual (separação clara do que já foi feito)
 
-**Gate operacional vigente (aprovado no plano):** executar decisão explícita de push/PR da sessão completa da Sprint 3.
+### Já concluído
+- Sprint 0, Sprint 1 e Sprint 2 mergeadas em `main`.
+- Sprint 3 (Slices 1-5) concluída no escopo técnico/documental.
 
-Condições para executar o gate:
-1. revisar branch de trabalho da Sprint 3;
-2. validar escopo estritamente alinhado à SPEC;
-3. confirmar evidências de validação (typecheck/test);
-4. aprovar abertura de PR sem ampliar escopo.
+### Falta fechar no ciclo atual (não é evolução nova de produto)
+- push da branch final da Sprint 3 (se aplicável);
+- PR de fechamento da Sprint 3;
+- revisão de escopo/no-regression;
+- merge explícito;
+- validação pós-merge em `main`.
 
-## 6) Régua de evolução do projeto (etapas até entrega)
+## 3) Ordem de prioridade (régua de execução)
 
-### Etapas já concluídas
+- **P0**: necessário para operação mínima do fluxo comercial canônico.
+- **P1**: necessário para controle, segurança operacional e auditabilidade.
+- **P2**: melhoria posterior sem bloquear operação mínima.
 
-1. **Etapa 0 — Fundação inicial (Sprint 0)** ✅
-   - domínio inicial, state machine base, testes iniciais.
-2. **Etapa 1 — Núcleo comercial (Sprint 1)** ✅
-   - document core + hardening inicial + lifecycle/invoicing simples.
-3. **Etapa 2 — Hardening de domínio (Sprint 2)** ✅
-   - validation layer + refinamento semântico de erro de ajuste.
-4. **Etapa 3 — SPEC-Led Domain Foundation Completion (Sprint 3, Slices 1-5)** ✅ (local)
-   - fechamento de lacunas `REQUIRED_BY_SPEC` + fechamento documental local.
+Classificação atual:
+- Etapa 4, 5, 6, 8 => **P0**
+- Etapa 7, 9 => **P1**
+- Evoluções não essenciais pós-MVP => **P2**
 
-### Etapas pendentes até entrega deste ciclo
+## 4) Mapa de fases (produto + execução técnica)
 
-5. **Etapa 4 — Publicação controlada da Sprint 3** (pendente)
-   - push da branch da sessão;
-   - abertura de PR única da Sprint 3;
-   - validação final de escopo/no-regression.
+## Etapa 4 — Fechamento e publicação da fundação de domínio (**P0**) 
 
-6. **Etapa 5 — Gate de revisão e decisão de merge** (pendente)
-   - revisão técnica/documental do PR;
-   - decisão explícita de merge (sem automação).
+**Objetivo da fase**  
+Fechar corretamente o ciclo da Sprint 3 já implementado.
 
-7. **Etapa 6 — Entrega operacional do ciclo** (pendente)
-   - merge realizado;
-   - validação pós-merge em `main`;
-   - checkpoint de encerramento e definição formal do próximo ciclo.
+**Entregável prático**  
+PR de fechamento da Sprint 3 revisado, aprovado e mergeado com validação pós-merge.
 
-### Etapas macro até entrega do MVP do projeto
+**Módulos/áreas de código prováveis**  
+`src/domain`, `tests/*.spec.ts`, `docs/*gate*`, `README.md`, `START.md`.
 
-8. **Etapa 7 — Planejamento técnico do próximo ciclo (pós Sprint 3)**
-   - quebrar backlog `REQUIRED_BY_SPEC` em slices pequenos;
-   - definir critérios de aceite, risco e validação por slice.
+**Requisitos funcionais**
+1. branch final revisada sem desvio de escopo;
+2. PR única de fechamento com rastreabilidade da SPEC;
+3. main validada após merge.
 
-9. **Etapa 8 — Execução incremental dos slices do MVP**
-   - implementar somente escopo alinhado à SPEC;
-   - revisar e validar por PR pequena, sem salto de escopo.
+**Critérios de aceite**
+- PR da Sprint 3 sem findings High abertos;
+- escopo estritamente alinhado ao que já foi decidido;
+- checkpoint pós-merge registrado.
 
-10. **Etapa 9 — Consolidação operacional do MVP**
-    - fechar lacunas críticas de domínio/reporting/RBAC previstas na SPEC;
-    - validar consistência ponta a ponta do fluxo comercial canônico.
+**Validações obrigatórias (gate)**
+- `npm run typecheck`
+- `npm run test`
+- revisão de escopo (SPEC x diff)
+- aceite funcional de fechamento do ciclo
 
-11. **Etapa 10 — Gate final de entrega do MVP**
-    - evidência de critérios obrigatórios atendidos;
-    - decisão executiva formal de entrega do ciclo MVP.
+**Fora de escopo**
+- iniciar Slice 6;
+- abrir nova feature de produto.
 
-## 7) Próximos marcos imediatos
+## Etapa 5 — Fluxo operacional de orçamento (**P0**)
 
-1. Publicar PR da sessão completa da Sprint 3 (quando autorizado).
-2. Revisão de no-regression e aderência à SPEC.
-3. Decisão de merge explícita (sem automação).
-4. Definir próximo ciclo somente após gate fechado (sem criação automática de Slice 6).
+**Objetivo da fase**  
+Garantir orçamento operacional íntegro desde criação até atualização.
 
-## 8) Fora de escopo (neste ciclo)
+**Entregável prático**  
+Fluxo de orçamento estável com numeração, estado inicial e atualização sem ambiguidade.
 
-- Slice 6 (não canônico sem nova decisão formal).
-- Frontend/camada externa.
-- Banco/migrations/integrações fiscais (NF-e/gateway/boleto).
-- Integrações com legado SAGRADO.
-- Refactors amplos sem requisito explícito da SPEC.
+**Módulos/áreas de código prováveis**  
+`src/domain/*quote*`, camada de aplicação/use cases (quando aberta), persistência de quotes.
 
-## 9) Dependências
+**Requisitos funcionais**
+1. numeração de orçamento consistente (`ORC-####`);
+2. criação ao selecionar cliente válido;
+3. estado inicial correto (`QUOTE_DRAFT`);
+4. salvar/atualizar sem converter status indevidamente.
 
-- `docs/SPEC.md` (fonte de verdade).
-- `docs/SPEC-OPS-ADDENDUM.md`, `docs/RBAC-MATRIX.md`, `docs/API-CONTRACTS.yaml`, `docs/DATA-MODEL-OPS.md`, `docs/REPORTS-DICTIONARY.md`.
-- Gate documental: `docs/TEST-AND-RELEASE-GATE.md` e `docs/DECISION_SPEC_APPROVAL.md`.
-- Decisão operacional de Toni/Atlas para janela de push/PR.
+**Critérios de aceite**
+- criação de orçamento sempre vinculada a cliente válido;
+- status comercial preservado em edições;
+- casos de erro de entrada com resposta previsível.
 
-## 10) Decisões pendentes
+**Validações obrigatórias (gate)**
+- `npm run typecheck`
+- `npm run test` (incluindo cenários de orçamento)
+- build quando aplicável
+- revisão de escopo e aceite funcional
 
-1. Momento operacional de publicar push/PR da sessão completa da Sprint 3.
-2. Critério de janela de merge após revisão do PR.
-3. Priorização do próximo ciclo após fechamento efetivo do gate atual.
+**Fora de escopo**
+- comunicação por canais externos como critério de conclusão de orçamento;
+- fiscal completo.
 
-## 11) Riscos
+## Etapa 6 — Conversão orçamento -> pedido (**P0**)
 
-1. **Risco de desvio de escopo:** abrir evolução fora da SPEC antes de fechar gate atual.
-2. **Risco de regressão operacional:** publicar PR sem checklist final de no-regression.
-3. **Risco de ambiguidade de fase:** iniciar novo slice sem decisão formal de ciclo.
+**Objetivo da fase**  
+Fechar conversão comercial correta por ação explícita.
 
-## 12) Estimativa de tempo (dedicação)
+**Entregável prático**  
+Ação "Gerar Pedido" convertendo orçamento em pedido com vínculo rastreável.
 
-Estimativa para fechar o ciclo atual (Etapas 4, 5 e 6):
+**Módulos/áreas de código prováveis**  
+`src/domain/commercialDocument*`, `src/domain/events*`, testes de conversão.
 
-1. **Preparação e publicação da Sprint 3 (Etapa 4):** 2h a 4h
-2. **Revisão e decisão de merge (Etapa 5):** 2h a 6h (depende de rodada de revisão)
-3. **Pós-merge e checkpoint de encerramento (Etapa 6):** 1h a 2h
+**Requisitos funcionais**
+1. ação explícita "Gerar Pedido";
+2. manter vínculo com orçamento origem (`source_quote_id`/equivalente);
+3. transição de status conforme SPEC;
+4. impedir que ação de envio altere tipo/status comercial.
 
-**Total estimado para destravar e entregar o ciclo:** **5h a 12h** de dedicação operacional.
+**Critérios de aceite**
+- cada pedido confirmado referencia orçamento origem;
+- conversão só ocorre na ação canônica;
+- envio/impressão não converte status.
 
-Estimativa macro para etapas 7 a 10 (até entrega do MVP), sujeita a detalhamento por slice:
+**Validações obrigatórias (gate)**
+- `npm run typecheck`
+- `npm run test` (conversão positiva/negativa)
+- revisão de escopo e aceite funcional
 
-- **Etapa 7 (planejamento técnico):** 4h a 8h
-- **Etapa 8 (execução incremental MVP):** 2 a 6 semanas (dependente da quantidade de slices aprovados)
-- **Etapa 9 (consolidação operacional):** 1 a 2 semanas
-- **Etapa 10 (gate final de entrega MVP):** 4h a 12h
+**Fora de escopo**
+- atalhos de conversão por evento de comunicação;
+- automações externas de faturamento.
 
-**Janela macro estimada até entrega MVP:** **3 a 8 semanas**, com revisão a cada gate.
+## Etapa 7 — Comunicação do documento (**P1**)
 
-## 13) Critério para iniciar implementação
+**Objetivo da fase**  
+Separar definitivamente comunicação de estado comercial.
 
-Nova implementação só inicia quando **todos** forem verdadeiros:
-1. gate atual (push/PR da Sprint 3) fechado com decisão explícita;
-2. ciclo seguinte formalmente definido;
-3. escopo novo mapeado como `REQUIRED_BY_SPEC` (ou aprovado por decisão formal);
-4. branch de trabalho dedicada fora da `main`;
-5. critérios de validação e aceite definidos antes de codar.
+**Entregável prático**  
+Ações de enviar/imprimir registradas como `output_events` com rastreabilidade.
+
+**Módulos/áreas de código prováveis**  
+`src/domain/outputEvents*`, API/backend de comunicação, camada de integração futura.
+
+**Requisitos funcionais**
+1. enviar e-mail/WhatsApp/imprimir como ação de comunicação;
+2. não alterar tipo/status comercial do documento;
+3. registrar evento de envio/impressão.
+
+**Critérios de aceite**
+- documento mantém estado comercial após envio;
+- trilha de comunicação auditável por evento.
+
+**Validações obrigatórias (gate)**
+- `npm run typecheck`
+- `npm run test` (pós-envio sem mudança de status)
+- build quando aplicável
+- revisão de escopo e aceite funcional
+
+**Fora de escopo**
+- motor de campanhas;
+- automação comercial fora do fluxo core.
+
+## Etapa 8 — Fechamento de pedido (**P0**)
+
+**Objetivo da fase**  
+Consolidar ciclo de vida de pedido confirmado com regras administrativas e auditoria.
+
+**Entregável prático**  
+Fluxo de revisão administrativa, cancelamento e histórico de eventos consistente.
+
+**Módulos/áreas de código prováveis**  
+`src/domain/*order*`, `order_revisions`, `lifecycle_events`, RBAC/authorization.
+
+**Requisitos funcionais**
+1. pedido confirmado com regras de transição válidas;
+2. revisão administrativa auditável;
+3. cancelamento com política por perfil;
+4. histórico de eventos íntegro;
+5. regras bloqueantes mínimas para ações inválidas.
+
+**Critérios de aceite**
+- ações ADMIN e REPRESENTANTE respeitam RBAC;
+- eventos de revisão/cancelamento rastreáveis;
+- bloqueios funcionam para operações proibidas.
+
+**Validações obrigatórias (gate)**
+- `npm run typecheck`
+- `npm run test` (RBAC + ciclo de pedido)
+- revisão de escopo e aceite funcional
+
+**Fora de escopo**
+- workflows enterprise genéricos;
+- integrações legadas.
+
+## Etapa 9 — Faturamento simples / preparação fiscal (**P1**)
+
+**Objetivo da fase**  
+Fechar separação entre pedido e faturamento simples, preparando base para fase fiscal futura.
+
+**Entregável prático**  
+Contrato de dados de faturamento simples estável e alinhado à SPEC.
+
+**Módulos/áreas de código prováveis**  
+`invoices_simple` (modelo), regras de transição para `INVOICED`, API de registro simples.
+
+**Requisitos funcionais**
+1. separar pedido de faturamento;
+2. registrar faturamento simples sem NF-e;
+3. preparar contrato de dados para evolução fiscal futura.
+
+**Critérios de aceite**
+- faturamento simples não invade escopo fiscal completo;
+- status e eventos coerentes com a SPEC;
+- contrato de dados documentado.
+
+**Validações obrigatórias (gate)**
+- `npm run typecheck`
+- `npm run test`
+- build quando aplicável
+- revisão de escopo e aceite funcional
+
+**Fora de escopo**
+- NF-e completa;
+- gateway/boleto;
+- fiscal avançado sem decisão formal.
+
+## 5) Mapa técnico por área
+
+### 5.1 Domínio
+- fonte principal no estado atual: `src/domain`;
+- manter invariantes de estado comercial, numeração e eventos canônicos;
+- priorizar regras explícitas e testáveis.
+
+### 5.2 Aplicação / use cases
+- abrir/expandir camada de casos de uso por etapa (orçamento, conversão, faturamento);
+- orquestrar regras sem duplicar lógica de domínio.
+
+### 5.3 Persistência
+- consolidar entidades de quotes/orders/revisions/events/invoices simples;
+- garantir vínculo quote->order e trilha auditável.
+
+### 5.4 API / backend
+- expor ações canônicas (criar orçamento, gerar pedido, enviar, faturar simples);
+- preservar semântica de erro e idempotência conforme contratos.
+
+### 5.5 Frontend
+- liberar evolução de frontend **somente após fechamento da fundação necessária em main**;
+- UI deve refletir regras canônicas de status/ação, sem atalhos semânticos.
+
+### 5.6 Testes
+- mínimo obrigatório por etapa: cenário positivo + negação crítica;
+- manter cobertura de regressão para status, conversão e RBAC;
+- comandos de gate: typecheck + tests (+ build quando existir).
+
+### 5.7 Documentação
+- `docs/SPEC.md` e artefatos derivados sincronizados a cada mudança relevante;
+- `ROADMAP.md` registra evolução por fases;
+- `START.md` registra estado de sessão/retomada.
+
+## 6) Gates obrigatórios por etapa
+
+Toda etapa só avança com gate `Pass` contendo:
+1. `npm run typecheck` (obrigatório)
+2. `npm run test` (obrigatório)
+3. `npm run build` quando aplicável
+4. revisão de escopo (SPEC x mudança)
+5. aceite funcional da etapa
+
+Sem esses 5 itens => etapa permanece `Blocked`.
+
+## 7) Anti-escopo (regras de proteção)
+
+1. Não iniciar Slice 6 sem decisão formal.
+2. Não misturar evolução com SAGRADO-PEDIDOS.
+3. Não pular para fiscal completo sem aprovação executiva.
+4. Não transformar envio/impressão em mudança de status comercial.
+5. Não iniciar frontend antes da fundação necessária estar mergeada em `main`.
+6. Não executar implementações fora da SPEC sem decisão formal de escopo.
+
+## 8) Estimativa de dedicação
+
+### Fechamento do ciclo atual (Etapa 4)
+- 4h a 10h (publicação, revisão, merge, pós-merge)
+
+### Evolução técnica até MVP operacional (Etapas 5 a 9)
+- Etapa 5: 3 a 6 dias
+- Etapa 6: 3 a 6 dias
+- Etapa 7: 2 a 5 dias
+- Etapa 8: 4 a 8 dias
+- Etapa 9: 3 a 6 dias
+
+Janela estimada total: **3 a 8 semanas**, com revisão por gate.
