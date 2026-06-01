@@ -88,6 +88,43 @@ describe('quote application flow', () => {
     expect(updated.data.totals.total).toBe(190);
   });
 
+  it('updateQuote updates updatedAt when only customerId changes', async () => {
+    const repository = new InMemoryQuoteRepository();
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+
+    const created = await createQuoteUseCase(
+      { quoteRepository: repository },
+      {
+        id: 'q-updated-at',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+        numberSequence: 13,
+        now: createdAt,
+      }
+    );
+    if (!created.ok) return;
+
+    const result = await updateQuote(
+      { quoteRepository: repository },
+      {
+        id: 'q-updated-at',
+        customerId: 'customer-2',
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.createdAt.getTime()).toBe(createdAt.getTime());
+    expect(result.data.updatedAt.getTime()).not.toBe(createdAt.getTime());
+    expect(result.data.updatedAt.getTime()).toBeGreaterThan(createdAt.getTime());
+    expect(result.data.documentType).toBe('quote');
+    expect(result.data.status).toBe('QUOTE_DRAFT');
+    expect(result.data.number).toBe('ORC-000013');
+  });
+
   it('updateQuote falha para orçamento inexistente', async () => {
     const repository = new InMemoryQuoteRepository();
 

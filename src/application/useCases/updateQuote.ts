@@ -53,7 +53,10 @@ export async function updateQuote(
         'Cliente é obrigatório para atualizar orçamento'
       );
     }
-    nextDocument = { ...nextDocument, customerId };
+
+    if (nextDocument.customerId !== customerId) {
+      nextDocument = { ...nextDocument, customerId, updatedAt: new Date() };
+    }
   }
 
   for (const item of input.addItems ?? []) {
