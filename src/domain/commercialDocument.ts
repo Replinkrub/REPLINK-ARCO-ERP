@@ -63,6 +63,7 @@ export interface CommercialDocument {
   documentType: CommercialDocumentType;
   number: string;
   tenantId: string;
+  customerId?: string;
   ownerId: string;
   representativeId: string;
   status: CommercialStatus;
@@ -131,6 +132,7 @@ export type OperationResult = DomainResult<CommercialDocument>;
 export interface CreateQuoteInput {
   id: string;
   tenantId: string;
+  customerId?: string;
   ownerId: string;
   representativeId: string;
   numberSequence?: number;
@@ -193,6 +195,7 @@ export function createQuote(input: CreateQuoteInput): CommercialDocument {
     documentType: 'quote',
     number,
     tenantId: input.tenantId,
+    customerId: input.customerId,
     ownerId: input.ownerId,
     representativeId: input.representativeId,
     status: 'QUOTE_DRAFT',
