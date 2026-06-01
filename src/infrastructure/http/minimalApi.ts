@@ -18,29 +18,30 @@ interface ApiDeps {
 
 export function createMinimalHttpApi(deps: ApiDeps) {
   return async (request: Request): Promise<Response> => {
-    const url = new URL(request.url);
-    const actor = buildActorFromHeaders(request.headers);
-    if (!actor) return json({ code: 'UNAUTHORIZED', message: 'Missing actor headers' }, 401);
+    try {
+      const url = new URL(request.url);
+      const actor = buildActorFromHeaders(request.headers);
+      if (!actor) return json({ code: 'UNAUTHORIZED', message: 'Missing actor headers' }, 401);
 
-    const method = request.method.toUpperCase();
+      const method = request.method.toUpperCase();
 
-    if (method === 'POST' && url.pathname === '/v0/quotes') {
-      const body = await request.json() as Record<string, unknown>;
-      const result = await createQuoteUseCase(
-        { quoteRepository: deps.quoteRepository },
-        {
-          id: String(body.id ?? ''),
-          tenantId: actor.actorTenantId,
-          customerId: String(body.customerId ?? ''),
-          ownerId: String(body.ownerId ?? actor.actorId),
-          representativeId: String(body.representativeId ?? actor.actorId),
-          numberSequence: Number(body.numberSequence ?? 1),
-        }
-      );
-      return mapResult(result, 201);
-    }
+      if (method === 'POST' && url.pathname === '/v0/quotes') {
+        const body = await request.json() as Record<string, unknown>;
+        const result = await createQuoteUseCase(
+          { quoteRepository: deps.quoteRepository },
+          {
+            id: String(body.id ?? ''),
+            tenantId: actor.actorTenantId,
+            customerId: String(body.customerId ?? ''),
+            ownerId: String(body.ownerId ?? actor.actorId),
+            representativeId: String(body.representativeId ?? actor.actorId),
+            numberSequence: Number(body.numberSequence ?? 1),
+          }
+        );
+        return mapResult(result, 201);
+      }
 
-    if (method === 'PATCH' && url.pathname.startsWith('/v0/quotes/')) {
+      if (method === 'PATCH' && url.pathname.startsWith('/v0/quotes/')) {
       const quoteId = url.pathname.split('/')[3] ?? '';
       const body = await request.json() as Record<string, unknown>;
       const result = await updateQuote(
@@ -56,7 +57,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       return mapResult(result, 200);
     }
 
-    if (method === 'POST' && url.pathname.match(/^\/v0\/quotes\/[^/]+\/confirm$/)) {
+      if (method === 'POST' && url.pathname.match(/^\/v0\/quotes\/[^/]+\/confirm$/)) {
       const quoteId = url.pathname.split('/')[3] ?? '';
       const body = await request.json().catch(() => ({})) as Record<string, unknown>;
       const result = await confirmQuoteUseCase(
@@ -66,7 +67,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       return mapResult(result, 200);
     }
 
-    if (method === 'POST' && url.pathname.match(/^\/v0\/orders\/[^/]+\/cancel$/)) {
+      if (method === 'POST' && url.pathname.match(/^\/v0\/orders\/[^/]+\/cancel$/)) {
       const orderId = url.pathname.split('/')[3] ?? '';
       const body = await request.json() as Record<string, unknown>;
       const result = await cancelOrderUseCase(
@@ -76,7 +77,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       return mapResult(result, 200);
     }
 
-    if (method === 'POST' && url.pathname.match(/^\/v0\/orders\/[^/]+\/adjust$/)) {
+      if (method === 'POST' && url.pathname.match(/^\/v0\/orders\/[^/]+\/adjust$/)) {
       const orderId = url.pathname.split('/')[3] ?? '';
       const body = await request.json() as Record<string, unknown>;
       const result = await adjustOrderUseCase(
@@ -86,7 +87,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       return mapResult(result, 200);
     }
 
-    if (method === 'POST' && url.pathname.match(/^\/v0\/orders\/[^/]+\/invoice$/)) {
+      if (method === 'POST' && url.pathname.match(/^\/v0\/orders\/[^/]+\/invoice$/)) {
       const orderId = url.pathname.split('/')[3] ?? '';
       const body = await request.json().catch(() => ({})) as Record<string, unknown>;
       const result = await registerSimpleInvoiceUseCase(
@@ -96,7 +97,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       return mapResult(result, 200);
     }
 
-    if (method === 'POST' && url.pathname === '/v0/output-events') {
+      if (method === 'POST' && url.pathname === '/v0/output-events') {
       const body = await request.json() as Record<string, unknown>;
       const result = await registerDocumentCommunicationUseCase(
         { quoteRepository: deps.quoteRepository, orderRepository: deps.orderRepository },
@@ -111,8 +112,22 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       return mapResult(result, 201);
     }
 
-    return json({ code: 'NOT_FOUND', message: 'Route not found' }, 404);
+      return json({ code: 'NOT_FOUND', message: 'Route not found' }, 404);
+    } catch (error) {
+      if (isDependencyUnavailableError(error)) {
+        return json({ code: 'SERVICE_UNAVAILABLE', message: 'Database dependency unavailable' }, 503);
+      }
+      throw error;
+    }
   };
+}
+
+function isDependencyUnavailableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const pgCode = (error as { code?: string }).code;
+  if (pgCode === '57P01' || pgCode === '57P03') return true;
+  const message = error.message.toLowerCase();
+  return message.includes('connect') || message.includes('connection terminated') || message.includes('econnrefused');
 }
 
 function buildActorFromHeaders(headers: Headers): AccessContext | null {

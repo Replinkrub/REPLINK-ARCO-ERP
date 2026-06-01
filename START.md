@@ -165,3 +165,14 @@ Depois ler:
 
 Fechamento técnico P0+P1 concluído em `main`.
 Próxima decisão operacional: **não iniciar implementação P2 automaticamente**; executar apenas planejamento Frontend/UX e aguardar autorização explícita.
+
+## Update local — P1.5 Runtime Readiness / DB Smoke
+
+Branch local: `feat/p1-5-runtime-readiness-db-smoke`
+
+Entregas adicionadas:
+- bootstrap local com `DATABASE_URL` documentado no `README.md`;
+- `docker-compose.db.yml` para Postgres local;
+- comando `npm run db:migrate` para migrations SQL reais;
+- comando `npm run test:smoke:db` para fluxo mínimo com persistência real;
+- API mínima retorna `503 { code: "SERVICE_UNAVAILABLE", message: "Database dependency unavailable" }` quando dependência de banco está indisponível.

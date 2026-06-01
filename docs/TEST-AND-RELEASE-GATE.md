@@ -283,3 +283,20 @@ Próximo gate obrigatório:
 
 Arquivo de retomada da próxima sessão:
 - `START.md`
+
+## Gate P1.5 — Runtime Readiness / DB Smoke (ponte P1 API -> P2 frontend)
+
+Status do gate: **PASS_LOCAL (branch `feat/p1-5-runtime-readiness-db-smoke`)**
+
+Escopo entregue:
+- documentação de bootstrap local com env mínima (`DATABASE_URL`) no `README.md`;
+- `docker-compose.db.yml` para Postgres local reproduzível;
+- script `npm run db:migrate` aplicando SQL de `src/infrastructure/postgres/migrations/*.sql`;
+- script `npm run test:smoke:db` executando fluxo mínimo real (HTTP API + persistência Postgres);
+- contrato HTTP 503 canônico para indisponibilidade de dependência de banco sem alterar mapeamentos de erro de negócio.
+
+Comandos de validação do gate:
+- `npm run typecheck`
+- `npm run test`
+- `npm run db:migrate` (com Postgres local ativo)
+- `npm run test:smoke:db` (com Postgres local ativo)
