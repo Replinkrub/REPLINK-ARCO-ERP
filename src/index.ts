@@ -17,3 +17,7 @@ export * from './application/useCases/closeOrder.js';
 export * from './application/useCases/registerSimpleInvoice.js';
 export * from './infrastructure/repositories/inMemoryQuoteRepository.js';
 export * from './infrastructure/repositories/inMemoryOrderRepository.js';
+export * from './infrastructure/postgres/postgresClient.js';
+export * from './infrastructure/postgres/postgresQuoteRepository.js';
+export * from './infrastructure/postgres/postgresOrderRepository.js';
+export * from './infrastructure/http/minimalApi.js';
