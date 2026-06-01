@@ -84,6 +84,8 @@ PR de fechamento da Sprint 3 revisado, aprovado e mergeado com validação pós-
 
 ## Etapa 5 — Fluxo operacional de orçamento (**P0**)
 
+**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #14.
+
 **Objetivo da fase**  
 Garantir orçamento operacional íntegro desde criação até atualização.
 
