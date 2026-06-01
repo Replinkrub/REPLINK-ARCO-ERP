@@ -3,28 +3,25 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: Sprint 3 concluída localmente na branch (Slices 1, 2, 3, 4 e 5 concluídos; aguardando decisão operacional de push/PR)
+- Estado: Etapa 5 concluída e mergeada na `main` (PR #14)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
-- Main: sincronizada com origin/main após merge do PR #10
+- Main: sincronizada com origin/main após merge do PR #14
 - Typecheck: PASS
-- Tests: PASS — 50/50
-- Trabalho atual: pós-fechamento da Sprint 3 (consolidação final da sessão)
+- Tests: PASS — 58/58
+- Trabalho atual: fechamento de gate documental da Etapa 5
 
-## Checkpoint da sessão (2026-05-31)
+## Checkpoint da sessão (2026-06-01)
 
-- PR mergeado: `#10` — `feat(sprint3): establish spec-led domain foundation slices 1+2`
-- Commit base da entrega: `9bac840`
-- Merge commit em `main`: `38f31a3`
-- Escopo entregue:
-  - Slice 1: numeração canônica ORC/PED + validações de formato/prefixo/tipo + testes
-  - Slice 2: conversão quote→order com `source_quote_id`, `source_quote_number`, snapshot mínimo imutável + testes
-  - Hotfix de gate: bloqueio de conversão para status diferente de `QUOTE_DRAFT`
-- Escopo posterior entregue localmente na branch de trabalho:
-  - Slice 3: ajuste administrativo (order_revision + ORDER_ADJUSTED)
-  - Slice 4: output_events vs lifecycle_events
-  - Slice 5: fechamento documental e gate final da Sprint 3
+- PR mergeado: `#14` — `feat(etapa5): add quote operational application flow`
+- Merge commit em `main`: `377c542`
+- Escopo entregue na Etapa 5:
+  - application use cases `createQuote` e `updateQuote`
+  - `QuoteRepository` + `InMemoryQuoteRepository`
+  - validação de `customerId` obrigatório no nível application
+  - correção de blocker (`updatedAt` em alteração isolada de `customerId`)
+  - testes de aplicação e fluxo in-memory
 
 ## Decisão canônica
 
@@ -162,4 +159,5 @@ Depois ler:
 
 ## Gate seguinte
 
-Sprint 3 finalizada localmente. Próxima decisão operacional: push/PR da sessão completa quando autorizado.
+Etapa 5 concluída em `main`.
+Próxima decisão operacional: **não iniciar Etapa 6 automaticamente**; aguardar autorização explícita para novo ciclo.

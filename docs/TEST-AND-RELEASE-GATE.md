@@ -1,7 +1,7 @@
 # Test and Release Gate — ARCO-ERP MVP
 
-Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 com Slices 1-5 concluídos localmente na branch (fechamento documental finalizado)**
-Objetivo: manter critérios de liberação e governança por gates explícitos, com foco na decisão operacional pós-fechamento da Sprint 3 em modo SPEC-led.
+Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 5 concluída e mergeada na `main` (PR #14)**
+Objetivo: manter critérios de liberação e governança por gates explícitos, com foco em decisões de avanço por etapa sem pular gate.
 
 ## Premissas
 
@@ -109,6 +109,32 @@ Status do gate: **PASS (kickoff pronto)**
 - Validação atual de baseline:
   - `npm run typecheck` PASS
   - `npm run test` PASS (50/50)
+
+## Gate Etapa 5 — Fluxo operacional de orçamento (P0)
+
+Status do gate: **PASS (mergeado em main)**
+
+Evidências:
+- PR de entrega: **#14**
+- merge commit em `main`: **377c542c28e54865b5abd021178281d22aace7a9**
+- correção de blocker de regressão (`updatedAt` em alteração isolada de `customerId`) incluída antes do merge
+- validação pós-merge em `main`:
+  - `npm run typecheck` PASS
+  - `npm run test` PASS (58/58)
+
+Escopo confirmado da Etapa 5:
+- application use cases `createQuote` e `updateQuote`
+- `QuoteRepository` + `InMemoryQuoteRepository`
+- erros/result de aplicação
+- testes de aplicação e fluxo in-memory
+
+Fora de escopo mantido:
+- sem conversão orçamento->pedido na nova camada
+- sem criação de pedido/faturamento na Etapa 5
+- sem API/frontend/banco real/migrations/integrações
+
+Próxima regra de gate:
+- **não iniciar Etapa 6 automaticamente**; avanço depende de nova autorização explícita.
 
 ## Gate Sprint 3 — SPEC-Led Domain Foundation Completion (fechamento)
 
