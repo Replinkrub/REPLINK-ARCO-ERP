@@ -33,10 +33,11 @@ Regras centrais:
 - Etapa 6 concluída e mergeada em `main` via PR #17.
 - Etapa 7 concluída e mergeada em `main` via PR #19.
 - Etapa 8 concluída e mergeada em `main` via PR #21.
+- Etapa 9 concluída e mergeada em `main` via PR #23.
 
 ### Falta fechar no ciclo atual (não é evolução nova de produto)
-- fechamento documental do ciclo da Etapa 8;
-- registro do gate de planejamento da Etapa 9 (sem implementação);
+- fechamento documental do ciclo da Etapa 9;
+- registro do gate de planejamento da próxima fase (sem implementação);
 - validação final de escopo/no-regression.
 
 ## 3) Ordem de prioridade (régua de execução)
@@ -218,7 +219,7 @@ Fluxo de revisão administrativa, cancelamento e histórico de eventos consisten
 
 ## Etapa 9 — Faturamento simples / preparação fiscal (**P1**)
 
-**Status atual (2026-06-01):** planejamento registrado, implementação ainda não iniciada.
+**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #23.
 
 **Objetivo da fase**  
 Fechar separação entre pedido e faturamento simples, preparando base para fase fiscal futura.
@@ -316,3 +317,8 @@ Sem esses 5 itens => etapa permanece `Blocked`.
 - Etapa 9: 3 a 6 dias
 
 Janela estimada total: **3 a 8 semanas**, com revisão por gate.
+
+## 9) Próxima fase (pós-Etapa 9)
+
+- Registrar plano da fase seguinte em documento dedicado de gate, sem implementação automática.
+- Qualquer expansão para escopo fiscal avançado, integrações externas ou novas áreas do produto exige autorização explícita.
