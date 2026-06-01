@@ -30,13 +30,12 @@ Regras centrais:
 ### Já concluído
 - Sprint 0, Sprint 1 e Sprint 2 mergeadas em `main`.
 - Sprint 3 (Slices 1-5) concluída no escopo técnico/documental.
+- Etapa 6 concluída e mergeada em `main` via PR #17.
 
 ### Falta fechar no ciclo atual (não é evolução nova de produto)
-- push da branch final da Sprint 3 (se aplicável);
-- PR de fechamento da Sprint 3;
-- revisão de escopo/no-regression;
-- merge explícito;
-- validação pós-merge em `main`.
+- fechamento documental do ciclo da Etapa 6;
+- registro do gate de planejamento da Etapa 7 (sem implementação);
+- validação final de escopo/no-regression.
 
 ## 3) Ordem de prioridade (régua de execução)
 
@@ -118,6 +117,8 @@ Fluxo de orçamento estável com numeração, estado inicial e atualização sem
 
 ## Etapa 6 — Conversão orçamento -> pedido (**P0**)
 
+**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #17.
+
 **Objetivo da fase**  
 Fechar conversão comercial correta por ação explícita.
 
@@ -148,6 +149,8 @@ Ação "Gerar Pedido" convertendo orçamento em pedido com vínculo rastreável.
 - automações externas de faturamento.
 
 ## Etapa 7 — Comunicação do documento (**P1**)
+
+**Status atual (2026-06-01):** planejamento registrado, implementação ainda não iniciada.
 
 **Objetivo da fase**  
 Separar definitivamente comunicação de estado comercial.

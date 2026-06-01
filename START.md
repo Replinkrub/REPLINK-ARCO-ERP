@@ -3,25 +3,26 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: Etapa 5 concluída e mergeada na `main` (PR #14)
+- Estado: Etapa 6 concluída e mergeada na `main` (PR #17)
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
-- Main: sincronizada com origin/main após merge do PR #14
+- Main: sincronizada com origin/main após merge do PR #17
 - Typecheck: PASS
-- Tests: PASS — 58/58
-- Trabalho atual: fechamento de gate documental da Etapa 5
+- Tests: PASS — 65/65
+- Trabalho atual: fechamento documental da Etapa 6 + registro do plano da Etapa 7 (sem implementação)
 
 ## Checkpoint da sessão (2026-06-01)
 
-- PR mergeado: `#14` — `feat(etapa5): add quote operational application flow`
-- Merge commit em `main`: `377c542`
-- Escopo entregue na Etapa 5:
-  - application use cases `createQuote` e `updateQuote`
-  - `QuoteRepository` + `InMemoryQuoteRepository`
-  - validação de `customerId` obrigatório no nível application
-  - correção de blocker (`updatedAt` em alteração isolada de `customerId`)
-  - testes de aplicação e fluxo in-memory
+- PR mergeado: `#17` — `feat(etapa6): add quote to order application flow`
+- Merge commit em `main`: `25fc59c`
+- Escopo entregue na Etapa 6:
+  - `confirmQuoteUseCase` na camada application
+  - `OrderRepository` port + `InMemoryOrderRepository`
+  - guarda de duplicidade com `CONFLICT_ALREADY_CONFIRMED`
+  - validação de contrato de entrada com `VALIDATION_ERROR`
+  - testes F-03/F-04 e negações críticas (incluindo tenant mismatch)
+  - validação pós-merge em `main` com typecheck/test PASS (65/65)
 
 ## Decisão canônica
 
@@ -159,5 +160,5 @@ Depois ler:
 
 ## Gate seguinte
 
-Etapa 5 concluída em `main`.
-Próxima decisão operacional: **não iniciar Etapa 6 automaticamente**; aguardar autorização explícita para novo ciclo.
+Etapa 6 concluída em `main`.
+Próxima decisão operacional: **não iniciar Etapa 7 automaticamente**; executar apenas o gate de planejamento/escopo e aguardar autorização explícita para implementação.
