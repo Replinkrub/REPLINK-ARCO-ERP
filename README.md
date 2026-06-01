@@ -29,6 +29,48 @@ Este repositório inicia o ARCO-ERP do zero, com baseline canônica na SPEC.
 - `npm run typecheck`: **PASS**
 - `npm run test`: **PASS (50/50)**
 
+## Runtime readiness local (P1.5)
+
+### Variáveis mínimas de ambiente
+
+- `DATABASE_URL` (obrigatória para migration e smoke DB)
+  - exemplo local: `postgresql://arco:arco@localhost:5432/arco_erp`
+  - `npm run test:smoke:db` falha imediatamente se a variável não estiver definida
+
+### Bootstrap local com Postgres real
+
+1. Subir Postgres local:
+
+   ```bash
+   docker compose -f docker-compose.db.yml up -d
+   ```
+
+2. Exportar env mínima:
+
+   ```bash
+   export DATABASE_URL="postgresql://arco:arco@localhost:5432/arco_erp"
+   ```
+
+3. Aplicar migration SQL:
+
+   ```bash
+   npm run db:migrate
+   ```
+
+4. Executar smoke real de banco:
+
+   ```bash
+   npm run test:smoke:db
+   ```
+
+5. Encerrar ambiente local (quando necessário):
+
+   ```bash
+   docker compose -f docker-compose.db.yml down
+   ```
+
+Se Docker não estiver disponível, usar um Postgres local equivalente (porta 5432, db `arco_erp`, usuário/senha compatíveis com `DATABASE_URL`) e executar os mesmos comandos `db:migrate` e `test:smoke:db`.
+
 ## Sprint 3 — estado atual
 
 Nome: **Sprint 3 — SPEC-Led Domain Foundation Completion**

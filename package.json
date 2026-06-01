@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --exclude tests/smokeDb.spec.ts",
+    "db:migrate": "node ./scripts/db-migrate.mjs",
+    "test:smoke:db": "vitest run tests/smokeDb.spec.ts"
   },
   "devDependencies": {
     "@types/pg": "^8.15.5",

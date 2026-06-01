@@ -55,4 +55,37 @@ describe('minimal HTTP API', () => {
     const response = await api(new Request('http://localhost/v0/quotes', { method: 'POST' }));
     expect(response.status).toBe(401);
   });
+
+  it('returns canonical 503 when database dependency is unavailable', async () => {
+    const dbError = new Error('connect ECONNREFUSED 127.0.0.1:5432') as Error & { code?: string };
+    dbError.code = '57P03';
+    const api = createMinimalHttpApi({
+      quoteRepository: {
+        save: async () => {
+          throw dbError;
+        },
+        getById: async () => null,
+      },
+      orderRepository: {
+        save: async () => undefined,
+        saveFromQuoteOnce: async () => ({ ok: true }),
+        getById: async () => null,
+        getBySourceQuoteId: async () => null,
+      },
+    });
+
+    const response = await api(
+      new Request('http://localhost/v0/quotes', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'q-http-db-down', customerId: 'c-1', numberSequence: 1 }),
+      })
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      code: 'SERVICE_UNAVAILABLE',
+      message: 'Database dependency unavailable',
+    });
+  });
 });
