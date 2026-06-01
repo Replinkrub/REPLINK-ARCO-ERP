@@ -5,6 +5,24 @@ export class InMemoryOrderRepository implements OrderRepository {
   private readonly byId = new Map<string, CommercialDocument>();
   private readonly bySourceQuoteId = new Map<string, string>();
 
+  async save(order: CommercialDocument): Promise<void> {
+    if (order.documentType !== 'order') {
+      throw new Error('ORDER_REPOSITORY_ONLY_ACCEPTS_ORDERS');
+    }
+
+    if (!order.source_quote_id) {
+      throw new Error('ORDER_REPOSITORY_REQUIRES_SOURCE_QUOTE_ID');
+    }
+
+    const existingOrderId = this.bySourceQuoteId.get(order.source_quote_id);
+    if (existingOrderId && existingOrderId !== order.id) {
+      throw new Error('ORDER_REPOSITORY_SOURCE_QUOTE_CONFLICT');
+    }
+
+    this.bySourceQuoteId.set(order.source_quote_id, order.id);
+    this.byId.set(order.id, structuredClone(order));
+  }
+
   async saveFromQuoteOnce(order: CommercialDocument): Promise<SaveOrderFromQuoteResult> {
     if (order.documentType !== 'order') {
       throw new Error('ORDER_REPOSITORY_ONLY_ACCEPTS_ORDERS');
@@ -18,8 +36,7 @@ export class InMemoryOrderRepository implements OrderRepository {
       return { ok: false };
     }
 
-    this.bySourceQuoteId.set(order.source_quote_id, order.id);
-    this.byId.set(order.id, structuredClone(order));
+    await this.save(order);
     return { ok: true };
   }
 
