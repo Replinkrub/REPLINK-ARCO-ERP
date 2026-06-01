@@ -1,7 +1,7 @@
 # DECISION — SPEC Approval Gate (ARCO-ERP v0)
 
 Data: 2026-05-28
-Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 5 concluída e mergeada na `main`**
+Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 5 concluída + Etapa 6 concluída e mergeada na `main`**
 
 ## Decisão canônica registrada
 
@@ -13,6 +13,7 @@ Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 
 - Slices 1-4 da Sprint 3 foram concluídos localmente na branch de trabalho.
 - Slice 5 (fechamento documental e gate final da Sprint 3) foi concluído localmente.
 - Etapa 5 (fluxo operacional de orçamento) foi concluída e mergeada na `main` via PR #14.
+- Etapa 6 (conversão orçamento -> pedido) foi concluída e mergeada na `main` via PR #17.
 - Este gate **não autoriza automaticamente** merge de futuros PRs.
 
 ## Escopo entregue até o último gate
@@ -24,8 +25,8 @@ Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 
 ## Validações do checkpoint
 
 - `npm run typecheck`: **PASS**
-- `npm run test`: **PASS (58/58)**
-- PRs relevantes mergeados: **#2, #4, #5, #6, #7, #8, #14**
+- `npm run test`: **PASS (65/65)**
+- PRs relevantes mergeados: **#2, #4, #5, #6, #7, #8, #14, #17**
 
 ## Limites obrigatórios
 
@@ -45,7 +46,7 @@ Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 
 - `DECISAO_EXECUTIVA:` GO controlado para início da implementação (Sprint 0)
 - `RESPONSAVEL_DECISAO:` Toni
 - `DATA_DECISAO:` 2026-05-28
-- `ATUALIZACAO_GATE:` Etapa 5 concluída com merge do PR #14 e validação pós-merge em main
+- `ATUALIZACAO_GATE:` Etapa 6 concluída com merge do PR #17 e validação pós-merge em main
 - `PRS_REFERENCIA:`
   - https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/2
   - https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/4
@@ -54,6 +55,7 @@ Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 
   - https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/7
   - https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/8
   - https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/14
+  - https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/17
 
 ## Critérios usados no gate Sprint 0
 
