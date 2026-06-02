@@ -3,176 +3,106 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: fechamento técnico P0+P1 concluído e mergeado na `main` (PR #25)
+- Estado: **P1.5 Supabase Runtime Readiness concluído e mergeado em `main`**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
-- Main: sincronizada com origin/main após merge do PR #25
-- Typecheck: PASS
-- Tests: PASS — 87/87
-- Trabalho atual: fechamento documental do ciclo P0+P1 + registro do plano P2 Frontend/UX (somente planejamento)
+- Sprint 3 (Slices 1–5): concluída e mergeada
+- P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
+- P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
+- `main` em: `4b0d322` (squash merge PR #28)
+- Typecheck: ✅ PASS
+- Tests: ✅ PASS — 89/89 (8 test files)
+- Smoke DB real contra Supabase dev: ✅ PASS (635ms)
+- Próximo passo registrado: P2 Frontend/UX (planning-only, sem implementação)
 
 ## Checkpoint da sessão (2026-06-01)
 
-- PR mergeado: `#25` — `feat(p0-p1): add postgres persistence and minimal http api`
-- Merge commit em `main`: `9985552`
-- Escopo entregue no fechamento técnico P0+P1:
-  - adapters Postgres para repositórios do fluxo comercial
-  - migration inicial de persistência real
-  - API HTTP mínima para operações essenciais
-  - testes de persistência (`postgresRepositories.spec.ts`) e API (`minimalApi.spec.ts`)
-  - validação pós-merge em `main` com typecheck/test PASS (87/87)
-- Fora de escopo mantido:
-  - frontend
-  - fiscal avançado / NF-e
-  - integrações externas
+### PRs mergeados neste ciclo
 
-## Decisão canônica
+| PR | Título | Merge commit |
+|---|---|---|
+| #28 | `feat(p1.5): supabase runtime readiness with real db smoke and upsert fix` | `4b0d322` |
 
-A Sprint 3 deve seguir a SPEC.
+### Escopo técnico entregue no P1.5
 
-A prioridade é fechar lacunas estruturais exigidas pela SPEC antes de avançar para fluxos operacionais mais amplos.
+- **README.md**: bootstrap migrado de Postgres local → Supabase
+- **.gitignore**: `.env.local` e `.env.*.local` adicionados (proteção de credenciais)
+- **.env.example**: template DATABASE_URL para Supabase dev (sem segredo)
+- **docs/TEST-AND-RELEASE-GATE.md**: gate P1.5 atualizado com evidências PASS
+- **postgresOrderRepository.ts**: expansão do `ON CONFLICT DO UPDATE SET` — agora sobrescreve `document_type`, `source_quote_id`, `source_quote_snapshot` e demais campos de conversão na confirmação quote→order
+- **tests/postgresRepositories.spec.ts**: teste unitário validando upsert sobrescreve campos da quote ao salvar order
+- **tests/smokeDb.spec.ts**: numberSequence dinâmico + asserts de `document_type` mudando de `'quote'` para `'order'` após confirmação
 
-Regra:
-- SPEC > pressa de feature.
-- Base sólida antes de camada superior.
-- Não criar abstrações sem necessidade real.
-- Não fazer hardening genérico.
-- Só implementar o que for REQUIRED_BY_SPEC, testável e local ao domínio.
+### Bug corrigido (crítico)
 
-## Sprint 3 — SPEC-Led Domain Foundation Completion
+**Problema**: `PostgresOrderRepository.save` usava `ON CONFLICT (id) DO UPDATE SET` parcial — não sobrescrevia `document_type`, `source_quote_id` e campos de conversão. Ao confirmar uma quote (mesmo id), o registro permanecia como `document_type='quote'` no banco.
 
-Objetivo:
-Fechar lacunas de fundação de domínio exigidas pela SPEC.
+**Correção**: upsert expandido para incluir todos os campos de conversão (`document_type`, `tenant_id`, `customer_id`, `owner_id`, `representative_id`, `status`, `items`, `totals`, `created_at`, `updated_at`, `confirmed_at`, `invoiced_at`, `invoice_manual_reference`, `source_quote_id`, `source_quote_number`, `source_quote_revision`, `converted_at`, `source_quote_snapshot`, `canceled_at`, `cancel_reason`, `cancel_note`).
 
-Lacunas REQUIRED_BY_SPEC (status):
+### Evidências de validação pós-merge em `main`
 
-1. Numeração canônica — ✅ concluído
-- ORC-####
-- PED-####
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` (89/89) | ✅ PASS |
+| `npm run test:smoke:db` (Supabase dev real) | ✅ PASS (635ms) |
 
-2. Conversão quote → order — ✅ concluído
-- vínculo explícito source_quote_id
-- snapshot mínimo dedicado
+### Fora de escopo mantido
 
-3. Ajuste administrativo — ✅ concluído
-- estrutura explícita de order_revision
-- evento ORDER_ADJUSTED
+- `erp_app_flow_map.html`: untracked, fora de commits
+- `.env.local`: não versionado, DATABASE_URL nunca exposta
+- P2 Frontend/UX: não iniciado (apenas planning registrado em `docs/NEXT-PHASE-GATE-PLAN.md`)
 
-4. Output events — ✅ concluído
-- separar semanticamente output_events de lifecycle_events
-- output_event não altera status comercial
+### Ambiente
 
-5. Dupla confirmação — ✅ concluído no escopo da Sprint 3 (código canônico mantido)
-- contrato canônico de negação/conflito para confirmação duplicada
-- sem modelagem distribuída/lock avançado nesta fase
-
-6. Documentação de gate — ✅ concluído
-- atualizar estado real pós Slices 1-4
-- manter rastreabilidade com SPEC e baseline de validação atual
-
-## Escopo permitido da Sprint 3
-
-- domínio puro
-- tipos de domínio
-- regras comerciais exigidas pela SPEC
-- testes positivos/negativos
-- documentação factual de gate
-
-## Escopo proibido
-
-- frontend
-- API/camada externa
-- banco/persistência/migration
-- integração fiscal real
-- integração com Sagrado/legado
-- importação/migração de legado
-- workflow engine genérico
-- abstrações futuras sem caso SPEC
-
-## Critério anti-overengineering
-
-Um item só entra se responder SIM para todas:
-
-1. Está explícito na SPEC/Addendum/RBAC?
-2. Protege regra comercial central?
-3. Tem teste objetivo?
-4. É local ao domínio?
-5. Reduz ambiguidade real?
-
-Se qualquer resposta for NÃO, deixar fora da Sprint 3.
-
-## Plano recomendado
-
-Slice 1: ✅ concluído
-Numeração canônica ORC/PED + testes.
-
-Slice 2: ✅ concluído
-Conversão quote→order com source_quote_id e snapshot mínimo + testes.
-
-Slice 3: ✅ concluído
-order_revision explícito no ajuste administrativo + testes.
-
-Slice 4: ✅ concluído
-Separação output_events vs lifecycle_events + testes de regressão.
-
-Slice 5: ✅ concluído
-Atualização documental final, baseline factual de validação e checklist anti-overengineering aplicado.
-
-## Checklist anti-overengineering aplicado no fechamento (Slice 5)
-
-- [x] Item alterado está explícito na SPEC/Addendum/RBAC.
-- [x] Mudança protege regra comercial central (sem ampliar escopo).
-- [x] Mantido escopo documental; sem tocar código/testes/scripts.
-- [x] Rastreabilidade entre `START.md`, `README.md`, `docs/TEST-AND-RELEASE-GATE.md` e `docs/DECISION_SPEC_APPROVAL.md`.
-- [x] Nenhuma proposta de Slice 6 (não existe canonicamente nesta sprint).
-
-## Stash técnico preservado
-
-Existe stash técnico anterior:
-
-wip/test-sprint2-commercial-flow-e2e-before-sprint3-kickoff
-
-Regra:
-Não aplicar automaticamente.
-Só avaliar depois que Sprint 3 estiver aberta e se o conteúdo ajudar a validar fluxo sem contrariar a SPEC.
+- **Base de dados**: Supabase dev (PostgreSQL via Session pooler)
+- **Role**: `arco_app`
+- **DATABASE_URL**: definida apenas localmente em `.env.local` (nunca versionada)
+- **Migration**: `001_init_commercial_documents.sql` aplicada
+- **Runtime**: `pg` client com `sslmode=require`
 
 ## Primeiro comando da próxima sessão
 
-Validar estado:
-
+```bash
 git checkout main
 git pull --ff-only origin main
 git status -sb
 npm run typecheck
 npm run test
-
-Se houver continuidade pós-gate, manter na branch atual de Sprint 3 (sem abrir Slice 6 sem decisão formal).
+```
 
 Depois ler:
 
-1. START.md
-2. docs/SPEC.md
-3. docs/SPEC_REVIEW.md
-4. docs/SPEC-OPS-ADDENDUM.md
-5. docs/RBAC-MATRIX.md
-6. docs/TEST-AND-RELEASE-GATE.md
-7. docs/DECISION_SPEC_APPROVAL.md
-8. src/domain
-9. tests
+1. `START.md` (este arquivo)
+2. `docs/SPEC.md`
+3. `docs/SPEC_REVIEW.md`
+4. `docs/SPEC-OPS-ADDENDUM.md`
+5. `docs/RBAC-MATRIX.md`
+6. `docs/TEST-AND-RELEASE-GATE.md` (seção P1.5)
+7. `docs/NEXT-PHASE-GATE-PLAN.md` (P2 planning)
+8. `docs/DECISION_SPEC_APPROVAL.md`
+9. `src/domain`
+10. `tests`
 
 ## Gate seguinte
 
-Fechamento técnico P0+P1 concluído em `main`.
-Próxima decisão operacional: **não iniciar implementação P2 automaticamente**; executar apenas planejamento Frontend/UX e aguardar autorização explícita.
+P1.5 Supabase Runtime Readiness: **✅ PASS e mergeado**.
+Próximo passo: **P2 Frontend/UX inicial (planning-only)** — não implementar sem autorização explícita.
 
-## Update local — P1.5 Runtime Readiness / DB Smoke
+### Para rodar validações do gate P1.5
 
-Branch local: `feat/p1-5-runtime-readiness-db-smoke`
+```bash
+# Configurar ambiente (primeira vez)
+cp .env.example .env.local
+# Editar .env.local com DATABASE_URL real do Supabase dev
 
-Entregas adicionadas:
-- bootstrap local com `DATABASE_URL` documentado no `README.md`;
-- `docker-compose.db.yml` para Postgres local;
-- comando `npm run db:migrate` para migrations SQL reais;
-- comando `npm run test:smoke:db` para fluxo mínimo com persistência real;
-- API mínima retorna `503 { code: "SERVICE_UNAVAILABLE", message: "Database dependency unavailable" }` quando dependência de banco está indisponível.
+# Carregar env
+set -a; source .env.local; set +a
+
+# Aplicar migration
+npm run db:migrate
+
+# Rodar smoke DB real
+npm run test:smoke:db
+```

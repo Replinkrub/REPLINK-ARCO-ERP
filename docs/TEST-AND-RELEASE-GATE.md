@@ -286,17 +286,42 @@ Arquivo de retomada da próxima sessão:
 
 ## Gate P1.5 — Supabase Runtime Readiness / DB Smoke (ponte P1 API -> P2 frontend)
 
-Status do gate: **PENDING_VALIDATION (branch `feat/p1-5-supabase-runtime-readiness`)**
+Status do gate: **PASS** (mergeado em `main` via PR #28)
 
-Escopo entregue:
-- documentação de runtime com env mínima (`DATABASE_URL`) para Supabase no `README.md`;
-- `.env.example` sem segredo para bootstrap seguro local (`.env.local` não versionado);
-- script `npm run db:migrate` aplicando SQL de `src/infrastructure/postgres/migrations/*.sql`;
-- script `npm run test:smoke:db` executando fluxo mínimo real (HTTP API + persistência Postgres Supabase);
-- contrato HTTP 503 canônico para indisponibilidade de dependência de banco sem alterar mapeamentos de erro de negócio.
+### Evidências de validação (post-merge em `main`)
 
-Comandos de validação do gate:
-- `npm run typecheck`
-- `npm run test`
-- `npm run db:migrate` (com `DATABASE_URL` Supabase dev)
-- `npm run test:smoke:db` (com `DATABASE_URL` Supabase dev)
+| Validação | Resultado | Evidência |
+|---|---|---|
+| `npm run typecheck` | ✅ PASS | Branch `main` commit `4b0d322` |
+| `npm run test` (89/89) | ✅ PASS | 8 test files, 89 tests, zero failures |
+| `npm run test:smoke:db` (Supabase dev real) | ✅ PASS | Fluxo HTTP API → persistência Postgres Supabase real (635ms) |
+
+### Escopo entregue
+
+- README migrado de Postgres local → Supabase (bootstrap com env mínima)
+- `.env.example` template seguro de DATABASE_URL (sem segredo)
+- `.gitignore` protegendo `.env.local` e `.env.*.local`
+- `npm run db:migrate` aplica migrations SQL no Supabase dev
+- `npm run test:smoke:db` executa fluxo real (HTTP API + persistência Supabase)
+- Contrato HTTP 503 canônico mantido para indisponibilidade de dependência
+- Bug do upsert corrigido: `postgresOrderRepository.ts` agora sobrescreve `document_type`, `source_quote_id` e campos de conversão no `ON CONFLICT DO UPDATE SET`
+
+### Fora de escopo (mantido)
+
+- `erp_app_flow_map.html`: untracked, fora de commits
+- `.env.local`: não versionado, DATABASE_URL nunca exposta
+- P2 Frontend/UX: não iniciado (planning-only registrado)
+
+### PRs do ciclo
+
+| PR | Título | Status |
+|---|---|---|
+| #28 | `feat(p1.5): supabase runtime readiness with real db smoke and upsert fix` | ✅ Mergeado em `main` |
+
+### Comandos de validação do gate
+
+```bash
+npm run typecheck
+npm run test
+npm run test:smoke:db    # requer DATABASE_URL no .env.local
+```
