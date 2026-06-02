@@ -35,11 +35,11 @@ Regras centrais:
 - Etapa 8 concluída e mergeada em `main` via PR #21.
 - Etapa 9 concluída e mergeada em `main` via PR #23.
 - Fechamento técnico P0+P1 (persistência real + API HTTP mínima) concluído e mergeado em `main` via PR #25.
-
-### Falta fechar no ciclo atual (não é evolução nova de produto)
-- fechamento documental do ciclo P0+P1 após PR #25;
-- registro do gate de planejamento P2 Frontend/UX (sem implementação);
-- validação final de escopo/no-regression.
+- Fechamento P1.5 Supabase Runtime Readiness / DB Smoke concluído e mergeado em `main` via PR #28.
+  - Runtime real validado contra Supabase dev.
+  - Smoke DB real contra Supabase: ✅ PASS.
+  - Bug do upsert `postgresOrderRepository` corrigido (document_type sobrescrito no ON CONFLICT).
+  - `.env.example` criado sem segredo; `.env.local` protegido no `.gitignore`.
 
 ## 3) Ordem de prioridade (régua de execução)
 
