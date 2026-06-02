@@ -68,4 +68,29 @@ describe('postgres repositories', () => {
     expect(db.calls).toHaveLength(1);
     expect(db.calls[0]?.text).toContain('INSERT INTO commercial_documents');
   });
+
+  it('upsert on order save rewrites quote row fields required by confirm flow', async () => {
+    const db = new FakeSqlExecutor();
+    const repository = new PostgresOrderRepository(db);
+
+    const quote = createQuote({
+      id: 'q-db-3',
+      tenantId: 'tenant-1',
+      customerId: 'customer-1',
+      ownerId: 'owner-1',
+      representativeId: 'rep-1',
+      numberSequence: 3,
+    });
+    const converted = convertQuoteToOrder(quote, 30);
+    if (!converted.ok) return;
+
+    await repository.save(converted.document);
+
+    expect(db.calls).toHaveLength(1);
+    const sql = db.calls[0]?.text ?? '';
+    expect(sql).toContain('ON CONFLICT (id) DO UPDATE SET');
+    expect(sql).toContain('document_type = EXCLUDED.document_type');
+    expect(sql).toContain('source_quote_id = EXCLUDED.source_quote_id');
+    expect(sql).toContain('source_quote_snapshot = EXCLUDED.source_quote_snapshot');
+  });
 });
