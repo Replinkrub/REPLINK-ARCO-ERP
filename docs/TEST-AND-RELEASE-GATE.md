@@ -284,19 +284,19 @@ Próximo gate obrigatório:
 Arquivo de retomada da próxima sessão:
 - `START.md`
 
-## Gate P1.5 — Runtime Readiness / DB Smoke (ponte P1 API -> P2 frontend)
+## Gate P1.5 — Supabase Runtime Readiness / DB Smoke (ponte P1 API -> P2 frontend)
 
-Status do gate: **PASS_LOCAL (branch `feat/p1-5-runtime-readiness-db-smoke`)**
+Status do gate: **PENDING_VALIDATION (branch `feat/p1-5-supabase-runtime-readiness`)**
 
 Escopo entregue:
-- documentação de bootstrap local com env mínima (`DATABASE_URL`) no `README.md`;
-- `docker-compose.db.yml` para Postgres local reproduzível;
+- documentação de runtime com env mínima (`DATABASE_URL`) para Supabase no `README.md`;
+- `.env.example` sem segredo para bootstrap seguro local (`.env.local` não versionado);
 - script `npm run db:migrate` aplicando SQL de `src/infrastructure/postgres/migrations/*.sql`;
-- script `npm run test:smoke:db` executando fluxo mínimo real (HTTP API + persistência Postgres);
+- script `npm run test:smoke:db` executando fluxo mínimo real (HTTP API + persistência Postgres Supabase);
 - contrato HTTP 503 canônico para indisponibilidade de dependência de banco sem alterar mapeamentos de erro de negócio.
 
 Comandos de validação do gate:
 - `npm run typecheck`
 - `npm run test`
-- `npm run db:migrate` (com Postgres local ativo)
-- `npm run test:smoke:db` (com Postgres local ativo)
+- `npm run db:migrate` (com `DATABASE_URL` Supabase dev)
+- `npm run test:smoke:db` (com `DATABASE_URL` Supabase dev)

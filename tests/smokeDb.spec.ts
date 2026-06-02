@@ -16,6 +16,7 @@ describe('db smoke (real postgres)', () => {
   const now = Date.now();
   const quoteId = `q-smoke-${now}`;
   const tenantId = `tenant-smoke-${now}`;
+  const baseSequence = 100000 + (now % 700000);
 
   const db = new PostgresClient(databaseUrl as string);
   const pgClient = new Client({ connectionString: databaseUrl });
@@ -50,15 +51,22 @@ describe('db smoke (real postgres)', () => {
         customerId: `customer-smoke-${now}`,
         ownerId: `owner-smoke-${now}`,
         representativeId: `rep-smoke-${now}`,
-        numberSequence: 2001,
+        numberSequence: baseSequence,
       }),
     }));
     expect(createResponse.status).toBe(201);
 
+    const createdQuoteRow = await pgClient.query(
+      'SELECT id, document_type, status FROM commercial_documents WHERE id = $1 LIMIT 1',
+      [quoteId]
+    );
+    expect(createdQuoteRow.rowCount).toBe(1);
+    expect(createdQuoteRow.rows[0]?.document_type).toBe('quote');
+
     const confirmResponse = await api(new Request(`http://localhost/v0/quotes/${quoteId}/confirm`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ orderSequence: 2002 }),
+      body: JSON.stringify({ orderSequence: baseSequence + 1 }),
     }));
     expect(confirmResponse.status).toBe(200);
 
@@ -67,7 +75,7 @@ describe('db smoke (real postgres)', () => {
       [quoteId]
     );
     expect(quoteRow.rowCount).toBe(1);
-    expect(quoteRow.rows[0]?.document_type).toBe('quote');
+    expect(quoteRow.rows[0]?.document_type).toBe('order');
 
     const orderRow = await pgClient.query(
       'SELECT source_quote_id, document_type, status FROM commercial_documents WHERE source_quote_id = $1 LIMIT 1',
