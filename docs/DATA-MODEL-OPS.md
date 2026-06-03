@@ -1,137 +1,479 @@
-# Data Model Ops — ARCO-ERP v0
+# Data Model Ops — ARCO-ERP V1 Operacional
 
-Status: planning-only  
-Objetivo: fechar modelo lógico mínimo + integridade para execução técnica futura.
+> Status: Gate B — modelo lógico aprovado para planejamento
+> Decisão estrutural: `docs/DECISION-DATA-MODEL-OPS.md`
+> Escopo: modelo lógico/operacional; não é migration final
+> Não autoriza: banco, migrations, código, API contracts ou frontend
 
-## Princípios canônicos
+## 1) Princípios canônicos
 
-- Estado comercial permitido: `QUOTE_DRAFT`, `ORDER_CONFIRMED`, `INVOICED`, `CANCELED`.
-- Conversão orçamento->pedido ocorre apenas por confirmação.
-- `ORDER_ADJUSTED` é evento/revisão administrativa (não estado).
-- Comunicação é `output_event` sem efeito em `commercial_status`.
-- Escopo multi-tenant: filtros obrigatórios por `tenant_id` + `owner_id/representante_id`.
+- A V1 é operacional completa, não MVP mínimo.
+- Modelo escolhido: **híbrido relacional**.
+- `commercial_documents` é o núcleo comum para orçamento/pedido.
+- Itens, parcelas, revisões, eventos e faturamento operacional devem ser relacionais.
+- Comunicação é `output_event`, nunca `commercial_status`.
+- `ORDER_ADJUSTED` é revisão/evento, nunca status comercial.
+- Pedido confirmado/faturado pode ser alterado apenas com permissão e revisão auditável.
+- Snapshot preserva histórico, mas não bloqueia correção autorizada.
+- Cliente/produto/preço/condição alterados depois não mudam documento confirmado retroativamente.
+- Escopo multi-tenant: toda entidade operacional deve carregar ou derivar `tenant_id`.
 
-## Entidades e cardinalidade (lógico)
+## 2) Estados comerciais
 
-- `users` 1:N `user_roles`
-- `roles` 1:N `user_roles`
-- `customers` 1:N `quotes`
-- `quotes` 1:N `quote_items`
-- `quotes` 0..1 : 1 `orders` (conversão única)
-- `orders` 1:N `order_items`
-- `orders` 1:N `order_revisions`
-- `orders` 0..1 : 1 `invoices_simple`
-- `orders` 1:N `lifecycle_events`
-- `quotes` 1:N `lifecycle_events`
-- `orders|quotes` 1:N `output_events`
+Estados permitidos:
 
-## Campos mínimos obrigatórios
+- `QUOTE_DRAFT`
+- `ORDER_CONFIRMED`
+- `INVOICED`
+- `CANCELED`
 
-## quotes
-- `id` (uuid, PK)
-- `tenant_id` (texto/uuid, obrigatório)
-- `quote_number` (texto, único, padrão `ORC-`)
-- `commercial_status` (`QUOTE_DRAFT|CANCELED`)
-- `customer_id` (FK)
-- `representante_id` (FK users)
-- `created_at`, `updated_at`, `canceled_at`
+Interpretação de `CANCELED`:
 
-## orders
-- `id` (uuid, PK)
-- `tenant_id` (texto/uuid, obrigatório)
-- `order_number` (texto, único, padrão `PED-`)
-- `source_quote_id` (FK quotes, único)
-- `commercial_status` (`ORDER_CONFIRMED|INVOICED|CANCELED`)
-- `representante_id` (FK users)
-- `confirmed_at`, `invoiced_at`, `canceled_at`
-- `snapshot_payload` (json obrigatório no momento da confirmação)
+- cancela o documento comercial atual, interpretado junto com `document_type`, `canceled_at`, `cancel_reason`, `cancel_note` e `lifecycle_events`;
+- não representa, sozinho, cancelamento/correção de faturamento operacional;
+- cancelamento/correção de faturamento operacional deve ocorrer por revisão/auditoria do registro operacional de faturamento.
+
+Proibidos como `commercial_status`:
+
+- `COMUNICADO`
+- `COMPARTILHADO`
+- `ENVIADO`
+- `IMPRESSO`
+- `PDF_GERADO`
+- `ORDER_ADJUSTED`
+
+## 3) Entidades lógicas da V1
+
+### Segurança / tenant
+
+- `users` / `profiles`
+- `roles`
+- `user_roles`
+- `tenant_memberships`
+
+### Clientes
+
+- `customers`
+- `customer_contacts`
+- `customer_addresses`
+- `customer_commercial_profiles`
+
+### Produtos
+
+- `products`
+- `product_categories`
+- `product_units`
+
+### Preços
+
+- `price_tables`
+- `price_table_items`
+- vínculo de tabela padrão por cliente no `customer_commercial_profiles`
+
+### Pagamento
+
+- `payment_terms`
+- `payment_term_installments`
+- `commercial_document_payment_schedule`
+
+### Documentos comerciais
+
+- `commercial_documents`
+- `commercial_document_items`
+- `commercial_document_revisions`
+- `commercial_document_revision_changes`
+
+### Eventos e auditoria
+
+- `lifecycle_events`
+- `output_events`
+- `audit_events`
+
+### Faturamento operacional
+
+- `invoice_operational_records`
+- vínculo com `commercial_document_payment_schedule` ou agenda própria operacional
+
+## 4) Relações principais
+
+- `customers` 1:N `customer_contacts`
+- `customers` 1:N `customer_addresses`
+- `customers` 1:1 `customer_commercial_profiles`
+- `products` N:1 `product_categories`
+- `products` N:1 `product_units`
+- `price_tables` 1:N `price_table_items`
+- `products` 1:N `price_table_items`
+- `payment_terms` 1:N `payment_term_installments`
+- `customers` 1:N `commercial_documents`
+- `commercial_documents` 1:N `commercial_document_items`
+- `commercial_documents` 1:N `commercial_document_payment_schedule`
+- `commercial_documents` 1:N `commercial_document_revisions`
+- `commercial_document_revisions` 1:N `commercial_document_revision_changes`
+- `commercial_documents` 1:N `lifecycle_events`
+- `commercial_documents` 1:N `output_events`
+- `commercial_documents` 1:N `audit_events`
+- `commercial_documents` 0..1 `invoice_operational_records` ativo na V1
+
+Invariante multi-tenant:
+
+- toda FK entre entidades tenant-scoped deve respeitar o mesmo `tenant_id`;
+- documento não pode referenciar cliente, produto, tabela de preço, condição de pagamento, item ou faturamento operacional de outro tenant;
+- esse invariante deve ser validado em migrations/RLS/API, não apenas por filtro de tela.
+
+## 5) ORC -> PED
+
+Decisão canônica:
+
+- ORC e PED usam o mesmo aggregate lógico `commercial_documents`;
+- a confirmação cria um novo registro `commercial_documents` com `document_type = order`, `document_number = PED-####` e `source_quote_id` apontando para o orçamento original;
+- o orçamento original preserva `document_type = quote`, `document_number = ORC-####` e histórico próprio;
+- o orçamento original recebe `lifecycle_event` de convertido quando aplicável;
+- é proibida mutação destrutiva do ORC para transformá-lo em PED;
+- Gate F define detalhes físicos/transacionais, sem substituir essa regra.
+
+## 6) Campos lógicos mínimos por entidade
+
+### `customers`
+
+- `id`
+- `tenant_id`
+- `legal_name`
+- `trade_name`
+- `document_type`
+- `document_number`
+- `state_registration` quando aplicável
+- `municipal_registration` quando aplicável
+- `tax_regime` quando aplicável
+- telefone/e-mail/WhatsApp principal ou contato principal relacionado
+- `status`
+- `segment`
+- `notes`
 - `created_at`, `updated_at`
 
-## order_revisions
-- `id`, `order_id` (FK)
-- `tenant_id` (texto/uuid, obrigatório)
-- `revision_number` (inteiro crescente por pedido)
+### `customer_contacts`
+
+- `id`
+- `tenant_id`
+- `customer_id`
+- `name`
+- `role/title`
+- `phone`
+- `whatsapp`
+- `email`
+- `is_primary`
+- `status`
+
+### `customer_addresses`
+
+- `id`
+- `tenant_id`
+- `customer_id`
+- `address_type` (`main|delivery|billing|other`)
+- `zipcode`
+- `street`
+- `number`
+- `complement`
+- `district`
+- `city`
+- `state`
+- `country`
+- `is_primary`
+- `status`
+
+### `customer_commercial_profiles`
+
+- `customer_id`
+- `default_payment_term_id`
+- `default_price_table_id`
+- `credit_limit` (informativo na V1, salvo decisão futura)
+- `notes`
+
+### `products`
+
+- `id`
+- `tenant_id`
+- `sku`
+- `name`
+- `description`
+- `commercial_name` / `short_name` quando aplicável
+- `barcode` opcional
+- `brand`
+- `category_id`
+- `unit_id`
+- `package_info`
+- `minimum_order_quantity` quando aplicável
+- `multiple_order_quantity` quando aplicável
+- `gross_weight` / `net_weight` opcionais
+- `dimensions` opcionais
+- `availability_status` (informativo)
+- `status`
+
+### `price_tables`
+
+- `id`
+- `tenant_id`
+- `name`
+- `status`
+- `valid_from`
+- `valid_until`
+- `currency`
+
+### `price_table_items`
+
+- `id`
+- `tenant_id`
+- `price_table_id`
+- `product_id`
+- `unit_price`
+- faixa/volume quando aplicável
+- margem/limite operacional quando aplicável
+- `valid_from`, `valid_until`
+
+Regra de vigência:
+
+- vigências conflitantes para o mesmo `tenant_id + price_table_id + product_id` são proibidas, salvo regra explícita de faixa/volume.
+
+### `payment_terms`
+
+- `id`
+- `tenant_id`
+- `name`
+- `payment_method`
+- `term_type`
+- `status`
+
+### `payment_term_installments`
+
+- `id`
+- `payment_term_id`
+- `installment_number`
+- `days_offset`
+- `percentage`
+
+### `commercial_documents`
+
+- `id`
+- `tenant_id`
+- `document_type` (`quote|order`)
+- `document_number` (`ORC-####|PED-####`)
+- `commercial_status`
+- `source_quote_id`
+- `customer_id`
+- `owner_id`
+- `representative_id`
+- `current_revision_number`
+- `created_at`, `updated_at`
+- `confirmed_at`, `invoiced_at`, `canceled_at`
+- `customer_snapshot`
+- `contact_snapshot`
+- `address_snapshot`
+- `payment_snapshot`
+- `confirmation_snapshot`
+- `cancel_reason`, `cancel_note`
+
+### `commercial_document_items`
+
+- `id`
+- `tenant_id`
+- `commercial_document_id`
+- `product_id`
+- `quantity`
+- `unit`
+- `base_unit_price`
+- `applied_unit_price`
+- `price_override_reason` quando diferente do preço da tabela
+- `price_override_actor_id` ou revisão estruturada equivalente quando houver override
+- `discount_amount` / `discount_percent`
+- `price_table_id`
+- `price_table_item_id`
+- `product_snapshot`
+- `price_snapshot`
+- `line_total`
+
+### `commercial_document_payment_schedule`
+
+- `id`
+- `tenant_id`
+- `commercial_document_id`
+- `installment_number`
+- `due_date`
+- `amount`
+- `payment_method`
+- `source_payment_term_id`
+- `payment_snapshot`
+
+### `commercial_document_revisions`
+
+- `id`
+- `tenant_id`
+- `commercial_document_id`
+- `revision_number`
+- `reason_code`
+- `reason_note`
+- `actor_id`
+- `actor_role`
+- `before_snapshot`
+- `after_snapshot`
+- `created_at`
+
+### `commercial_document_revision_changes`
+
+- `id`
+- `revision_id`
+- `field_path`
+- `old_value`
+- `new_value`
+- `impact_type` (`price|quantity|payment|customer|product|status|invoice|other`)
+
+### `lifecycle_events`
+
+- `id`
+- `tenant_id`
+- `commercial_document_id`
+- `event_type`
+- `actor_id`
+- `reason_code`
+- `reason_note`
+- `event_at`
+- `payload`
+
+### `output_events`
+
+- `id`
+- `tenant_id`
+- `commercial_document_id`
+- `channel`
+- `recipient_snapshot`
+- `actor_id`
+- `event_at`
+- `payload`
+
+### `audit_events`
+
+- `id`
+- `tenant_id`
+- `actor_id`
+- `actor_role`
+- `entity_type`
+- `entity_id`
+- `action`
+- `result` (`allowed|denied|failed`)
 - `reason`
-- `before_payload`, `after_payload`
-- `created_by`, `created_at`
+- `event_at`
+- `payload`
 
-## lifecycle_events
-- `id`, `entity_type` (`quote|order`), `entity_id`
-- `event_type` (inclui `ORDER_ADJUSTED`)
-- `actor_id`, `reason_code`, `reason_note`, `event_at`, `payload`
+### `invoice_operational_records`
 
-## output_events
-- `id`, `entity_type`, `entity_id`
-- `tenant_id` (texto/uuid, obrigatório)
-- `channel` (`SEND_WHATSAPP|SEND_EMAIL|GENERATE_PDF|PRINT|COPY_LINK|SHARE`)
-- `actor_id`, `event_at`, `payload`
+- `id`
+- `tenant_id`
+- `commercial_document_id`
+- `manual_reference`
+- `document_label`
+- `invoice_date`
+- `amount`
+- `operational_status` (`active|corrected|canceled`) quando necessário
+- `notes`
+- `created_by`
+- `created_at`
+- `corrected_by_revision_id` quando aplicável
 
-## invoices_simple
-- `id`, `order_id` (FK único)
-- `tenant_id` (texto/uuid, obrigatório)
-- `invoice_date`, `amount`
-- `manual_reference` (opcional)
-- `notes` (opcional)
-- `created_by`, `created_at`
+Regra V1:
 
-## Regras de integridade (obrigatórias)
+- um pedido pode ter um registro operacional de faturamento ativo;
+- correções geram revisão/auditoria, não múltiplos faturamentos concorrentes;
+- faturamento parcial fica para decisão futura, salvo necessidade operacional formal.
 
-1. `source_quote_id` único em `orders` (um orçamento não gera dois pedidos).
-2. `quote_number` e `order_number` únicos.
-3. `order.commercial_status=ORDER_CONFIRMED` requer `confirmed_at` não nulo.
-4. `order.commercial_status=INVOICED` requer `invoiced_at` e registro em `invoices_simple`.
-5. Cancelamentos exigem motivo e `canceled_at`.
-6. Todo ajuste admin exige gravação em `order_revisions` e `lifecycle_events`.
-7. `output_events` não pode alterar estado comercial.
-8. Ações de REPRESENTANTE só podem operar dados do próprio `representante_id` no mesmo `tenant_id`.
-9. Alteração de ownership/carteira é operação administrativa e auditável.
+## 7) Snapshots obrigatórios
 
-## Concorrência e idempotência (mínimo)
+Snapshot comercial mínimo no pedido confirmado:
 
-- Operações críticas (`confirm`, `cancel`, `adjust`, `invoice`) exigem `Idempotency-Key`.
-- Estado deve ser revalidado no servidor antes de persistir transição.
-- Em conflito de estado concorrente: retornar 409 sem efeitos parciais.
-- Conversão `quote->order` deve ser atômica (transação única).
+- cliente;
+- contato;
+- endereço;
+- itens com produto, unidade, preço, desconto e totais;
+- tabela de preço e regra aplicada;
+- condição de pagamento;
+- parcelas/vencimentos;
+- ator/data de confirmação.
 
-## Auditoria mínima
+Regras:
 
-- Toda transição de estado gera `lifecycle_event` com ator, data, motivo (quando aplicável).
-- Todo ajuste admin persiste diff before/after.
-- Toda comunicação gera `output_event` com canal e ator.
-- Exceções operacionais temporárias devem registrar ator, motivo, período e escopo.
+- snapshots devem explicar a verdade comercial no momento;
+- snapshots não substituem cadastros mestres;
+- alteração posterior em cadastro mestre não altera snapshot;
+- correção posterior gera revisão.
 
-## Taxonomia canônica de motivos (MVP)
+## 8) Revisões e auditoria
 
-### reason_code (cancelamento)
-- `CLIENTE_DESISTIU`
-- `PRECO_CONDICAO_REPROVADA`
-- `ERRO_CADASTRO_CLIENTE`
-- `ERRO_ITEM_QUANTIDADE`
-- `ERRO_CONDICAO_PAGAMENTO`
-- `PRODUTO_INDISPONIVEL`
-- `DUPLICIDADE`
-- `PRAZO_ENTREGA_INVIAVEL`
-- `CANCELAMENTO_INTERNO`
-- `OUTROS`
+Toda alteração pós-confirmação/faturamento deve:
 
-### reason_code (ajuste)
-- `AJUSTE_PRECO`
-- `AJUSTE_DESCONTO`
-- `AJUSTE_QUANTIDADE`
-- `AJUSTE_ITEM`
-- `AJUSTE_CONDICAO_PAGAMENTO`
-- `AJUSTE_FRETE`
-- `AJUSTE_DADOS_CLIENTE`
-- `AJUSTE_FISCAL_OPERACIONAL`
-- `CORRECAO_ERRO_OPERADOR`
-- `OUTROS`
+1. validar permissão;
+2. exigir motivo quando crítica;
+3. gerar `commercial_document_revisions`;
+4. gerar `commercial_document_revision_changes`;
+5. gerar `audit_events`;
+6. gerar `lifecycle_events` quando afetar ciclo comercial.
 
-### Regra de validação
-- `reason_code` obrigatório em cancelamento e ajuste relevante.
-- `reason_note` obrigatório quando `reason_code = OUTROS`.
-- Inclusão de novos `reason_code` apenas por decisão registrada.
+Histórico não é editável.
 
-## Não objetivos deste documento
+`ORDER_ADJUSTED` deve ser `lifecycle_events.event_type` quando a revisão alterar dado comercial relevante. O before/after permanece em `commercial_document_revisions` e `commercial_document_revision_changes`.
 
-- Definir engine, banco específico ou migrations finais.
-- Autorizar implementação imediata.
+## 9) Eventos: diferença canônica
+
+| Tipo | Função | Altera `commercial_status`? |
+| --- | --- | --- |
+| `commercial_status` | Estado comercial oficial | Sim, quando transição válida |
+| `lifecycle_events` | Registro de transições/revisões do ciclo | Não diretamente; documenta transição |
+| `output_events` | Comunicação, envio, PDF, impressão, link | Nunca |
+| `audit_events` | Segurança, permissão, alteração crítica, tentativa negada | Nunca |
+| `commercial_document_revisions` | Before/after de alteração autorizada | Pode acompanhar mudança, mas não é status |
+
+Fonte da verdade:
+
+- `commercial_document_revisions` é a fonte de verdade do before/after comercial;
+- `commercial_document_revision_changes` é o diff estruturado por campo;
+- `audit_events` registra permissão, negação, falha e governança;
+- `lifecycle_events` registra marcos narrativos do ciclo comercial;
+- `output_events` registra comunicação/saída;
+- payloads não devem virar fonte concorrente para o mesmo fato.
+
+## 10) Estoque
+
+Status no Gate B: **informativo**.
+
+Na V1 comercial:
+- produto pode indicar disponibilidade/status;
+- disponibilidade pode exibir alerta;
+- disponibilidade não bloqueia pedido por padrão.
+
+Fora deste gate:
+- reserva;
+- baixa;
+- movimentação;
+- inventário;
+- produção;
+- expedição.
+
+## 11) Comissões e metas
+
+Status no Gate B:
+- não bloqueiam o núcleo da V1;
+- podem ser extensão/reporting se não contaminarem o documento comercial;
+- regras formais de comissão/meta exigem gate posterior.
+
+## 12) Bloqueios
+
+Antes de migrations:
+
+- Gate C — RBAC + Audit Model precisa passar;
+- Gate D — API Contract Alignment precisa passar;
+- Gate F — Migration Plan + Test Strategy precisa passar.
+
+Sem esses gates, qualquer migration, API implementation ou frontend implementation deve retornar `Blocked`.
+
+## 13) Próximo gate
+
+Próximo gate recomendado: **Gate C — RBAC + Audit Model**.
+
+Motivo:
+- pedido confirmado/faturado editável, preço editável e faturamento operacional exigem permissões, negações e auditoria antes de API/migrations.
