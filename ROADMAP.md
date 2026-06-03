@@ -102,6 +102,14 @@ Correção adotada:
 - Gate 0 — direção V1 operacional completa: `docs/DECISION-FLOW-CANON.md`.
 - Reorientação mínima da SPEC para V1 operacional: `docs/SPEC.md`.
 - ROADMAP Alignment: este documento.
+- Gate A — Screen Flow Canon + SPEC Consolidation: PASS.
+- Gate B — Data Model Decision: PASS.
+- Gate C — RBAC + Audit Model: PASS.
+- Gate D — API Contract Alignment: PASS.
+- Gate E — Frontend Contract + Shell Plan: PASS.
+- Gate F — Migration Plan + Test Strategy: **PASS**, commitado em `406e043` com:
+  - `docs/MIGRATION-PLAN-OPS.md`;
+  - `docs/TEST-STRATEGY-OPS.md`.
 
 ### Observação importante
 
@@ -333,7 +341,8 @@ Planejar shell, navegação e UX de V1 sem implementar telas.
 ## Gate F — Migration Plan + Test Strategy
 
 **Tipo:** plano técnico/documental  
-**Dependências:** Gate B + Gate C + Gate D
+**Dependências:** Gate B + Gate C + Gate D  
+**Status:** ✅ PASS — commit `406e043`
 
 ### Objetivo
 
@@ -362,6 +371,12 @@ Planejar migrations e testes antes de tocar no banco.
 - cobertura mínima por fase definida;
 - riscos de dados existentes documentados;
 - nenhuma migration executada neste gate.
+
+### Evidência de fechamento
+
+- `docs/MIGRATION-PLAN-OPS.md`
+- `docs/TEST-STRATEGY-OPS.md`
+- Commit: `406e043 docs(erp): define migration plan and test strategy`
 
 ### Bloqueios
 
@@ -518,14 +533,15 @@ Para gates técnicos, adicionar:
 
 ## 9) Próximo gate recomendado
 
-Executar **Gate A — Screen Flow Canon + SPEC Consolidation**.
+Executar **Gate G — Backend/Data Foundation Implementation**.
 
 Menor próximo passo seguro:
 
-1. criar `docs/SCREEN-FLOW-MAP.md` a partir do `erp_app_flow_map.html` como insumo local;
-2. manter `erp_app_flow_map.html` não versionado e sem alteração;
-3. ajustar `docs/SPEC.md` somente se houver regra faltante;
-4. não tocar banco, migrations, API, frontend ou contratos técnicos.
+1. obter autorização explícita para iniciar Gate G;
+2. revisar `docs/MIGRATION-PLAN-OPS.md` e `docs/TEST-STRATEGY-OPS.md`;
+3. declarar migrations, adapters, serviços e testes previstos antes de editar código;
+4. manter `erp_app_flow_map.html` não versionado e fora do gate;
+5. não iniciar implementação enquanto Gate G não for explicitamente autorizado.
 
 ## 10) Critério para iniciar implementação técnica
 
@@ -539,4 +555,4 @@ Implementação técnica só pode iniciar quando, no mínimo, estes gates estive
 
 Frontend só pode iniciar quando Gate E também estiver `PASS`.
 
-Sem esses gates, execução técnica deve retornar `Blocked`.
+Mesmo com Gates A–F em PASS, execução técnica permanece `Blocked` até decisão/autorização explícita de início do Gate G.
