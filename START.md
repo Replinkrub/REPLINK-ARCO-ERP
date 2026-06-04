@@ -3,7 +3,7 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **P1.5 Supabase Runtime Readiness concluído e mergeado em `main`**
+- Estado: **Gates A–F documentais concluídos; Gate F PASS e commitado**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
@@ -11,10 +11,66 @@
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
 - `main` em: `4b0d322` (squash merge PR #28)
+- Frente documental V1 operacional: ✅ **Gates A–F fechados**
+- Gate F — Migration Plan + Test Strategy: ✅ **PASS**
+- Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
 - Typecheck: ✅ PASS
 - Tests: ✅ PASS — 89/89 (8 test files)
 - Smoke DB real contra Supabase dev: ✅ PASS (635ms)
-- Próximo passo registrado: P2 Frontend/UX (planning-only, sem implementação)
+- Próximo gate: **Gate G — Backend/Data Foundation Implementation**
+- Gate G: **não iniciado**; não implementar sem autorização explícita.
+
+## Checkpoint da sessão (2026-06-03)
+
+### Gates documentais fechados nesta frente
+
+| Gate | Status | Artefatos principais |
+|---|---|---|
+| Gate A — Screen Flow Canon + SPEC Consolidation | ✅ PASS | `docs/SCREEN-FLOW-MAP.md`, `docs/DECISION-FLOW-CANON.md`, `docs/SPEC.md` |
+| Gate B — Data Model Decision | ✅ PASS | `docs/DATA-MODEL-OPS.md`, `docs/DECISION-DATA-MODEL-OPS.md` |
+| Gate C — RBAC + Audit Model | ✅ PASS | `docs/RBAC-MATRIX.md`, `docs/AUDIT-MODEL-OPS.md` |
+| Gate D — API Contract Alignment | ✅ PASS | `docs/API-CONTRACTS.yaml`, `docs/API-CONTRACTS-OPS.md` |
+| Gate E — Frontend Contract + Shell Plan | ✅ PASS | `docs/FRONTEND-CONTRACT-OPS.md`, `docs/FRONTEND-SHELL-PLAN.md` |
+| Gate F — Migration Plan + Test Strategy | ✅ PASS | `docs/MIGRATION-PLAN-OPS.md`, `docs/TEST-STRATEGY-OPS.md` |
+
+### Gate F fechado
+
+- Commit: `406e043 docs(erp): define migration plan and test strategy`
+- Handoff oficial da sessão: `docs/SESSION-HANDOFF-GATE-F.md`
+- Gate G recomendado como próximo ponto, mas ainda não iniciado.
+
+### Fora de escopo mantido
+
+- `erp_app_flow_map.html`: continua untracked e **não deve ser incluído** em commits de Gate F/G.
+- Nenhuma migration real foi criada no Gate F.
+- Banco, API contracts, backend, frontend e código de produto não foram alterados no Gate F.
+
+## Primeiro comando da próxima sessão
+
+```bash
+git status -sb
+```
+
+Depois ler:
+
+1. `START.md` (este arquivo)
+2. `ROADMAP.md`
+3. `docs/SESSION-HANDOFF-GATE-F.md`
+4. `docs/MIGRATION-PLAN-OPS.md`
+5. `docs/TEST-STRATEGY-OPS.md`
+6. `docs/DATA-MODEL-OPS.md`
+7. `docs/RBAC-MATRIX.md`
+8. `docs/AUDIT-MODEL-OPS.md`
+9. `docs/API-CONTRACTS.yaml`
+10. `docs/API-CONTRACTS-OPS.md`
+
+## Gate seguinte
+
+Gate F — Migration Plan + Test Strategy: **✅ PASS e commitado em `406e043`**.
+
+Próximo ponto: **Gate G — Backend/Data Foundation Implementation**.
+
+Regra: Gate G só pode iniciar com autorização explícita e pacote técnico declarado. Até lá, implementação de migrations, banco, API, backend, frontend ou código segue bloqueada.
 
 ## Checkpoint da sessão (2026-06-01)
 
@@ -62,7 +118,7 @@
 - **Migration**: `001_init_commercial_documents.sql` aplicada
 - **Runtime**: `pg` client com `sslmode=require`
 
-## Primeiro comando da próxima sessão
+## Primeiro comando da próxima sessão P1.5 histórica
 
 ```bash
 git checkout main
@@ -85,7 +141,7 @@ Depois ler:
 9. `src/domain`
 10. `tests`
 
-## Gate seguinte
+## Gate seguinte histórico P1.5
 
 P1.5 Supabase Runtime Readiness: **✅ PASS e mergeado**.
 Próximo passo: **P2 Frontend/UX inicial (planning-only)** — não implementar sem autorização explícita.

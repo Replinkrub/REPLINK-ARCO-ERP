@@ -1,331 +1,443 @@
 openapi: 3.0.3
 info:
-  title: ARCO-ERP MVP API Contract
-  version: 0.1.0-planning
+  title: ARCO-ERP V1 Operational API Contract
+  version: 1.0.0-planning-gate-d
   description: |
-    Contrato funcional MVP derivado da SPEC v1.
-    Planning-only: sem API freeze e sem autorização de implementação.
-    Escopo multi-tenant: toda leitura/escrita deve respeitar tenant + ownership.
-    REPRESENTANTE opera somente registros da própria carteira.
+    Gate D planning-only contract. Does not authorize implementation, migrations,
+    frontend work, or API freeze. V1 is operational complete, not MVP mínimo.
+
+    API style: hybrid REST + action endpoints.
+    - REST resources manage master data and readable commercial documents.
+    - Action endpoints execute stateful/critical operations with RBAC, audit,
+      idempotency, reason payloads and revision rules.
+    - Server/API is the real authorization boundary; UI is only a presentation layer.
+    - `commercial_status` is separate from `output_badges`; communication never changes status.
+    - `available_actions` is backend-calculated and UI-oriented; action endpoints must revalidate RBAC because permissions may change between read and execution.
+    - ORC -> PED creates a new order document linked by `source_quote_id`; it never mutates ORC destructively.
 servers:
   - url: https://api.arco-erp.local
 tags:
-  - name: Quotes
-  - name: Orders
-  - name: Invoices
+  - name: Customers
+  - name: Products
+  - name: PriceTables
+  - name: PaymentTerms
+  - name: CommercialDocuments
+  - name: Actions
+  - name: OperationalInvoices
   - name: Events
+  - name: Reports
 security:
   - bearerAuth: []
 
 paths:
-  /v0/quotes:
+  /v1/customers:
+    get:
+      tags: [Customers]
+      operationId: listCustomers
+      summary: Lista clientes conforme tenant + ownership/equipe
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Sort' }, { $ref: '#/components/parameters/Query' }]
+      responses: { '200': { $ref: '#/components/responses/CustomerList' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
     post:
-      tags: [Quotes]
-      summary: Cria orçamento em QUOTE_DRAFT
+      tags: [Customers]
+      operationId: createCustomer
+      summary: Cria cliente completo
+      parameters: [{ $ref: '#/components/parameters/TenantId' }]
+      requestBody: { $ref: '#/components/requestBodies/CustomerUpsert' }
+      responses: { '201': { $ref: '#/components/responses/Customer' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/customers/{customerId}:
+    get:
+      tags: [Customers]
+      operationId: getCustomer
+      summary: Consulta cliente completo com contatos, endereços e perfil comercial
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/CustomerId' }]
+      responses: { '200': { $ref: '#/components/responses/Customer' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Customers]
+      operationId: editCustomer
+      summary: Edita dados cadastrais de cliente
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/CustomerId' }]
+      requestBody: { $ref: '#/components/requestBodies/CustomerUpsert' }
+      responses: { '200': { $ref: '#/components/responses/Customer' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/customers/{customerId}/contacts:
+    post:
+      tags: [Customers]
+      operationId: createCustomerContact
+      summary: Cria contato do cliente
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/CustomerId' }]
+      requestBody: { $ref: '#/components/requestBodies/ContactUpsert' }
+      responses: { '201': { $ref: '#/components/responses/Customer' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/customers/{customerId}/contacts/{contactId}:
+    patch:
+      tags: [Customers]
+      operationId: editCustomerContact
+      summary: Edita contato do cliente
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/CustomerId' }, { $ref: '#/components/parameters/ContactId' }]
+      requestBody: { $ref: '#/components/requestBodies/ContactUpsert' }
+      responses: { '200': { $ref: '#/components/responses/Customer' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/customers/{customerId}/addresses:
+    post:
+      tags: [Customers]
+      operationId: createCustomerAddress
+      summary: Cria endereço estruturado do cliente
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/CustomerId' }]
+      requestBody: { $ref: '#/components/requestBodies/AddressUpsert' }
+      responses: { '201': { $ref: '#/components/responses/Customer' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/customers/{customerId}/addresses/{addressId}:
+    patch:
+      tags: [Customers]
+      operationId: editCustomerAddress
+      summary: Edita endereço estruturado do cliente
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/CustomerId' }, { $ref: '#/components/parameters/AddressId' }]
+      requestBody: { $ref: '#/components/requestBodies/AddressUpsert' }
+      responses: { '200': { $ref: '#/components/responses/Customer' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+
+  /v1/products:
+    get:
+      tags: [Products]
+      operationId: listProducts
+      summary: Lista produtos completos
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Sort' }, { $ref: '#/components/parameters/Query' }]
+      responses: { '200': { $ref: '#/components/responses/ProductList' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      tags: [Products]
+      operationId: createProduct
+      summary: Cria produto completo
+      parameters: [{ $ref: '#/components/parameters/TenantId' }]
+      requestBody: { $ref: '#/components/requestBodies/ProductUpsert' }
+      responses: { '201': { $ref: '#/components/responses/Product' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/products/{productId}:
+    patch:
+      tags: [Products]
+      operationId: editProduct
+      summary: Edita produto sem alterar documentos confirmados retroativamente
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/ProductId' }]
+      requestBody: { $ref: '#/components/requestBodies/ProductUpsert' }
+      responses: { '200': { $ref: '#/components/responses/Product' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+
+  /v1/price-tables:
+    get:
+      tags: [PriceTables]
+      operationId: listPriceTables
+      summary: Lista tabelas de preço aplicáveis
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Sort' }, { $ref: '#/components/parameters/Query' }]
+      responses: { '200': { $ref: '#/components/responses/PriceTableList' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      tags: [PriceTables]
+      operationId: createPriceTable
+      summary: Cria tabela de preço
+      parameters: [{ $ref: '#/components/parameters/TenantId' }]
+      requestBody: { $ref: '#/components/requestBodies/PriceTableUpsert' }
+      responses: { '201': { $ref: '#/components/responses/PriceTable' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/price-tables/{priceTableId}:
+    patch:
+      tags: [PriceTables]
+      operationId: editPriceTable
+      summary: Edita tabela de preço/vigência com auditoria
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/PriceTableId' }]
+      requestBody: { $ref: '#/components/requestBodies/PriceTableUpsert' }
+      responses: { '200': { $ref: '#/components/responses/PriceTable' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/price-tables/{priceTableId}/items:
+    post:
+      tags: [PriceTables]
+      operationId: editPriceTableItem
+      summary: Cria/atualiza preço de produto e rejeita vigência conflitante
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/PriceTableId' }]
+      requestBody: { $ref: '#/components/requestBodies/PriceTableItemUpsert' }
+      responses: { '200': { $ref: '#/components/responses/PriceTable' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
+
+  /v1/payment-terms:
+    get:
+      tags: [PaymentTerms]
+      operationId: listPaymentTerms
+      summary: Lista condições de pagamento
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Sort' }, { $ref: '#/components/parameters/Query' }]
+      responses: { '200': { $ref: '#/components/responses/PaymentTermList' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      tags: [PaymentTerms]
+      operationId: createPaymentTerm
+      summary: Cria condição de pagamento
+      parameters: [{ $ref: '#/components/parameters/TenantId' }]
+      requestBody: { $ref: '#/components/requestBodies/PaymentTermUpsert' }
+      responses: { '201': { $ref: '#/components/responses/PaymentTerm' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/payment-terms/{paymentTermId}:
+    patch:
+      tags: [PaymentTerms]
+      operationId: editPaymentTerm
+      summary: Edita condição de pagamento sem alterar documentos confirmados retroativamente
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/PaymentTermId' }]
+      requestBody: { $ref: '#/components/requestBodies/PaymentTermUpsert' }
+      responses: { '200': { $ref: '#/components/responses/PaymentTerm' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+
+  /v1/commercial-documents:
+    get:
+      tags: [CommercialDocuments]
+      operationId: listCommercialDocuments
+      summary: Lista ORC/PED conforme filtros, tenant e ownership/equipe
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Sort' }, { $ref: '#/components/parameters/DocumentTypeFilter' }, { $ref: '#/components/parameters/CommercialStatusFilter' }, { $ref: '#/components/parameters/DateFrom' }, { $ref: '#/components/parameters/DateTo' }]
+      responses: { '200': { $ref: '#/components/responses/DocumentList' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /v1/quotes:
+    post:
+      tags: [CommercialDocuments]
       operationId: createQuote
-      parameters:
-        - $ref: '#/components/parameters/TenantId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateQuoteRequest'
-      responses:
-        '201':
-          description: Orçamento criado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QuoteResponse'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-
-  /v0/quotes/{quoteId}/confirm:
+      summary: Cria orçamento salvo/numerado em QUOTE_DRAFT
+      parameters: [{ $ref: '#/components/parameters/TenantId' }]
+      requestBody: { $ref: '#/components/requestBodies/QuoteUpsert' }
+      responses: { '201': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/quotes/{quoteId}:
+    patch:
+      tags: [CommercialDocuments]
+      operationId: editQuote
+      summary: Edita orçamento em QUOTE_DRAFT
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/QuoteId' }]
+      requestBody: { $ref: '#/components/requestBodies/QuoteUpsert' }
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/quotes/{quoteId}/actions/confirm:
     post:
-      tags: [Orders]
-      summary: Confirma orçamento e converte para ORDER_CONFIRMED
-      operationId: confirmQuote
-      parameters:
-        - $ref: '#/components/parameters/TenantId'
-        - $ref: '#/components/parameters/QuoteId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        '200':
-          description: Pedido confirmado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderResponse'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/ConflictError' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-
-  /v0/quotes/{quoteId}/cancel:
+      tags: [Actions]
+      operationId: confirmQuoteToOrder
+      summary: Confirma orçamento e gera novo PED vinculado ao ORC histórico
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/QuoteId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/ReasonOptional' }
+      responses: { '201': { $ref: '#/components/responses/ConfirmQuoteResult' }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/quotes/{quoteId}/actions/cancel:
     post:
-      tags: [Quotes]
-      summary: Cancela orçamento em QUOTE_DRAFT
+      tags: [Actions]
       operationId: cancelQuote
-      parameters:
-        - $ref: '#/components/parameters/TenantId'
-        - $ref: '#/components/parameters/QuoteId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CancelRequest'
-      responses:
-        '200':
-          description: Orçamento cancelado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StatusChangeResponse'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/ConflictError' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-
-  /v0/orders/{orderId}/cancel:
+      summary: Cancela orçamento com motivo obrigatório
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/QuoteId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/ReasonRequired' }
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/orders/{orderId}:
+    get:
+      tags: [CommercialDocuments]
+      operationId: getOrder
+      summary: Consulta pedido com status, output_badges, available_actions, parcelas e snapshots
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/OrderId' }]
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /v1/orders/{orderId}/payment-schedule:
+    get:
+      tags: [CommercialDocuments]
+      operationId: getOrderPaymentSchedule
+      summary: Consulta parcelas/vencimentos aplicados ao documento
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/OrderId' }]
+      responses: { '200': { $ref: '#/components/responses/PaymentSchedule' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /v1/orders/{orderId}/actions/revise-confirmed:
     post:
-      tags: [Orders]
-      summary: Cancela pedido em ORDER_CONFIRMED (ADMIN)
+      tags: [Actions]
+      operationId: reviseConfirmedOrder
+      summary: Altera pedido confirmado com motivo, expected_revision_number, revisão, diff, audit e lifecycle quando aplicável
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/OrderRevision' }
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/orders/{orderId}/actions/revise-invoiced:
+    post:
+      tags: [Actions]
+      operationId: reviseInvoicedOrder
+      summary: Altera pedido faturado; ADMIN somente; exige confirmação forte, expected_revision_number, revisão e audit
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/OrderRevisionStrong' }
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/orders/{orderId}/actions/override-item-price:
+    post:
+      tags: [Actions]
+      operationId: overrideItemPrice
+      summary: Altera preço aplicado com motivo, expected_revision_number e auditoria; pós-confirmação gera revisão
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/PriceOverride' }
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/orders/{orderId}/actions/cancel:
+    post:
+      tags: [Actions]
       operationId: cancelOrder
-      parameters:
-        - $ref: '#/components/parameters/TenantId'
-        - $ref: '#/components/parameters/OrderId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CancelRequest'
-      responses:
-        '200':
-          description: Pedido cancelado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StatusChangeResponse'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/ConflictError' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+      summary: Cancela documento comercial de pedido confirmado com motivo, expected_revision_number, confirmação forte, revisão/audit/lifecycle
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/CancelOrder' }
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
 
-  /v0/orders/{orderId}/adjust:
+  /v1/orders/{orderId}/operational-invoice:
     post:
-      tags: [Orders]
-      summary: Ajuste administrativo de pedido confirmado (ADMIN)
-      operationId: adjustOrder
-      parameters:
-        - $ref: '#/components/parameters/TenantId'
-        - $ref: '#/components/parameters/OrderId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdjustOrderRequest'
-      responses:
-        '200':
-          description: Ajuste aplicado sem mudança de estado comercial
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderResponse'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/ConflictError' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-
-  /v0/orders/{orderId}/invoice:
+      tags: [OperationalInvoices]
+      operationId: registerOperationalInvoice
+      summary: Registra faturamento operacional manual e move pedido para INVOICED; duplicidade ativa retorna 409
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/OperationalInvoice' }
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/orders/{orderId}/operational-invoice/actions/correct:
     post:
-      tags: [Invoices]
-      summary: Registra faturamento simples (ADMIN)
-      operationId: registerInvoice
-      parameters:
-        - $ref: '#/components/parameters/TenantId'
-        - $ref: '#/components/parameters/OrderId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/InvoiceRequest'
-      responses:
-        '200':
-          description: Pedido faturado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StatusChangeResponse'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/ConflictError' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+      tags: [OperationalInvoices]
+      operationId: correctOperationalInvoice
+      summary: Corrige/cancela faturamento operacional; ADMIN somente; expected_revision_number, revisão/audit obrigatórios
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/OrderId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/OperationalInvoiceCorrection' }
+      responses: { '200': { $ref: '#/components/responses/CommercialDocument' }, '403': { $ref: '#/components/responses/Forbidden' }, '409': { $ref: '#/components/responses/ConflictError' }, '422': { $ref: '#/components/responses/ValidationError' } }
 
-  /v0/output-events:
+  /v1/commercial-documents/{documentId}/output-events:
     post:
       tags: [Events]
-      summary: Registra evento de comunicação
-      operationId: registerOutputEvent
-      parameters:
-        - $ref: '#/components/parameters/TenantId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OutputEventRequest'
-      responses:
-        '201':
-          description: Evento registrado
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+      operationId: sendOutput
+      summary: Registra envio/comunicação/PDF/print/link como output_event; pode atualizar output_badges derivados; nunca status
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/DocumentId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/OutputEvent' }
+      responses: { '201': { $ref: '#/components/responses/OutputEvent' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /v1/commercial-documents/{documentId}/timeline:
+    get:
+      tags: [Events]
+      operationId: getAuditTimeline
+      summary: Retorna timeline com lifecycle, output, revisions e audit permitido ao perfil
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/DocumentId' }]
+      responses: { '200': { $ref: '#/components/responses/Timeline' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /v1/commercial-documents/{documentId}/revisions:
+    get:
+      tags: [Events]
+      operationId: listDocumentRevisions
+      summary: Lista revisões e diffs estruturados do documento
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/DocumentId' }]
+      responses: { '200': { $ref: '#/components/responses/Revisions' }, '403': { $ref: '#/components/responses/Forbidden' } }
+
+  /v1/reports/operational-documents:
+    get:
+      tags: [Reports]
+      operationId: reportOperationalDocuments
+      summary: Listagem operacional de ORC/PED/faturamento com filtros por tenant/ownership/equipe
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Sort' }, { $ref: '#/components/parameters/DocumentTypeFilter' }, { $ref: '#/components/parameters/CommercialStatusFilter' }, { $ref: '#/components/parameters/DateFrom' }, { $ref: '#/components/parameters/DateTo' }]
+      responses: { '200': { $ref: '#/components/responses/ReportResult' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /v1/reports/receivables:
+    get:
+      tags: [Reports]
+      operationId: reportReceivables
+      summary: Listagem operacional de parcelas/vencimentos/faturamento
+      parameters: [{ $ref: '#/components/parameters/TenantId' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Sort' }, { $ref: '#/components/parameters/DateFrom' }, { $ref: '#/components/parameters/DateTo' }]
+      responses: { '200': { $ref: '#/components/responses/ReportResult' }, '403': { $ref: '#/components/responses/Forbidden' } }
 
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-
+    bearerAuth: { type: http, scheme: bearer }
   parameters:
-    TenantId:
-      name: X-Tenant-Id
-      in: header
-      required: true
-      schema: { type: string, minLength: 3 }
-      description: Tenant lógico da operação (deve bater com token autenticado).
-    QuoteId:
-      name: quoteId
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
-    OrderId:
-      name: orderId
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
-    IdempotencyKey:
-      name: Idempotency-Key
-      in: header
-      required: true
-      schema: { type: string, minLength: 8 }
-
+    TenantId: { name: X-Tenant-Id, in: header, required: true, schema: { type: string, minLength: 3 }, description: Tenant deve bater com token/sessão. }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8 }, description: Obrigatório em ações críticas e seguro para retry. }
+    CustomerId: { name: customerId, in: path, required: true, schema: { type: string, format: uuid } }
+    ContactId: { name: contactId, in: path, required: true, schema: { type: string, format: uuid } }
+    AddressId: { name: addressId, in: path, required: true, schema: { type: string, format: uuid } }
+    ProductId: { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+    PriceTableId: { name: priceTableId, in: path, required: true, schema: { type: string, format: uuid } }
+    PaymentTermId: { name: paymentTermId, in: path, required: true, schema: { type: string, format: uuid } }
+    QuoteId: { name: quoteId, in: path, required: true, schema: { type: string, format: uuid } }
+    OrderId: { name: orderId, in: path, required: true, schema: { type: string, format: uuid } }
+    DocumentId: { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+    Page: { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+    PageSize: { name: page_size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+    Sort: { name: sort, in: query, required: false, schema: { type: string, example: updated_at:desc } }
+    Query: { name: q, in: query, required: false, schema: { type: string } }
+    DocumentTypeFilter: { name: document_type, in: query, required: false, schema: { $ref: '#/components/schemas/DocumentType' } }
+    CommercialStatusFilter: { name: commercial_status, in: query, required: false, schema: { $ref: '#/components/schemas/CommercialStatus' } }
+    DateFrom: { name: date_from, in: query, required: false, schema: { type: string, format: date } }
+    DateTo: { name: date_to, in: query, required: false, schema: { type: string, format: date } }
+  requestBodies:
+    CustomerUpsert: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CustomerInput' } } } }
+    ContactUpsert: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ContactInput' } } } }
+    AddressUpsert: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AddressInput' } } } }
+    ProductUpsert: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProductInput' } } } }
+    PriceTableUpsert: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PriceTableInput' } } } }
+    PriceTableItemUpsert: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PriceTableItemInput' } } } }
+    PaymentTermUpsert: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PaymentTermInput' } } } }
+    QuoteUpsert: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/QuoteInput' } } } }
+    ReasonRequired: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReasonPayload' } } } }
+    ReasonOptional: { required: false, content: { application/json: { schema: { $ref: '#/components/schemas/ReasonPayload' } } } }
+    ReasonStrong: { required: true, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ReasonPayload' }, { $ref: '#/components/schemas/StrongConfirmation' }] } } } }
+    CancelOrder: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CancelOrderRequest' } } } }
+    OrderRevision: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrderRevisionRequest' } } } }
+    OrderRevisionStrong: { required: true, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/OrderRevisionRequest' }, { $ref: '#/components/schemas/StrongConfirmation' }] } } } }
+    PriceOverride: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PriceOverrideRequest' } } } }
+    OperationalInvoice: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OperationalInvoiceRequest' } } } }
+    OperationalInvoiceCorrection: { required: true, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/OperationalInvoiceCorrectionRequest' }, { $ref: '#/components/schemas/StrongConfirmation' }] } } } }
+    OutputEvent: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OutputEventRequest' } } } }
+  responses:
+    Customer: { description: Cliente, content: { application/json: { schema: { $ref: '#/components/schemas/Customer' } } } }
+    CustomerList: { description: Lista de clientes, content: { application/json: { schema: { $ref: '#/components/schemas/ListResponse' } } } }
+    Product: { description: Produto, content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } }
+    ProductList: { description: Lista de produtos, content: { application/json: { schema: { $ref: '#/components/schemas/ListResponse' } } } }
+    PriceTable: { description: Tabela de preço, content: { application/json: { schema: { $ref: '#/components/schemas/PriceTable' } } } }
+    PriceTableList: { description: Lista de tabelas, content: { application/json: { schema: { $ref: '#/components/schemas/ListResponse' } } } }
+    PaymentTerm: { description: Condição de pagamento, content: { application/json: { schema: { $ref: '#/components/schemas/PaymentTerm' } } } }
+    PaymentTermList: { description: Lista de condições, content: { application/json: { schema: { $ref: '#/components/schemas/ListResponse' } } } }
+    CommercialDocument: { description: Documento comercial, content: { application/json: { schema: { $ref: '#/components/schemas/CommercialDocument' } } } }
+    ConfirmQuoteResult: { description: Resultado com quote histórico e novo order, content: { application/json: { schema: { $ref: '#/components/schemas/ConfirmQuoteResult' } } } }
+    DocumentList: { description: Lista de documentos, content: { application/json: { schema: { $ref: '#/components/schemas/ListResponse' } } } }
+    PaymentSchedule: { description: Parcelas/vencimentos, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PaymentScheduleItem' } } } } }
+    OutputEvent: { description: Evento de saída, content: { application/json: { schema: { $ref: '#/components/schemas/OutputEvent' } } } }
+    Timeline: { description: Timeline, content: { application/json: { schema: { $ref: '#/components/schemas/Timeline' } } } }
+    Revisions: { description: Revisões, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Revision' } } } } }
+    ReportResult: { description: Relatório/listagem operacional, content: { application/json: { schema: { $ref: '#/components/schemas/ListResponse' } } } }
+    Unauthorized: { description: 401 token ausente/inválido, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: 403 RBAC/tenant/ownership negado; deve gerar audit_event denied, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    NotFound: { description: 404 recurso inexistente ou invisível por escopo, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    ConflictError: { description: 409 conflito de estado/idempotência/revisão/ORC já convertido/faturamento ativo duplicado, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    ValidationError: { description: 422 payload inválido, motivo ausente, Idempotency-Key ausente em ação crítica ou transição proibida, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   schemas:
-    CreateQuoteRequest:
+    CommercialStatus: { type: string, enum: [QUOTE_DRAFT, ORDER_CONFIRMED, INVOICED, CANCELED] }
+    DocumentType: { type: string, enum: [quote, order] }
+    AvailableAction: { type: string, enum: [create_customer, edit_customer, create_product, edit_product, create_price_table, edit_price_table, create_quote, edit_quote, confirm_quote_to_order, edit_confirmed_order, edit_invoiced_order, override_item_price, register_operational_invoice, correct_operational_invoice, cancel_quote, cancel_order, send_output, generate_pdf, view_audit_timeline] }
+    ReasonPayload:
       type: object
-      required: [customerId, items]
+      required: [reason_code]
       properties:
-        customerId: { type: string, format: uuid }
-        paymentTermId: { type: string, format: uuid }
-        notes: { type: string }
-        items:
-          type: array
-          minItems: 1
-          items:
-            type: object
-            required: [productId, quantity, unitPrice]
-            properties:
-              productId: { type: string, format: uuid }
-              quantity: { type: number, minimum: 0.01 }
-              unitPrice: { type: number, minimum: 0 }
-
-    QuoteResponse:
+        reason_code: { type: string, example: CORRECAO_ERRO_OPERADOR }
+        reason_note: { type: string, description: Obrigatório quando reason_code=OUTROS ou política exigir detalhe. }
+    StrongConfirmation:
       type: object
+      required: [strong_confirmation]
       properties:
-        id: { type: string, format: uuid }
-        quoteNumber: { type: string, example: ORC-0001 }
-        commercialStatus: { type: string, enum: [QUOTE_DRAFT] }
-
-    OrderResponse:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        orderNumber: { type: string, example: PED-0001 }
-        commercialStatus: { type: string, enum: [ORDER_CONFIRMED, CANCELED, INVOICED] }
-
-    CancelRequest:
-      type: object
-      required: [reason]
-      properties:
-        reason: { type: string, minLength: 3 }
-
-    AdjustOrderRequest:
-      type: object
-      required: [reason, changes]
-      properties:
-        reason: { type: string, minLength: 3 }
-        changes:
-          type: array
-          minItems: 1
-          items:
-            type: object
-            properties:
-              field: { type: string }
-              from: {}
-              to: {}
-
-    InvoiceRequest:
-      type: object
-      required: [invoiceDate, amount]
-      properties:
-        invoiceDate: { type: string, format: date }
-        amount: { type: number, minimum: 0 }
-        noteReference: { type: string }
-        notes: { type: string }
-
-    OutputEventRequest:
-      type: object
-      required: [entityId, channel]
-      properties:
-        entityId: { type: string, format: uuid }
-        channel:
-          type: string
-          enum: [SEND_WHATSAPP, SEND_EMAIL, GENERATE_PDF, PRINT, COPY_LINK, SHARE]
-        metadata: { type: object, additionalProperties: true }
-
-    StatusChangeResponse:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        commercialStatus:
-          type: string
-          enum: [QUOTE_DRAFT, ORDER_CONFIRMED, INVOICED, CANCELED]
-        updatedAt: { type: string, format: date-time }
-
+        strong_confirmation: { type: boolean, enum: [true], description: Confirmação explícita para ação crítica. }
     ErrorResponse:
       type: object
       required: [code, message]
       properties:
-        code: { type: string, example: RBAC_FORBIDDEN }
+        code: { type: string, enum: [UNAUTHORIZED, RBAC_FORBIDDEN, TENANT_FORBIDDEN, OWNERSHIP_FORBIDDEN, NOT_FOUND_OR_NOT_VISIBLE, STATE_CONFLICT, REVISION_CONFLICT, IDEMPOTENCY_CONFLICT, IDEMPOTENCY_KEY_REQUIRED, VALIDATION_ERROR, REQUIRED_REASON_MISSING, ORC_ALREADY_CONVERTED, ACTIVE_OPERATIONAL_INVOICE_EXISTS] }
         message: { type: string }
+        audit_event_id: { type: string, format: uuid, description: Obrigatório em 403/denied relevante quando persistido. }
         details: { type: object, additionalProperties: true }
-
-  responses:
-    Unauthorized:
-      description: Token ausente/inválido
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
-    Forbidden:
-      description: Ação não permitida para o perfil/ownership
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
-    ValidationError:
-      description: Erro de validação de entrada/regra
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
-    ConflictError:
-      description: Conflito de concorrência ou estado inválido
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ResourceEnvelope:
+      type: object
+      description: available_actions is backend-calculated and advisory for UI only; every action endpoint must re-check RBAC/status/revision at execution time.
+      properties:
+        available_actions: { type: array, items: { $ref: '#/components/schemas/AvailableAction' } }
+        permissions: { type: object, additionalProperties: true }
+    CustomerInput: { type: object, required: [legal_name, document_type, document_number], properties: { legal_name: { type: string }, trade_name: { type: string }, document_type: { type: string }, document_number: { type: string }, state_registration: { type: string }, phone: { type: string }, email: { type: string }, whatsapp: { type: string }, notes: { type: string } } }
+    ContactInput: { type: object, required: [name], properties: { name: { type: string }, role: { type: string }, phone: { type: string }, whatsapp: { type: string }, email: { type: string }, is_primary: { type: boolean } } }
+    AddressInput: { type: object, required: [zipcode, street, number, city, state, country], properties: { address_type: { type: string, enum: [main, delivery, billing, other] }, zipcode: { type: string }, street: { type: string }, number: { type: string }, complement: { type: string }, district: { type: string }, city: { type: string }, state: { type: string }, country: { type: string }, is_primary: { type: boolean } } }
+    Customer: { allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }, { type: object, properties: { id: { type: string, format: uuid }, owner_id: { type: string, format: uuid }, legal_name: { type: string }, contacts: { type: array, items: { $ref: '#/components/schemas/ContactInput' } }, addresses: { type: array, items: { $ref: '#/components/schemas/AddressInput' } } } }] }
+    ProductInput: { type: object, required: [sku, name, unit_id], properties: { sku: { type: string }, name: { type: string }, commercial_name: { type: string }, barcode: { type: string }, brand: { type: string }, category_id: { type: string, format: uuid }, unit_id: { type: string, format: uuid }, minimum_order_quantity: { type: number }, multiple_order_quantity: { type: number }, availability_status: { type: string } } }
+    Product: { allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }, { $ref: '#/components/schemas/ProductInput' }] }
+    PriceTableInput: { type: object, required: [name, currency], properties: { name: { type: string }, status: { type: string }, valid_from: { type: string, format: date }, valid_until: { type: string, format: date }, currency: { type: string } } }
+    PriceTableItemInput: { type: object, required: [product_id, unit_price], properties: { product_id: { type: string, format: uuid }, unit_price: { type: number }, valid_from: { type: string, format: date }, valid_until: { type: string, format: date }, volume_range: { type: object, additionalProperties: true } } }
+    PriceTable: { allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }, { $ref: '#/components/schemas/PriceTableInput' }] }
+    PaymentTermInput: { type: object, required: [name, installments], properties: { name: { type: string }, payment_method: { type: string }, installments: { type: array, items: { type: object, properties: { installment_number: { type: integer }, days_offset: { type: integer }, percentage: { type: number } } } } } }
+    PaymentTerm: { allOf: [{ $ref: '#/components/schemas/ResourceEnvelope' }, { $ref: '#/components/schemas/PaymentTermInput' }] }
+    QuoteInput: { type: object, required: [customer_id, items], properties: { customer_id: { type: string, format: uuid }, contact_id: { type: string, format: uuid }, address_id: { type: string, format: uuid }, price_table_id: { type: string, format: uuid }, payment_term_id: { type: string, format: uuid }, items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/DocumentItemInput' } }, notes: { type: string } } }
+    DocumentItemInput: { type: object, required: [product_id, quantity], properties: { product_id: { type: string, format: uuid }, quantity: { type: number, minimum: 0.01 }, unit: { type: string }, applied_unit_price: { type: number }, price_override_reason: { type: string } } }
+    PriceOverrideRequest: { allOf: [{ $ref: '#/components/schemas/ReasonPayload' }, { type: object, required: [item_id, applied_unit_price, price_override_reason, expected_revision_number], properties: { item_id: { type: string, format: uuid }, applied_unit_price: { type: number }, price_override_reason: { type: string }, expected_revision_number: { type: integer, minimum: 0 } } }] }
+    OrderRevisionRequest: { allOf: [{ $ref: '#/components/schemas/ReasonPayload' }, { type: object, required: [expected_revision_number, changes], properties: { expected_revision_number: { type: integer, minimum: 0 }, changes: { type: array, minItems: 1, items: { type: object, properties: { field_path: { type: string }, new_value: {} } } } } }] }
+    OperationalInvoiceRequest: { allOf: [{ $ref: '#/components/schemas/ReasonPayload' }, { type: object, required: [invoice_date, amount, manual_reference], properties: { invoice_date: { type: string, format: date }, amount: { type: number }, manual_reference: { type: string }, document_label: { type: string }, notes: { type: string } } }] }
+    OperationalInvoiceCorrectionRequest: { allOf: [{ $ref: '#/components/schemas/ReasonPayload' }, { type: object, required: [correction_type, expected_revision_number], properties: { correction_type: { type: string, enum: [correct, cancel] }, expected_revision_number: { type: integer, minimum: 0 }, amount: { type: number }, manual_reference: { type: string }, notes: { type: string } } }] }
+    CancelOrderRequest: { allOf: [{ $ref: '#/components/schemas/ReasonPayload' }, { $ref: '#/components/schemas/StrongConfirmation' }, { type: object, required: [expected_revision_number], properties: { expected_revision_number: { type: integer, minimum: 0 } } }] }
+    OutputEventRequest: { type: object, required: [channel], properties: { channel: { type: string, enum: [SEND_WHATSAPP, SEND_EMAIL, GENERATE_PDF, PRINT, COPY_LINK, SHARE] }, recipient_snapshot: { type: object, additionalProperties: true }, payload: { type: object, additionalProperties: true } } }
+    CommercialDocument:
+      allOf:
+        - $ref: '#/components/schemas/ResourceEnvelope'
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            document_type: { $ref: '#/components/schemas/DocumentType' }
+            document_number: { type: string, example: PED-0001 }
+            commercial_status: { $ref: '#/components/schemas/CommercialStatus' }
+            source_quote_id: { type: string, format: uuid, nullable: true }
+            output_badges: { type: array, items: { type: string, enum: [SENT_WHATSAPP, SENT_EMAIL, PDF_GENERATED, PRINTED, LINK_COPIED, SHARED] } }
+            items: { type: array, items: { $ref: '#/components/schemas/DocumentItemInput' } }
+            payment_schedule: { type: array, items: { $ref: '#/components/schemas/PaymentScheduleItem' } }
+            current_revision_number: { type: integer }
+    ConfirmQuoteResult: { type: object, required: [quote, order], properties: { quote: { $ref: '#/components/schemas/CommercialDocument' }, order: { $ref: '#/components/schemas/CommercialDocument' }, lifecycle_event_id: { type: string, format: uuid }, audit_event_id: { type: string, format: uuid } } }
+    PaymentScheduleItem: { type: object, properties: { installment_number: { type: integer }, due_date: { type: string, format: date }, amount: { type: number }, payment_method: { type: string } } }
+    OutputEvent: { type: object, properties: { id: { type: string, format: uuid }, channel: { type: string }, event_at: { type: string, format: date-time } } }
+    Timeline: { type: object, properties: { lifecycle_events: { type: array, items: { type: object, additionalProperties: true } }, output_events: { type: array, items: { type: object, additionalProperties: true } }, revisions: { type: array, items: { $ref: '#/components/schemas/Revision' } }, audit_events: { type: array, items: { type: object, additionalProperties: true } } } }
+    Revision: { type: object, properties: { id: { type: string, format: uuid }, revision_number: { type: integer }, reason_code: { type: string }, actor_id: { type: string, format: uuid }, changes: { type: array, items: { type: object, properties: { field_path: { type: string }, old_value: {}, new_value: {}, impact_type: { type: string } } } } } }
+    ListResponse: { type: object, properties: { data: { type: array, items: { type: object, additionalProperties: true } }, pagination: { type: object, additionalProperties: true }, available_actions: { type: array, items: { $ref: '#/components/schemas/AvailableAction' } } } }

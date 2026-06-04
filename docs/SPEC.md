@@ -1,17 +1,19 @@
-# Arco ERP — SPEC v1 (Consolidada, Planning-Only)
+# Arco ERP — SPEC v1 (V1 Operacional, Planning-Only)
 
 ## 1) Purpose and scope
 
 Esta SPEC v1 define a baseline canônica do produto **Arco ERP** (projeto novo), consolidando decisões executivas já fechadas.
 
+A direção vigente da V1 é definida em `docs/DECISION-FLOW-CANON.md`: **a V1 é operacional completa, não MVP mínimo**. Esta SPEC permanece planning-only e não autoriza implementação, banco, migrations, API freeze ou frontend sem gate específico.
+
 **Inclui:**
 - normalização de domínio/copy;
 - state machine comercial;
-- permissões MVP;
+- permissões V1;
 - política de numeração;
-- modelo mínimo de dados/eventos;
+- modelo operacional de dados/eventos;
 - mapa estrutural de telas;
-- matriz de relatórios MVP;
+- matriz de relatórios operacionais;
 - gates de governança.
 
 **NO-GO nesta etapa:**
@@ -33,7 +35,7 @@ Esta SPEC v1 define a baseline canônica do produto **Arco ERP** (projeto novo),
 ### Vocabulário canônico (permitido)
 - `QUOTE_DRAFT` → Orçamento em rascunho
 - `ORDER_CONFIRMED` → Pedido confirmado
-- `INVOICED` → Faturado (registro simples)
+- `INVOICED` → Faturado (Registro Operacional de Faturamento)
 - `CANCELED` → Cancelado
 
 ### Derivas proibidas
@@ -42,15 +44,23 @@ Esta SPEC v1 define a baseline canônica do produto **Arco ERP** (projeto novo),
 
 ---
 
-## 3) MVP vs Phase 2 vs Out-of-scope
+## 3) V1 operacional vs futuro vs fora de escopo
 
-| Área | MVP/Foundation | Fase 2 | Fora de escopo atual |
+| Área | V1 operacional | Futuro/Fase 2 | Fora de escopo atual |
 |---|---|---|---|
-| Pedidos (core) | Sim | Evolução | — |
-| Usuários e permissões (S-082) | **Sim** | Não | — |
-| Faturamento | Registro simples | Evoluções | Fiscal/NF-e/gateway/boleto/integr. |
-| Relatórios | 8 relatórios operacionais | BI avançado | DW/analytics complexa |
-| Perfis | ADMIN + REPRESENTANTE | Perfis adicionais | Perfis extras no MVP |
+| Clientes | Completo para operação comercial | CRM avançado/agenda | — |
+| Produtos | Completo para orçamento/pedido | regras automáticas de desconto | — |
+| Tabela de preços | **Sim** | engine avançada de precificação | — |
+| Condições de pagamento | **Sim** | regras automáticas de crédito/faturamento | gateway/boleto automático |
+| Pedidos (core) | Orçamento numerado -> pedido numerado, emitido e compartilhável | evoluções de automação | — |
+| Usuários e permissões (S-082) | **RBAC e auditoria na V1** | perfis adicionais | `VISUALIZADOR` sem decisão explícita |
+| Faturamento | Registro Operacional de Faturamento manual | evoluções financeiras | Fiscal/NF-e/SEFAZ/gateway/boleto automático |
+| Relatórios | Relatórios operacionais básicos | BI avançado | DW/analytics complexa |
+| Perfis | ADMIN + REPRESENTANTE | perfis adicionais | perfil extra sem decisão |
+
+Regra canônica da V1:
+
+> Orçamento nasce quando cliente válido é selecionado e salvo, gerando número canônico de orçamento. Ao confirmar, o orçamento vira pedido com número próprio de pedido. Enviar, compartilhar, imprimir ou gerar PDF é ação de comunicação e não altera `commercial_status`.
 
 ---
 
@@ -68,28 +78,32 @@ Esta SPEC v1 define a baseline canônica do produto **Arco ERP** (projeto novo),
 - `ORDER_CONFIRMED -> INVOICED`
 - `ORDER_CONFIRMED -> CANCELED` (ADMIN)
 - `ORDER_CONFIRMED + admin_adjustment -> ORDER_CONFIRMED`
+- `INVOICED + admin_adjustment -> INVOICED`
 
 ### Regras canônicas
 - **Confirmar pedido** é o único ponto de conversão de orçamento em pedido.
 - `ORDER_ADJUSTED` é **lifecycle_event** + `order_revision`, não estado comercial.
+- Pedido confirmado e pedido faturado não são imutáveis absolutos: podem ser alterados conforme perfil de acesso, sempre com revisão auditável.
+- Snapshot comercial é obrigatório para preservar a verdade histórica, mas não bloqueia correções posteriores por revisão.
 
 ---
 
-## 5) Permissions model (MVP)
+## 5) Permissions model (V1)
 
 ### Perfis oficiais
 - `ADMIN`
 - `REPRESENTANTE`
 
-Sem `VISUALIZADOR` no MVP.
+Sem `VISUALIZADOR` na V1 sem decisão explícita posterior.
 
 ### Regras-chave
 - ADMIN pode cancelar `ORDER_CONFIRMED`.
 - ADMIN pode ajustar pedido confirmado com auditoria/revisão.
-- ADMIN pode registrar faturamento simples.
+- ADMIN pode registrar e corrigir Registro Operacional de Faturamento com auditoria/revisão.
+- ADMIN pode ajustar pedido faturado com auditoria/revisão.
 - REPRESENTANTE só pode cancelar orçamento próprio em `QUOTE_DRAFT`.
 - REPRESENTANTE não pode cancelar `ORDER_CONFIRMED`.
-- REPRESENTANTE não pode ajustar pedido confirmado.
+- REPRESENTANTE não pode ajustar pedido confirmado/faturado sem permissão explícita.
 - REPRESENTANTE não pode registrar faturamento.
 
 ---
@@ -128,7 +142,7 @@ Termos proibidos como status comercial:
 
 ---
 
-## 8) Data model minimum (planning level)
+## 8) Data model operational scope (planning level)
 
 Entidades mínimas:
 - `users`
@@ -137,6 +151,10 @@ Entidades mínimas:
 - `customers`
 - `products`
 - `payment_terms`
+- `price_tables`
+- `customer_contacts`
+- `customer_addresses`
+- `payment_schedules`
 - `quotes`
 - `quote_items`
 - `orders`
@@ -151,19 +169,20 @@ Entidades mínimas:
 Capacidades obrigatórias:
 - ownership (`representante_id`)
 - estado comercial canônico
-- snapshot em pedido confirmado
+- snapshot comercial em orçamento/pedido confirmado, incluindo cliente, endereço, contato, produto, preço, condição de pagamento e vencimentos
 - histórico de revisão (`order_revisions`)
 - trilha de cancelamento (ator, motivo, data)
 
 ---
 
-## 9) Screen foundation map (MVP, sem pixel-perfect)
+## 9) Screen foundation map (V1, sem pixel-perfect)
 
 Referência normativa:
+- `docs/SCREEN-FLOW-MAP.md` (mapa funcional canônico de telas/fluxos da V1)
 - SCREEN_AND_DESIGN_FOUNDATION_PACK v2.1
 - SPEC_PRE_FREEZE_PACK
 
-Telas/áreas estruturais MVP:
+Telas/áreas estruturais V1:
 1. Login
 2. Home operacional (KPIs/alertas)
 3. Clientes (lista/perfil/cadastro/edição/histórico)
@@ -171,9 +190,9 @@ Telas/áreas estruturais MVP:
 5. Condições de pagamento (lista/edição/simulador)
 6. Pedidos (lista, steps de orçamento, revisão, confirmação, detalhe)
 7. Ajuste administrativo de pedido confirmado (ADMIN)
-8. Registro de faturamento simples
-9. Usuários e permissões (S-082, MVP/foundation)
-10. Hub de relatórios MVP
+8. Registro Operacional de Faturamento
+9. Usuários e permissões (S-082, V1)
+10. Hub de relatórios operacionais
 
 ---
 
@@ -188,7 +207,7 @@ Telas/áreas estruturais MVP:
 
 ---
 
-## 11) Reporting MVP matrix (8 relatórios)
+## 11) Reporting V1 matrix (operacional)
 
 1. Vendas
 2. Conversão orçamento → pedido
@@ -208,15 +227,17 @@ Mínimos obrigatórios de dados/eventos:
 
 ---
 
-## 12) Faturamento MVP boundaries
+## 12) Registro Operacional de Faturamento boundaries
 
-Permitido no MVP:
+Permitido na V1:
 - status `INVOICED`;
-- registro simples (data, valor, observação, referência manual opcional).
+- registro operacional manual (documento/referência informado manualmente, data, valor, vencimento(s), observação);
+- correção por ADMIN com revisão auditável.
 
-Proibido no MVP:
+Proibido na V1 sem decisão futura explícita:
 - NF-e
 - emissão fiscal
+- integração SEFAZ
 - cálculo fiscal
 - boleto automático
 - gateway
@@ -230,16 +251,16 @@ Proibido no MVP:
 ### GO (planejamento para implementação)
 - domínio/copy canônicos sem contradição;
 - state machine fechada;
-- permissões MVP fechadas;
+- permissões V1 fechadas;
 - numeração canônica fechada;
-- matriz de relatórios MVP fechada;
-- escopo de faturamento limitado aceito.
+- matriz de relatórios operacionais fechada;
+- escopo de Registro Operacional de Faturamento limitado aceito.
 
 ### NO-GO
 - reintroduzir “Documentos” como módulo;
 - tratar comunicação como status comercial;
 - usar `ORDER_ADJUSTED` como estado;
-- expandir fiscal/NF-e/gateway no MVP;
+- expandir fiscal/NF-e/SEFAZ/gateway na V1;
 - iniciar implementação sem gate de planejamento aprovado.
 
 ---
@@ -263,8 +284,8 @@ Observações não bloqueantes:
 5. Permissões ADMIN/REPRESENTANTE aplicadas conforme matriz.
 6. Numeração `ORC-0001` / `PED-0001` aplicada.
 7. Comunicação separada por `output_events`.
-8. S-082 em MVP/foundation (fora de Fase 2).
-9. Faturamento MVP sem escopo fiscal.
+8. S-082 e RBAC/auditoria em V1.
+9. Registro Operacional de Faturamento sem escopo fiscal.
 10. Matriz dos 8 relatórios validada.
 11. NO-GO de implementação/freeze nesta etapa respeitado.
 
@@ -275,11 +296,12 @@ Observações não bloqueantes:
 Os artefatos abaixo detalham a operacionalização da SPEC para futuro planejamento técnico.
 
 1. `docs/SPEC-OPS-ADDENDUM.md` (AC detalhado em GWT)
-2. `docs/API-CONTRACTS.yaml` (contrato API MVP)
+2. `docs/API-CONTRACTS.yaml` (contrato API da V1, a alinhar após decisão documental/dados)
 3. `docs/DATA-MODEL-OPS.md` (modelo lógico + integridade)
 4. `docs/RBAC-MATRIX.md` (autorização por tela/ação)
 5. `docs/REPORTS-DICTIONARY.md` (contrato funcional dos 8 relatórios)
 6. `docs/TEST-AND-RELEASE-GATE.md` (gate de testes e operação)
+7. `docs/SCREEN-FLOW-MAP.md` (mapa funcional canônico de telas/fluxos)
 
 ### Regra de governança
 

@@ -1,325 +1,558 @@
-# ROADMAP — ARCO-ERP (Produto + Execução Técnica)
+# ROADMAP — ARCO-ERP V1 Operacional
 
-> Última atualização: 2026-06-01  
+> Última atualização: 2026-06-03  
 > Dono operacional: Atlas  
 > Dono da prioridade executiva: Toni  
-> Fonte de verdade funcional: `docs/SPEC.md`
+> Fonte funcional canônica: `docs/SPEC.md` + `docs/DECISION-FLOW-CANON.md`  
+> Fonte de descoberta visual local: `erp_app_flow_map.html` (não versionar neste gate)
+
+## 0) Papel deste arquivo
+
+Este `ROADMAP.md` é o mecanismo canônico de **slicing, sequência, gates e controle de risco** da V1 do ARCO-ERP.
+
+Ele não substitui a SPEC e não é diário de sessão:
+
+- contrato de produto e invariantes: `docs/SPEC.md`;
+- decisão de direção da V1: `docs/DECISION-FLOW-CANON.md`;
+- estado de retomada de sessão: `START.md`;
+- evidências de validação/release: `docs/TEST-AND-RELEASE-GATE.md`.
+
+## 1) Decisão de produto vigente
+
+A V1 do ARCO-ERP é **operacional completa**, não MVP mínimo e não “pedido simples”.
+
+Fluxo comercial alvo da V1:
+
+```txt
+cliente completo
+-> produto completo
+-> tabela de preço
+-> condições de pagamento
+-> orçamento salvo e numerado
+-> pedido confirmado e numerado
+-> emissão visual/imprimível/compartilhável
+-> comunicação registrada como evento/badge
+-> Registro Operacional de Faturamento
+-> alteração auditada por perfil
+-> relatórios/listagens operacionais
+```
+
+Escopo obrigatório da V1:
+
+- cadastro completo de clientes, incluindo contatos e endereços;
+- cadastro completo de produtos;
+- tabela de preços;
+- condições de pagamento;
+- orçamento salvo e numerado (`ORC-####`);
+- pedido confirmado e numerado (`PED-####`);
+- emissão visual/imprimível/compartilhável;
+- comunicação como evento/badge, nunca `commercial_status`;
+- Registro Operacional de Faturamento manual;
+- alteração de pedido confirmado por perfil autorizado;
+- alteração de pedido faturado por `ADMIN`;
+- revisão/auditoria obrigatória;
+- RBAC operacional;
+- relatórios/listagens operacionais.
 
-## 0) Papel deste arquivo (e separação de responsabilidades)
+Fora de escopo da V1 sem decisão futura explícita:
 
-Este `ROADMAP.md` define **evolução de produto + evolução técnica por fases**, com prioridades, gates e critérios de aceite.
+- NF-e;
+- SEFAZ;
+- gateway de pagamento;
+- boleto automático;
+- conciliação automática;
+- emissão fiscal real;
+- integrações externas obrigatórias;
+- CRM avançado/agenda;
+- fluxo de caixa avançado;
+- perfil `VISUALIZADOR`.
 
-Não é arquivo de diário de sessão.
+## 2) Desalinhamentos corrigidos por este roadmap
 
-- Estado da sessão, branch, PR, comandos de retomada => `START.md` (ou futuro `session_start.md` local).
-- Decisão e gate de ciclo => `docs/DECISION_SPEC_APPROVAL.md` e `docs/TEST-AND-RELEASE-GATE.md`.
+O roadmap anterior estava desalinhado com o Gate 0 por quatro motivos:
 
-## 1) Visão do produto
+1. falava em “MVP operacional” e “P2 Frontend/UX” de forma vaga;
+2. tratava a próxima fase como evolução visual após backend, sem consolidar cliente/produto/preço/pagamento;
+3. não bloqueava explicitamente implementação antes de Data Model + RBAC/Audit + API Contracts;
+4. usava “faturamento simples” em vez de **Registro Operacional de Faturamento**.
 
-O ARCO-ERP deve operar como fluxo comercial canônico, previsível e auditável:
+Correção adotada:
 
-**cliente -> orçamento -> pedido -> envio/impressão -> faturamento simples**
+- manter a ambição funcional completa da V1;
+- fatiar execução por dependências reais;
+- bloquear implementação técnica até contratos documentais passarem pelos gates corretos;
+- separar visão de produto de slices de execução.
 
-Regras centrais:
-- SPEC governa nomenclatura, estados e permissões;
-- comunicação (enviar/imprimir) é evento de saída, não mudança de status comercial;
-- SAGRADO-PEDIDOS é legado de consulta pontual, sem acoplamento funcional.
+## 3) Estado factual já entregue
 
-## 2) Fase atual (separação clara do que já foi feito)
+### Já concluído e mergeado em `main`
 
-### Já concluído
-- Sprint 0, Sprint 1 e Sprint 2 mergeadas em `main`.
-- Sprint 3 (Slices 1-5) concluída no escopo técnico/documental.
-- Etapa 6 concluída e mergeada em `main` via PR #17.
-- Etapa 7 concluída e mergeada em `main` via PR #19.
-- Etapa 8 concluída e mergeada em `main` via PR #21.
-- Etapa 9 concluída e mergeada em `main` via PR #23.
-- Fechamento técnico P0+P1 (persistência real + API HTTP mínima) concluído e mergeado em `main` via PR #25.
-- Fechamento P1.5 Supabase Runtime Readiness / DB Smoke concluído e mergeado em `main` via PR #28.
-  - Runtime real validado contra Supabase dev.
-  - Smoke DB real contra Supabase: ✅ PASS.
-  - Bug do upsert `postgresOrderRepository` corrigido (document_type sobrescrito no ON CONFLICT).
-  - `.env.example` criado sem segredo; `.env.local` protegido no `.gitignore`.
+- Sprint 0, Sprint 1 e Sprint 2.
+- Sprint 3 (Slices 1–5).
+- Etapa 5 — fluxo operacional inicial de orçamento.
+- Etapa 6 — conversão orçamento -> pedido.
+- Etapa 7 — comunicação como `output_event`.
+- Etapa 8 — ciclo de pedido com revisão/cancelamento/auditoria inicial.
+- Etapa 9 — Registro Operacional de Faturamento inicial / preparação fiscal sem escopo fiscal real.
+- Fechamento técnico P0+P1 — persistência real + API HTTP mínima (PR #25).
+- P1.5 Supabase Runtime Readiness / DB Smoke (PR #28).
 
-## 3) Ordem de prioridade (régua de execução)
+### Concluído nesta frente documental
 
-- **P0**: necessário para operação mínima do fluxo comercial canônico.
-- **P1**: necessário para controle, segurança operacional e auditabilidade.
-- **P2**: melhoria posterior sem bloquear operação mínima.
+- Gate 0 — direção V1 operacional completa: `docs/DECISION-FLOW-CANON.md`.
+- Reorientação mínima da SPEC para V1 operacional: `docs/SPEC.md`.
+- ROADMAP Alignment: este documento.
+- Gate A — Screen Flow Canon + SPEC Consolidation: PASS.
+- Gate B — Data Model Decision: PASS.
+- Gate C — RBAC + Audit Model: PASS.
+- Gate D — API Contract Alignment: PASS.
+- Gate E — Frontend Contract + Shell Plan: PASS.
+- Gate F — Migration Plan + Test Strategy: **PASS**, commitado em `406e043` com:
+  - `docs/MIGRATION-PLAN-OPS.md`;
+  - `docs/TEST-STRATEGY-OPS.md`.
 
-Classificação atual:
-- Etapa 4, 5, 6, 8 => **P0**
-- Etapa 7, 9 => **P1**
-- Evoluções não essenciais pós-MVP => **P2**
+### Observação importante
 
-## 4) Mapa de fases (produto + execução técnica)
+As entregas técnicas anteriores continuam válidas como foundation, mas **não são suficientes** para declarar V1 operacional completa. A V1 agora exige consolidação de cliente, produto, preço, pagamento, RBAC/auditoria, data model, contratos, frontend e testes conforme as fases abaixo.
 
-## Etapa 4 — Fechamento e publicação da fundação de domínio (**P0**) 
+## 4) Regra de execução e bloqueio
 
-**Objetivo da fase**  
-Fechar corretamente o ciclo da Sprint 3 já implementado.
+### Regra principal
 
-**Entregável prático**  
-PR de fechamento da Sprint 3 revisado, aprovado e mergeado com validação pós-merge.
+Nenhuma implementação nova de banco, migrations, API, backend, frontend ou telas pode iniciar antes do gate documental imediatamente anterior estar `PASS`.
 
-**Módulos/áreas de código prováveis**  
-`src/domain`, `tests/*.spec.ts`, `docs/*gate*`, `README.md`, `START.md`.
+### Bloqueios absolutos
 
-**Requisitos funcionais**
-1. branch final revisada sem desvio de escopo;
-2. PR única de fechamento com rastreabilidade da SPEC;
-3. main validada após merge.
+Retornar `Blocked` se houver tentativa de:
 
-**Critérios de aceite**
-- PR da Sprint 3 sem findings High abertos;
-- escopo estritamente alinhado ao que já foi decidido;
-- checkpoint pós-merge registrado.
+1. alterar banco/migrations antes do **Gate B — Data Model Decision**;
+2. alterar API contracts antes do **Gate D — API/RBAC Contract Alignment**;
+3. iniciar frontend antes do **Gate E — Frontend Contract & Shell Plan**;
+4. implementar fluxo cliente/produto/preço/pagamento antes de Data Model + API/RBAC passarem;
+5. tratar comunicação como `commercial_status`;
+6. tratar pedido confirmado/faturado como mutação livre sem revisão;
+7. empurrar cliente completo, produto completo, tabela de preço, condições de pagamento, RBAC, auditoria ou faturamento operacional para futuro por conveniência técnica;
+8. versionar ou editar `erp_app_flow_map.html` sem gate explícito.
 
-**Validações obrigatórias (gate)**
-- `npm run typecheck`
-- `npm run test`
-- revisão de escopo (SPEC x diff)
-- aceite funcional de fechamento do ciclo
+## 5) Sequência executável da V1
 
-**Fora de escopo**
-- iniciar Slice 6;
-- abrir nova feature de produto.
+## Gate A — Screen Flow Canon + SPEC Consolidation
 
-## Etapa 5 — Fluxo operacional de orçamento (**P0**)
+**Tipo:** documental  
+**Status:** próximo gate recomendado  
+**Dependências:** Gate 0 (`docs/DECISION-FLOW-CANON.md`) + `docs/SPEC.md`
 
-**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #14.
+### Objetivo
 
-**Objetivo da fase**  
-Garantir orçamento operacional íntegro desde criação até atualização.
+Converter a descoberta visual do `erp_app_flow_map.html` em markdown canônico revisável, sem versionar nem alterar o HTML.
 
-**Entregável prático**  
-Fluxo de orçamento estável com numeração, estado inicial e atualização sem ambiguidade.
+### Escopo
 
-**Módulos/áreas de código prováveis**  
-`src/domain/*quote*`, camada de aplicação/use cases (quando aberta), persistência de quotes.
+- Criar `docs/SCREEN-FLOW-MAP.md`.
+- Mapear módulos, telas, ações primárias, dados obrigatórios, navegação e fora de escopo.
+- Sincronizar `docs/SPEC.md` apenas onde houver regra de produto, evitando duplicidade pesada.
+- Marcar explicitamente o que é V1 obrigatório e o que é futuro.
 
-**Requisitos funcionais**
-1. numeração de orçamento consistente (`ORC-####`);
-2. criação ao selecionar cliente válido;
-3. estado inicial correto (`QUOTE_DRAFT`);
-4. salvar/atualizar sem converter status indevidamente.
+### Critério de entrada
 
-**Critérios de aceite**
-- criação de orçamento sempre vinculada a cliente válido;
-- status comercial preservado em edições;
-- casos de erro de entrada com resposta previsível.
+- Gate 0 aprovado.
+- `docs/SPEC.md` aponta para V1 operacional completa.
+- `erp_app_flow_map.html` disponível apenas como insumo local.
 
-**Validações obrigatórias (gate)**
-- `npm run typecheck`
-- `npm run test` (incluindo cenários de orçamento)
-- build quando aplicável
-- revisão de escopo e aceite funcional
+### Critério de saída
 
-**Fora de escopo**
-- comunicação por canais externos como critério de conclusão de orçamento;
-- fiscal completo.
+- `docs/SCREEN-FLOW-MAP.md` aprovado como fonte canônica de telas/fluxos.
+- Nenhum conflito com `docs/SPEC.md` e `docs/DECISION-FLOW-CANON.md`.
+- Nenhuma alteração técnica.
 
-## Etapa 6 — Conversão orçamento -> pedido (**P0**)
+### Bloqueios
 
-**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #17.
+- Não criar migrations.
+- Não alterar API.
+- Não implementar tela.
 
-**Objetivo da fase**  
-Fechar conversão comercial correta por ação explícita.
+## Gate B — Data Model Decision
 
-**Entregável prático**  
-Ação "Gerar Pedido" convertendo orçamento em pedido com vínculo rastreável.
+**Tipo:** decisão técnica documental  
+**Dependências:** Gate A
 
-**Módulos/áreas de código prováveis**  
-`src/domain/commercialDocument*`, `src/domain/events*`, testes de conversão.
+### Objetivo
 
-**Requisitos funcionais**
-1. ação explícita "Gerar Pedido";
-2. manter vínculo com orçamento origem (`source_quote_id`/equivalente);
-3. transição de status conforme SPEC;
-4. impedir que ação de envio altere tipo/status comercial.
+Decidir o modelo de dados da V1 operacional completa antes de qualquer migration.
 
-**Critérios de aceite**
-- cada pedido confirmado referencia orçamento origem;
-- conversão só ocorre na ação canônica;
-- envio/impressão não converte status.
+### Escopo
 
-**Validações obrigatórias (gate)**
-- `npm run typecheck`
-- `npm run test` (conversão positiva/negativa)
-- revisão de escopo e aceite funcional
+- Atualizar `docs/DATA-MODEL-OPS.md`.
+- Criar/atualizar decisão técnica de dados (ex.: `docs/DECISION-DATA-MODEL-OPS.md`).
+- Comparar opções:
+  1. `commercial_documents` expandido;
+  2. `quotes`/`orders` separados;
+  3. modelo híbrido: documento comercial + itens/parcelas/eventos relacionais.
+- Definir snapshot comercial obrigatório:
+  - cliente;
+  - contato;
+  - endereço;
+  - produto;
+  - preço/tabela;
+  - condição de pagamento;
+  - parcelas/vencimentos;
+  - ator e momento da confirmação.
 
-**Fora de escopo**
-- atalhos de conversão por evento de comunicação;
-- automações externas de faturamento.
+### Critério de entrada
 
-## Etapa 7 — Comunicação do documento (**P1**)
+- `docs/SCREEN-FLOW-MAP.md` aprovado.
+- SPEC sem conflito sobre status, numeração, snapshot, faturamento operacional e editabilidade.
 
-**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #19.
+### Critério de saída
 
-**Objetivo da fase**  
-Separar definitivamente comunicação de estado comercial.
+- modelo escolhido e justificativa registrada;
+- entidades V1 listadas;
+- snapshots e revisões especificados;
+- riscos de migração e compatibilidade registrados;
+- nenhuma migration aplicada.
 
-**Entregável prático**  
-Ações de enviar/imprimir registradas como `output_events` com rastreabilidade.
+### Bloqueios
 
-**Módulos/áreas de código prováveis**  
-`src/domain/outputEvents*`, API/backend de comunicação, camada de integração futura.
+- Sem decisão de dados `PASS`, qualquer migration ou persistência nova é `Blocked`.
 
-**Requisitos funcionais**
-1. enviar e-mail/WhatsApp/imprimir como ação de comunicação;
-2. não alterar tipo/status comercial do documento;
-3. registrar evento de envio/impressão.
+## Gate C — RBAC + Audit Model
 
-**Critérios de aceite**
-- documento mantém estado comercial após envio;
-- trilha de comunicação auditável por evento.
+**Tipo:** contrato funcional/técnico documental  
+**Dependências:** Gate B
 
-**Validações obrigatórias (gate)**
-- `npm run typecheck`
-- `npm run test` (pós-envio sem mudança de status)
-- build quando aplicável
-- revisão de escopo e aceite funcional
+### Objetivo
 
-**Fora de escopo**
-- motor de campanhas;
-- automação comercial fora do fluxo core.
+Fechar permissões, negações, auditoria e revisão antes de contratos de API e frontend.
 
-## Etapa 8 — Fechamento de pedido (**P0**)
+### Escopo
 
-**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #21.
+- Atualizar `docs/RBAC-MATRIX.md`.
+- Definir matriz por ação e perfil para:
+  - cliente;
+  - produto;
+  - tabela de preço;
+  - condição de pagamento;
+  - orçamento;
+  - pedido confirmado;
+  - pedido faturado;
+  - Registro Operacional de Faturamento;
+  - relatórios/listagens;
+  - usuários/acesso.
+- Definir eventos/revisões obrigatórios:
+  - antes/depois;
+  - ator;
+  - perfil;
+  - motivo;
+  - data/hora;
+  - impacto em valor/vencimento/status.
 
-**Objetivo da fase**  
-Consolidar ciclo de vida de pedido confirmado com regras administrativas e auditoria.
+### Critério de entrada
 
-**Entregável prático**  
-Fluxo de revisão administrativa, cancelamento e histórico de eventos consistente.
+- modelo de dados decidido;
+- escopo de snapshot e revisão definido.
 
-**Módulos/áreas de código prováveis**  
-`src/domain/*order*`, `order_revisions`, `lifecycle_events`, RBAC/authorization.
+### Critério de saída
 
-**Requisitos funcionais**
-1. pedido confirmado com regras de transição válidas;
-2. revisão administrativa auditável;
-3. cancelamento com política por perfil;
-4. histórico de eventos íntegro;
-5. regras bloqueantes mínimas para ações inválidas.
+- permissões Allow/Deny por perfil e ação;
+- ações críticas com motivo obrigatório;
+- negações explícitas para REPRESENTANTE;
+- requisitos de auditoria validados contra SPEC.
 
-**Critérios de aceite**
-- ações ADMIN e REPRESENTANTE respeitam RBAC;
-- eventos de revisão/cancelamento rastreáveis;
-- bloqueios funcionam para operações proibidas.
+### Bloqueios
 
-**Validações obrigatórias (gate)**
-- `npm run typecheck`
-- `npm run test` (RBAC + ciclo de pedido)
-- revisão de escopo e aceite funcional
+- Sem RBAC/Audit `PASS`, API e frontend devem permanecer `Blocked` para ações críticas.
 
-**Fora de escopo**
-- workflows enterprise genéricos;
-- integrações legadas.
+## Gate D — API Contract Alignment
 
-## Etapa 9 — Faturamento simples / preparação fiscal (**P1**)
+**Tipo:** contrato técnico documental  
+**Dependências:** Gate B + Gate C
 
-**Status atual (2026-06-01):** concluída e mergeada na `main` via PR #23.
+### Objetivo
 
-**Objetivo da fase**  
-Fechar separação entre pedido e faturamento simples, preparando base para fase fiscal futura.
+Alinhar contratos API à V1 operacional completa sem implementar código.
 
-**Entregável prático**  
-Contrato de dados de faturamento simples estável e alinhado à SPEC.
+### Escopo
 
-**Módulos/áreas de código prováveis**  
-`invoices_simple` (modelo), regras de transição para `INVOICED`, API de registro simples.
+- Atualizar `docs/API-CONTRACTS.yaml`.
+- Atualizar `docs/SPEC-OPS-ADDENDUM.md` com cenários GWT da V1.
+- Cobrir endpoints/contratos para:
+  - clientes, contatos e endereços;
+  - produtos;
+  - tabela de preço;
+  - condições de pagamento;
+  - orçamento steps 1–4;
+  - confirmação de pedido;
+  - comunicação/output events;
+  - Registro Operacional de Faturamento;
+  - alteração pós-confirmação/faturamento;
+  - listagens e relatórios operacionais.
 
-**Requisitos funcionais**
-1. separar pedido de faturamento;
-2. registrar faturamento simples sem NF-e;
-3. preparar contrato de dados para evolução fiscal futura.
+### Critério de entrada
 
-**Critérios de aceite**
-- faturamento simples não invade escopo fiscal completo;
-- status e eventos coerentes com a SPEC;
-- contrato de dados documentado.
+- Data Model `PASS`;
+- RBAC/Audit `PASS`.
 
-**Validações obrigatórias (gate)**
-- `npm run typecheck`
-- `npm run test`
-- build quando aplicável
-- revisão de escopo e aceite funcional
+### Critério de saída
 
-**Fora de escopo**
-- NF-e completa;
-- gateway/boleto;
-- fiscal avançado sem decisão formal.
+- contratos compatíveis com modelo de dados e RBAC;
+- erros 401/403/409/422 definidos;
+- idempotência definida para ações críticas;
+- nenhum endpoint contradiz `commercial_status` canônico.
 
-## 5) Mapa técnico por área
+### Bloqueios
 
-### 5.1 Domínio
-- fonte principal no estado atual: `src/domain`;
-- manter invariantes de estado comercial, numeração e eventos canônicos;
-- priorizar regras explícitas e testáveis.
+- Sem API Contract `PASS`, backend e frontend não podem implementar fluxos novos.
 
-### 5.2 Aplicação / use cases
-- abrir/expandir camada de casos de uso por etapa (orçamento, conversão, faturamento);
-- orquestrar regras sem duplicar lógica de domínio.
+## Gate E — Frontend Contract & Shell Plan
 
-### 5.3 Persistência
-- consolidar entidades de quotes/orders/revisions/events/invoices simples;
-- garantir vínculo quote->order e trilha auditável.
+**Tipo:** plano frontend/documental  
+**Dependências:** Gate A + Gate D
 
-### 5.4 API / backend
-- expor ações canônicas (criar orçamento, gerar pedido, enviar, faturar simples);
-- preservar semântica de erro e idempotência conforme contratos.
+### Objetivo
 
-### 5.5 Frontend
-- liberar evolução de frontend **somente após fechamento da fundação necessária em main**;
-- UI deve refletir regras canônicas de status/ação, sem atalhos semânticos.
+Planejar shell, navegação e UX de V1 sem implementar telas.
 
-### 5.6 Testes
-- mínimo obrigatório por etapa: cenário positivo + negação crítica;
-- manter cobertura de regressão para status, conversão e RBAC;
-- comandos de gate: typecheck + tests (+ build quando existir).
+### Escopo
 
-### 5.7 Documentação
-- `docs/SPEC.md` e artefatos derivados sincronizados a cada mudança relevante;
-- `ROADMAP.md` registra evolução por fases;
-- `START.md` registra estado de sessão/retomada.
+- Definir rotas/áreas de navegação.
+- Definir layout mínimo: login, home, clientes, produtos, preços, pagamento, pedidos, faturamento, relatórios, configurações.
+- Definir estados visuais derivados:
+  - `commercial_status` oficial;
+  - badges de comunicação;
+  - revisão/auditoria;
+  - permissões por perfil.
+- Definir estratégia de testes frontend antes de codar.
 
-## 6) Gates obrigatórios por etapa
+### Critério de entrada
 
-Toda etapa só avança com gate `Pass` contendo:
-1. `npm run typecheck` (obrigatório)
-2. `npm run test` (obrigatório)
-3. `npm run build` quando aplicável
-4. revisão de escopo (SPEC x mudança)
-5. aceite funcional da etapa
+- Screen Flow canônico aprovado;
+- API/RBAC contracts aprovados.
 
-Sem esses 5 itens => etapa permanece `Blocked`.
+### Critério de saída
 
-## 7) Anti-escopo (regras de proteção)
+- plano de frontend fatiado por PRs;
+- nenhum estado visual contradiz SPEC;
+- ações críticas com confirmação e permissão definidas.
 
-1. Não iniciar Slice 6 sem decisão formal.
-2. Não misturar evolução com SAGRADO-PEDIDOS.
-3. Não pular para fiscal completo sem aprovação executiva.
-4. Não transformar envio/impressão em mudança de status comercial.
-5. Não iniciar frontend antes da fundação necessária estar mergeada em `main`.
-6. Não executar implementações fora da SPEC sem decisão formal de escopo.
+### Bloqueios
 
-## 8) Estimativa de dedicação
+- Sem Gate E, qualquer implementação de tela é `Blocked`.
 
-### Fechamento do ciclo atual (Etapa 4)
-- 4h a 10h (publicação, revisão, merge, pós-merge)
+## Gate F — Migration Plan + Test Strategy
 
-### Evolução técnica até MVP operacional (Etapas 5 a 9)
-- Etapa 5: 3 a 6 dias
-- Etapa 6: 3 a 6 dias
-- Etapa 7: 2 a 5 dias
-- Etapa 8: 4 a 8 dias
-- Etapa 9: 3 a 6 dias
+**Tipo:** plano técnico/documental  
+**Dependências:** Gate B + Gate C + Gate D  
+**Status:** ✅ PASS — commit `406e043`
 
-Janela estimada total: **3 a 8 semanas**, com revisão por gate.
+### Objetivo
 
-## 9) Próxima fase (pós-Etapa 9)
+Planejar migrations e testes antes de tocar no banco.
 
-- Registrar plano P2 Frontend/UX em documento dedicado de gate, sem implementação automática.
-- Qualquer expansão para fiscal avançado/NF-e, integrações externas ou novas áreas do produto exige autorização explícita.
+### Escopo
+
+- Definir sequência de migrations.
+- Definir compatibilidade com foundation atual.
+- Definir rollback/forward-fix por migration.
+- Definir suíte mínima:
+  - unit tests;
+  - integration tests;
+  - smoke DB;
+  - API contract tests;
+  - RBAC negative tests;
+  - frontend smoke quando aplicável.
+
+### Critério de entrada
+
+- Data Model, RBAC e API contracts aprovados.
+
+### Critério de saída
+
+- plano de migration revisável;
+- cobertura mínima por fase definida;
+- riscos de dados existentes documentados;
+- nenhuma migration executada neste gate.
+
+### Evidência de fechamento
+
+- `docs/MIGRATION-PLAN-OPS.md`
+- `docs/TEST-STRATEGY-OPS.md`
+- Commit: `406e043 docs(erp): define migration plan and test strategy`
+
+### Bloqueios
+
+- Sem Gate F, qualquer migration é `Blocked`.
+
+## Gate G — Backend/Data Foundation Implementation
+
+**Tipo:** implementação técnica futura  
+**Dependências:** Gate F
+
+### Objetivo
+
+Implementar fundação de dados e backend para V1 operacional, sem frontend completo.
+
+### Escopo executivo provável
+
+- migrations aprovadas;
+- repositórios/serviços para clientes, produtos, preços, pagamentos, documentos comerciais, revisões e eventos;
+- smoke DB real;
+- testes de regressão para status, snapshot, revisão e RBAC.
+
+### Critério de saída
+
+- `npm run typecheck` PASS;
+- `npm run test` PASS;
+- smoke DB PASS quando ambiente existir;
+- revisão SPEC x diff;
+- nenhum escopo fiscal avançado introduzido.
+
+## Gate H — API Implementation Slices
+
+**Tipo:** implementação técnica futura  
+**Dependências:** Gate G
+
+### Objetivo
+
+Implementar API por fatias funcionais sem quebrar contratos.
+
+### Slices mínimos
+
+1. clientes/contatos/endereços;
+2. produtos/tabela de preço;
+3. condições de pagamento/parcelas;
+4. orçamento steps 1–4;
+5. confirmação de pedido;
+6. comunicação/output events;
+7. Registro Operacional de Faturamento;
+8. revisão/auditoria pós-confirmação/faturamento;
+9. listagens/relatórios operacionais.
+
+### Critério de saída por slice
+
+- contrato API coberto;
+- RBAC positivo e negativo;
+- snapshot/revisão quando aplicável;
+- testes automatizados;
+- sem expansão fiscal.
+
+## Gate I — Frontend Shell + Operational Flow Implementation
+
+**Tipo:** implementação frontend futura  
+**Dependências:** Gate E + Gate H parcial conforme slice
+
+### Objetivo
+
+Implementar frontend V1 por fluxo operacional, sem reduzir escopo de produto.
+
+### Slices mínimos
+
+1. shell/autenticação/home;
+2. clientes completos;
+3. produtos e tabela de preço;
+4. condições de pagamento;
+5. orçamento steps 1–4;
+6. confirmação e detalhe do pedido;
+7. emissão visual/impressão/compartilhamento;
+8. Registro Operacional de Faturamento;
+9. revisão/auditoria visível;
+10. listagens/relatórios operacionais;
+11. configurações/RBAC visível.
+
+### Critério de saída por slice
+
+- fluxo coerente com `docs/SCREEN-FLOW-MAP.md`;
+- nenhum badge visual vira `commercial_status`;
+- ações bloqueadas/permitidas conforme RBAC;
+- estados loading/empty/error definidos;
+- validação manual e automatizada registrada.
+
+## Gate J — V1 Release Readiness
+
+**Tipo:** validação/release futura  
+**Dependências:** Gates G/H/I completos
+
+### Objetivo
+
+Validar a V1 operacional completa end-to-end antes de qualquer release/deploy.
+
+### Critérios de aceite
+
+- cliente completo -> orçamento -> pedido -> comunicação -> faturamento operacional funciona;
+- pedido confirmado e faturado aceitam alterações apenas por perfil autorizado;
+- toda alteração crítica gera revisão auditável;
+- snapshot preserva verdade histórica;
+- relatórios/listagens refletem estados e eventos corretos;
+- comandos de validação obrigatórios PASS;
+- riscos residuais registrados com owner.
+
+## 6) Dependências por camada
+
+| Camada | Depende de | Libera |
+| --- | --- | --- |
+| SPEC/Screen Flow | Gate 0 | Data Model, Frontend Plan |
+| Data Model | SPEC/Screen Flow | RBAC, API, Migration Plan |
+| RBAC/Audit | Data Model | API, Frontend, Tests |
+| API Contracts | Data Model + RBAC | Backend/API implementation |
+| Frontend Plan | Screen Flow + API/RBAC | Frontend implementation |
+| Test Strategy | Data Model + API/RBAC | Migrations/backend/frontend execution |
+| Migrations | Migration Plan PASS | Backend data foundation |
+
+## 7) Gates obrigatórios por fase
+
+Cada gate só pode passar com:
+
+1. escopo explícito;
+2. fora de escopo explícito;
+3. critérios de entrada atendidos;
+4. critérios de saída atendidos;
+5. riscos residuais listados;
+6. arquivos alterados restritos ao gate;
+7. validação aplicável registrada;
+8. revisão de consistência contra `docs/SPEC.md` e `docs/DECISION-FLOW-CANON.md`.
+
+Para gates técnicos, adicionar:
+
+- `npm run typecheck`;
+- `npm run test`;
+- smoke DB quando houver banco real;
+- revisão SPEC/API/RBAC x diff.
+
+## 8) Anti-escopo e proteção de no-regression
+
+É proibido:
+
+1. reduzir V1 para “pedido simples”;
+2. empurrar cliente completo, produto completo, tabela de preço, condições de pagamento, RBAC, auditoria ou faturamento operacional para futuro;
+3. implementar frontend sem API/RBAC/data model aprovado;
+4. implementar migrations sem plano de migration/testes aprovado;
+5. transformar comunicação em status comercial;
+6. editar pedido confirmado/faturado sem revisão auditável;
+7. introduzir NF-e, SEFAZ, gateway, boleto automático ou conciliação sem decisão futura explícita;
+8. misturar SAGRADO-PEDIDOS como base funcional acoplada;
+9. versionar `erp_app_flow_map.html` neste ciclo.
+
+## 9) Próximo gate recomendado
+
+Executar **Gate G — Backend/Data Foundation Implementation**.
+
+Menor próximo passo seguro:
+
+1. obter autorização explícita para iniciar Gate G;
+2. revisar `docs/MIGRATION-PLAN-OPS.md` e `docs/TEST-STRATEGY-OPS.md`;
+3. declarar migrations, adapters, serviços e testes previstos antes de editar código;
+4. manter `erp_app_flow_map.html` não versionado e fora do gate;
+5. não iniciar implementação enquanto Gate G não for explicitamente autorizado.
+
+## 10) Critério para iniciar implementação técnica
+
+Implementação técnica só pode iniciar quando, no mínimo, estes gates estiverem `PASS`:
+
+1. Gate A — Screen Flow Canon + SPEC Consolidation;
+2. Gate B — Data Model Decision;
+3. Gate C — RBAC + Audit Model;
+4. Gate D — API Contract Alignment;
+5. Gate F — Migration Plan + Test Strategy.
+
+Frontend só pode iniciar quando Gate E também estiver `PASS`.
+
+Mesmo com Gates A–F em PASS, execução técnica permanece `Blocked` até decisão/autorização explícita de início do Gate G.
