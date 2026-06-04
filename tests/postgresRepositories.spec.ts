@@ -69,7 +69,7 @@ describe('postgres repositories', () => {
     expect(db.calls[0]?.text).toContain('INSERT INTO commercial_documents');
   });
 
-  it('upsert on order save rewrites quote row fields required by confirm flow', async () => {
+  it('order save upserts only the order row without mutating source quote row', async () => {
     const db = new FakeSqlExecutor();
     const repository = new PostgresOrderRepository(db);
 
@@ -92,5 +92,30 @@ describe('postgres repositories', () => {
     expect(sql).toContain('document_type = EXCLUDED.document_type');
     expect(sql).toContain('source_quote_id = EXCLUDED.source_quote_id');
     expect(sql).toContain('source_quote_snapshot = EXCLUDED.source_quote_snapshot');
+    expect(db.calls[0]?.values?.[0]).not.toBe(quote.id);
+    expect(converted.document.source_quote_id).toBe(quote.id);
+  });
+
+  it('saveFromQuoteOnce inserts without id upsert so duplicate source quote conflicts are not hidden', async () => {
+    const db = new FakeSqlExecutor();
+    const repository = new PostgresOrderRepository(db);
+
+    const quote = createQuote({
+      id: 'q-db-4',
+      tenantId: 'tenant-1',
+      customerId: 'customer-1',
+      ownerId: 'owner-1',
+      representativeId: 'rep-1',
+      numberSequence: 4,
+    });
+    const converted = convertQuoteToOrder(quote, 40);
+    if (!converted.ok) return;
+
+    const result = await repository.saveFromQuoteOnce(converted.document);
+
+    expect(result.ok).toBe(true);
+    expect(db.calls).toHaveLength(1);
+    expect(db.calls[0]?.text).toContain('INSERT INTO commercial_documents');
+    expect(db.calls[0]?.text).not.toContain('ON CONFLICT (id) DO UPDATE SET');
   });
 });

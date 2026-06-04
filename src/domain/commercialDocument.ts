@@ -255,6 +255,7 @@ export function convertQuoteToOrder(
   const sourceQuoteSnapshot = buildSourceQuoteSnapshot(quote, now);
   return success({
     ...quote,
+    id: buildOrderIdFromQuote(quote.id),
     documentType: 'order',
     number: orderNumber,
     source_quote_id: quote.id,
@@ -266,6 +267,10 @@ export function convertQuoteToOrder(
     confirmedAt: now,
     updatedAt: now,
   });
+}
+
+function buildOrderIdFromQuote(quoteId: string): string {
+  return `${quoteId}:order`;
 }
 
 function buildSourceQuoteSnapshot(quote: CommercialDocument, convertedAt: Date): CommercialDocumentSourceQuoteSnapshot {

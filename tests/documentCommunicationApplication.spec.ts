@@ -81,7 +81,7 @@ describe('document communication application flow', () => {
       { quoteRepository, orderRepository },
       {
         documentType: 'order',
-        documentId: 'q-comm-order-1',
+        documentId: confirmed.data.id,
         actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
         channel: 'PRINT',
         event: 'impressão operacional',
@@ -97,7 +97,7 @@ describe('document communication application flow', () => {
     expect(result.data.outputEvents).toHaveLength(1);
     expect(result.data.outputEvents[0]?.channel).toBe('PRINT');
 
-    const reloadedOrder = await orderRepository.getById('q-comm-order-1');
+    const reloadedOrder = await orderRepository.getById(confirmed.data.id);
     expect(reloadedOrder?.documentType).toBe('order');
     expect(reloadedOrder?.status).toBe('ORDER_CONFIRMED');
     expect(reloadedOrder?.invoicedAt).toBeUndefined();

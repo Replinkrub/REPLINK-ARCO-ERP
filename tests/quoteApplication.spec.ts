@@ -254,17 +254,21 @@ describe('quote application flow', () => {
     if (!result.ok) return;
 
     expect(result.data.documentType).toBe('order');
+    expect(result.data.id).not.toBe('q-confirm-1');
     expect(result.data.status).toBe('ORDER_CONFIRMED');
     expect(result.data.number).toBe('PED-000091');
     expect(result.data.source_quote_id).toBe('q-confirm-1');
     expect(result.data.confirmedAt).toBeInstanceOf(Date);
 
     const persistedOrder = await orderRepository.getBySourceQuoteId('q-confirm-1');
-    expect(persistedOrder?.id).toBe('q-confirm-1');
+    expect(persistedOrder?.id).toBe(result.data.id);
+    expect(persistedOrder?.documentType).toBe('order');
 
     const originalQuote = await quoteRepository.getById('q-confirm-1');
+    expect(originalQuote?.id).toBe('q-confirm-1');
     expect(originalQuote?.documentType).toBe('quote');
     expect(originalQuote?.status).toBe('QUOTE_DRAFT');
+    expect(originalQuote?.number).toBe('ORC-000007');
   });
 
   it('F-04: confirmações concorrentes geram 1 sucesso + 1 conflito', async () => {

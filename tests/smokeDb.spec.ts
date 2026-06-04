@@ -71,17 +71,33 @@ describe('db smoke (real postgres)', () => {
     expect(confirmResponse.status).toBe(200);
 
     const quoteRow = await pgClient.query(
-      'SELECT id, document_type, status FROM commercial_documents WHERE id = $1 LIMIT 1',
+      'SELECT id, document_type, number, status FROM commercial_documents WHERE id = $1 LIMIT 1',
       [quoteId]
     );
     expect(quoteRow.rowCount).toBe(1);
-    expect(quoteRow.rows[0]?.document_type).toBe('order');
+    expect(quoteRow.rows[0]?.document_type).toBe('quote');
+    expect(quoteRow.rows[0]?.number).toMatch(/^ORC-/);
 
     const orderRow = await pgClient.query(
-      'SELECT source_quote_id, document_type, status FROM commercial_documents WHERE source_quote_id = $1 LIMIT 1',
+      'SELECT id, source_quote_id, document_type, number, status FROM commercial_documents WHERE source_quote_id = $1 LIMIT 1',
       [quoteId]
     );
     expect(orderRow.rowCount).toBe(1);
+    expect(orderRow.rows[0]?.id).not.toBe(quoteId);
     expect(orderRow.rows[0]?.document_type).toBe('order');
+    expect(orderRow.rows[0]?.number).toMatch(/^PED-/);
+
+    const duplicateConfirmResponse = await api(new Request(`http://localhost/v0/quotes/${quoteId}/confirm`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ orderSequence: baseSequence + 1 }),
+    }));
+    expect(duplicateConfirmResponse.status).toBe(409);
+
+    const orderCount = await pgClient.query(
+      'SELECT COUNT(*)::int AS count FROM commercial_documents WHERE source_quote_id = $1 AND document_type = $2',
+      [quoteId, 'order']
+    );
+    expect(orderCount.rows[0]?.count).toBe(1);
   });
 });

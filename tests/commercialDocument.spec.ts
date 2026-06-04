@@ -413,6 +413,7 @@ describe('commercialDocument core', () => {
     if (!converted.ok) return;
 
     expect(converted.document.documentType).toBe('order');
+    expect(converted.document.id).not.toBe(quote.id);
     expect(converted.document.number).toBe('PED-000077');
     expect(converted.document.number).not.toBe(quote.number);
     expect(converted.document.source_quote_id).toBe('doc-conv');
@@ -486,7 +487,7 @@ describe('commercialDocument core', () => {
       expect(second.events[0]?.type).toBe('OPERATION_DENIED');
       expect(second.events[0]?.payload).toMatchObject({
         operation: 'CONFIRM_ORDER',
-        documentId: 'doc-double',
+        documentId: 'doc-double:order',
         tenantId: 'tenant-1',
         code: DOMAIN_ERROR_CODES.DOCUMENT_ALREADY_CONFIRMED,
       });
