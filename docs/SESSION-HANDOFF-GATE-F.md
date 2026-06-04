@@ -5,6 +5,8 @@ Branch: `docs/flow-canon-gate0`
 Commit Gate F: `406e04345ba87495d4af9d28165a7b658b5f492f`  
 Status: **Gate F PASS — documentação commitada**
 
+> Atualização posterior: Gate G inicial foi integrado em `main` pelo PR #31 (`6d7cd19`). Para retomada atual, usar `docs/SESSION-HANDOFF-GATE-G-INITIAL.md`.
+
 ## 1) O que foi fechado
 
 Gate F foi executado, revisado criticamente e commitado como documentação.
@@ -112,9 +114,8 @@ Antes de iniciar Gate G:
 Retomar a próxima sessão com:
 
 ```txt
-Estamos na branch docs/flow-canon-gate0.
-Gate F está PASS e commitado em 406e043.
-Próximo passo é decidir/iniciar Gate G — Backend/Data Foundation Implementation.
-Não iniciar implementação sem autorização explícita.
+Registro histórico: Gate F estava PASS e commitado em 406e043.
+Atualização posterior: Gate G inicial foi integrado em main no PR #31 (6d7cd19).
+Para retomada atual, ler docs/SESSION-HANDOFF-GATE-G-INITIAL.md.
 Não incluir erp_app_flow_map.html.
 ```

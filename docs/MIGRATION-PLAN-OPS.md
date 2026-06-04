@@ -313,6 +313,10 @@ Gate G só deve iniciar quando este plano estiver aprovado e o PR técnico futur
 
 ## 11) Próximo gate
 
-Próximo gate recomendado: **Gate G — Backend/Data Foundation Implementation**, somente após revisão/commit do Gate F e autorização explícita.
+Gate G foi iniciado após revisão/commit do Gate F.
 
-Motivo: Gate F fecha ordem de migration, compatibilidade, riscos e suíte mínima; Gate G pode então implementar fundação de dados/backend sem improvisar estrutura.
+Status atualizado:
+
+- PR #31 mergeado em `main` (`6d7cd19`) com fundação inicial ORC→PED e migration runner controlado.
+- Próximo slice recomendado: **Gate G PR 3 — security/tenant/roles/audit base**.
+- A primeira migration funcional nova deve partir da sequência deste plano, com `schema_migrations` já ativo e validação de skip/checksum/advisory lock.
