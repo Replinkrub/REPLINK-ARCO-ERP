@@ -1,5 +1,7 @@
 # NEXT PHASE — Gate Plan (P2 Frontend/UX)
 
+> Atualização operacional: este documento é histórico do planejamento P2 pós-P1.5. A direção canônica vigente agora está em `ROADMAP.md`, com Gates A–F mergeados e Gate G inicial integrado no PR #31 (`6d7cd19`). Próximo passo recomendado: Gate G PR 3 — security/tenant/roles/audit base, antes de frontend.
+
 Status: **Planning-only (sem implementação)**  
 Data: 2026-06-01  
 Última atualização: 2026-06-01 (pós P1.5 merge)  

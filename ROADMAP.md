@@ -384,8 +384,9 @@ Planejar migrations e testes antes de tocar no banco.
 
 ## Gate G — Backend/Data Foundation Implementation
 
-**Tipo:** implementação técnica futura  
+**Tipo:** implementação técnica em andamento
 **Dependências:** Gate F
+**Status:** iniciado — PR inicial mergeado em `6d7cd19`
 
 ### Objetivo
 
@@ -393,10 +394,39 @@ Implementar fundação de dados e backend para V1 operacional, sem frontend comp
 
 ### Escopo executivo provável
 
+- ✅ ORC→PED canônico sem mutação destrutiva do ORC;
+- ✅ migration runner com `schema_migrations`, checksum SHA-256, skip e advisory lock;
 - migrations aprovadas;
 - repositórios/serviços para clientes, produtos, preços, pagamentos, documentos comerciais, revisões e eventos;
 - smoke DB real;
 - testes de regressão para status, snapshot, revisão e RBAC.
+
+### Evidência já mergeada
+
+- PR #31 — `Gate G: backend/data foundation for quote-to-order and migrations`.
+- Merge commit: `6d7cd19`.
+- Commits técnicos:
+  - `e78a724 feat(erp): align quote to order conversion foundation`;
+  - `13c1b5e fix(erp): track applied database migrations`.
+- Validações registradas:
+  - `npm run typecheck` PASS;
+  - `npm run test` PASS — 94/94;
+  - `npm run db:migrate` PASS/SKIP;
+  - 2ª execução `npm run db:migrate` PASS/SKIP;
+  - `npm run test:smoke:db` PASS;
+  - `git diff --check` PASS.
+
+### Próximo slice recomendado
+
+**Gate G PR 3 — security/tenant/roles/audit base**.
+
+Escopo a declarar antes de editar:
+
+- migration `002_security_tenant_roles` ou equivalente;
+- tabela(s) de roles, user roles e tenant memberships;
+- base de `audit_events` se necessária para negações RBAC;
+- testes de migration runner, tenant e RBAC negativo mínimo;
+- manter `GESTOR_COMERCIAL` como perfil reservado/condicionado, sem fluxo operacional ativo.
 
 ### Critério de saída
 
@@ -533,15 +563,15 @@ Para gates técnicos, adicionar:
 
 ## 9) Próximo gate recomendado
 
-Executar **Gate G — Backend/Data Foundation Implementation**.
+Continuar **Gate G — Backend/Data Foundation Implementation** pelo próximo slice técnico.
 
 Menor próximo passo seguro:
 
-1. obter autorização explícita para iniciar Gate G;
-2. revisar `docs/MIGRATION-PLAN-OPS.md` e `docs/TEST-STRATEGY-OPS.md`;
+1. preparar escopo técnico do **Gate G PR 3 — security/tenant/roles/audit base**;
+2. revisar `docs/MIGRATION-PLAN-OPS.md`, `docs/RBAC-MATRIX.md`, `docs/AUDIT-MODEL-OPS.md` e `docs/TEST-STRATEGY-OPS.md`;
 3. declarar migrations, adapters, serviços e testes previstos antes de editar código;
 4. manter `erp_app_flow_map.html` não versionado e fora do gate;
-5. não iniciar implementação enquanto Gate G não for explicitamente autorizado.
+5. não criar migration funcional nova sem escopo e validação do migration runner.
 
 ## 10) Critério para iniciar implementação técnica
 
@@ -555,4 +585,4 @@ Implementação técnica só pode iniciar quando, no mínimo, estes gates estive
 
 Frontend só pode iniciar quando Gate E também estiver `PASS`.
 
-Mesmo com Gates A–F em PASS, execução técnica permanece `Blocked` até decisão/autorização explícita de início do Gate G.
+Gates A–F estão em PASS e Gate G inicial foi integrado. Próximos slices técnicos continuam exigindo escopo explícito, branch fora de `main`, validação local e smoke DB quando `DATABASE_URL` existir.

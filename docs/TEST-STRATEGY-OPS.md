@@ -198,6 +198,10 @@ Gate F passa se:
 
 ## 13) Próximo gate
 
-Próximo gate recomendado: **Gate G — Backend/Data Foundation Implementation**, somente após aprovação e commit do Gate F e autorização explícita.
+Gate G foi iniciado após aprovação e commit do Gate F.
 
-Motivo: a próxima etapa passa a ser técnica; precisa implementar migrations/adapters/testes na ordem aprovada e com evidência obrigatória.
+Status atualizado:
+
+- PR #31 mergeado em `main` (`6d7cd19`) com ORC→PED canônico e migration runner controlado.
+- Próximo slice recomendado: **Gate G PR 3 — security/tenant/roles/audit base**.
+- Todo próximo PR técnico deve manter a evidência mínima desta estratégia: comandos executados, resultado, smoke DB quando `DATABASE_URL` existir e confirmação explícita de não regressão em `commercial_status`, ORC/PED, RBAC, audit, idempotência e output events.

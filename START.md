@@ -3,22 +3,72 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais concluídos; Gate F PASS e commitado**
+- Estado: **Gates A–F documentais mergeados; Gate G inicial mergeado**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `4b0d322` (squash merge PR #28)
+- `main` em: `6d7cd19` (merge PR #31)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
+- Gate G inicial — ORC→PED canônico + migration runner controlado: ✅ **mergeado**
+- PR documental A–F: #30 — merge commit `0962558`
+- PR Gate G inicial: #31 — merge commit `6d7cd19`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 89/89 (8 test files)
-- Smoke DB real contra Supabase dev: ✅ PASS (635ms)
-- Próximo gate: **Gate G — Backend/Data Foundation Implementation**
-- Gate G: **não iniciado**; não implementar sem autorização explícita.
+- Tests: ✅ PASS — 94/94 (9 test files)
+- Smoke DB real contra Supabase dev: ✅ PASS
+- Próximo ponto: **Gate G PR 3 — security/tenant/roles/audit base**
+- Regra: não criar migration funcional nova antes de declarar escopo técnico do PR 3.
+
+## Checkpoint da sessão (2026-06-04)
+
+### PRs mergeados neste ciclo
+
+| PR | Título | Merge commit |
+|---|---|---|
+| #30 | `Gate A-F: document canonical ERP foundation and Gate G handoff` | `0962558` |
+| #31 | `Gate G: backend/data foundation for quote-to-order and migrations` | `6d7cd19` |
+
+### Gate G inicial entregue
+
+- ORC→PED canônico alinhado:
+  - orçamento permanece `document_type=quote`;
+  - pedido nasce como novo `document_type=order`;
+  - pedido referencia orçamento por `source_quote_id`;
+  - dupla confirmação não cria dois pedidos.
+- Migration runner corrigido:
+  - cria `schema_migrations`;
+  - registra filename + checksum SHA-256;
+  - pula migration já aplicada com mesmo checksum;
+  - bloqueia checksum divergente;
+  - usa advisory lock para evitar concorrência entre runners.
+
+### Validações finais registradas
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 94/94 |
+| `npm run db:migrate` | ✅ PASS — `001` skipped |
+| 2ª execução `npm run db:migrate` | ✅ PASS — `001` skipped |
+| `npm run test:smoke:db` | ✅ PASS |
+| `git diff --check` | ✅ PASS |
+
+### Fora de escopo mantido
+
+- `erp_app_flow_map.html`: continua untracked e fora dos PRs.
+- Nenhuma migration `002+` criada.
+- `001_init_commercial_documents.sql` intacta.
+- Frontend não iniciado.
+- RBAC não implementado.
+- `GESTOR_COMERCIAL` não ativado como produto.
+
+### Próximo passo recomendado
+
+Preparar escopo técnico do **Gate G PR 3 — security/tenant/roles/audit base**, usando `docs/MIGRATION-PLAN-OPS.md`, `docs/RBAC-MATRIX.md`, `docs/AUDIT-MODEL-OPS.md` e `docs/TEST-STRATEGY-OPS.md`.
 
 ## Checkpoint da sessão (2026-06-03)
 
@@ -37,7 +87,7 @@
 
 - Commit: `406e043 docs(erp): define migration plan and test strategy`
 - Handoff oficial da sessão: `docs/SESSION-HANDOFF-GATE-F.md`
-- Gate G recomendado como próximo ponto, mas ainda não iniciado.
+- Registro histórico: naquele checkpoint, Gate G era o próximo ponto e ainda não havia sido iniciado.
 
 ### Fora de escopo mantido
 
@@ -55,22 +105,25 @@ Depois ler:
 
 1. `START.md` (este arquivo)
 2. `ROADMAP.md`
-3. `docs/SESSION-HANDOFF-GATE-F.md`
-4. `docs/MIGRATION-PLAN-OPS.md`
-5. `docs/TEST-STRATEGY-OPS.md`
-6. `docs/DATA-MODEL-OPS.md`
-7. `docs/RBAC-MATRIX.md`
-8. `docs/AUDIT-MODEL-OPS.md`
-9. `docs/API-CONTRACTS.yaml`
-10. `docs/API-CONTRACTS-OPS.md`
+3. `docs/SESSION-HANDOFF-GATE-G-INITIAL.md`
+4. `docs/SESSION-HANDOFF-GATE-F.md`
+5. `docs/MIGRATION-PLAN-OPS.md`
+6. `docs/TEST-STRATEGY-OPS.md`
+7. `docs/DATA-MODEL-OPS.md`
+8. `docs/RBAC-MATRIX.md`
+9. `docs/AUDIT-MODEL-OPS.md`
+10. `docs/API-CONTRACTS.yaml`
+11. `docs/API-CONTRACTS-OPS.md`
 
 ## Gate seguinte
 
-Gate F — Migration Plan + Test Strategy: **✅ PASS e commitado em `406e043`**.
+Gate F — Migration Plan + Test Strategy: **✅ PASS e mergeado**.
 
-Próximo ponto: **Gate G — Backend/Data Foundation Implementation**.
+Gate G inicial — ORC→PED + migration runner: **✅ mergeado em `6d7cd19`**.
 
-Regra: Gate G só pode iniciar com autorização explícita e pacote técnico declarado. Até lá, implementação de migrations, banco, API, backend, frontend ou código segue bloqueada.
+Próximo ponto: **Gate G PR 3 — security/tenant/roles/audit base**.
+
+Regra: qualquer nova migration funcional precisa de escopo técnico declarado, revisão contra RBAC/Audit/Test Strategy e validação real de migration runner.
 
 ## Checkpoint da sessão (2026-06-01)
 

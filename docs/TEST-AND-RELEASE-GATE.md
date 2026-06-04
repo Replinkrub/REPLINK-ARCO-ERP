@@ -1,5 +1,7 @@
 # Test and Release Gate — ARCO-ERP MVP
 
+> Atualização operacional: a baseline mais recente em `main` inclui o PR #31 (`6d7cd19`) com Gate G inicial. Validações finais registradas: `npm run typecheck` PASS, `npm run test` PASS — 94/94, `npm run db:migrate` PASS/SKIP, 2ª execução `npm run db:migrate` PASS/SKIP, `npm run test:smoke:db` PASS e `git diff --check` PASS. A seção P1.5 abaixo permanece como histórico do gate anterior.
+
 Status: **Sprints 0, 1 e 2 concluídas na `main` + Sprint 3 consolidada + Etapa 5 concluída (PR #14) + Etapa 6 concluída (PR #17) + Etapa 7 concluída (PR #19) + Etapa 8 concluída (PR #21) + Etapa 9 concluída (PR #23) + fechamento técnico P0+P1 (persistência real + API HTTP mínima) mergeado na `main` (PR #25)**
 Objetivo: manter critérios de liberação e governança por gates explícitos, com foco em decisões de avanço por etapa sem pular gate.
 
