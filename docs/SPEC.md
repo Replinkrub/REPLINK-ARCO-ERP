@@ -53,6 +53,7 @@ A direção vigente da V1 é definida em `docs/DECISION-FLOW-CANON.md`: **a V1 �
 | Tabela de preços | **Sim** | engine avançada de precificação | — |
 | Condições de pagamento | **Sim** | regras automáticas de crédito/faturamento | gateway/boleto automático |
 | Pedidos (core) | Orçamento numerado -> pedido numerado, emitido e compartilhável | evoluções de automação | — |
+| Representadas (Arco) | Uma representada por ORC/PED | regras avançadas por representada | ORC/PED multi-representada |
 | Usuários e permissões (S-082) | **RBAC e auditoria na V1** | perfis adicionais | `VISUALIZADOR` sem decisão explícita |
 | Faturamento | Registro Operacional de Faturamento manual | evoluções financeiras | Fiscal/NF-e/SEFAZ/gateway/boleto automático |
 | Relatórios | Relatórios operacionais básicos | BI avançado | DW/analytics complexa |
@@ -61,6 +62,10 @@ A direção vigente da V1 é definida em `docs/DECISION-FLOW-CANON.md`: **a V1 �
 Regra canônica da V1:
 
 > Orçamento nasce quando cliente válido é selecionado e salvo, gerando número canônico de orçamento. Ao confirmar, o orçamento vira pedido com número próprio de pedido. Enviar, compartilhar, imprimir ou gerar PDF é ação de comunicação e não altera `commercial_status`.
+
+Regra canônica para Arco Representações:
+
+> Representada não é tenant. Representada é entidade comercial dentro do tenant/banco da Arco Representações. Cada ORC/PED da Arco deve pertencer a uma única representada, e é proibido misturar representadas no mesmo orçamento/pedido. Sagrado não usa representadas no fluxo inicial.
 
 ---
 
@@ -165,6 +170,7 @@ Entidades mínimas:
 - `invoices_simple`
 - `targets`
 - `commission_rules`
+- `represented_companies` (Arco Representações)
 
 Capacidades obrigatórias:
 - ownership (`representante_id`)
@@ -172,6 +178,7 @@ Capacidades obrigatórias:
 - snapshot comercial em orçamento/pedido confirmado, incluindo cliente, endereço, contato, produto, preço, condição de pagamento e vencimentos
 - histórico de revisão (`order_revisions`)
 - trilha de cancelamento (ator, motivo, data)
+- regra de uma representada por ORC/PED no ambiente Arco Representações
 
 ---
 

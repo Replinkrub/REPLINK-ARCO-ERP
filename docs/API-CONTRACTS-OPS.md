@@ -76,6 +76,18 @@ Comunicação nunca altera `commercial_status`.
 
 `available_actions` é orientativo para UI, calculado pelo backend e não substitui validação RBAC no endpoint da action. A lista pode mudar entre leitura e execução por alteração de status, perfil, ownership, revisão ou tenant.
 
+### Representada em documentos comerciais
+
+No ambiente Arco Representações, payloads/responses de ORC/PED devem expor `represented_company_id` quando a foundation for implementada.
+
+Regras futuras obrigatórias:
+
+- criação de ORC deve receber ou derivar uma representada válida;
+- confirmação ORC -> PED deve preservar a mesma representada;
+- tentativa de trocar representada na confirmação deve falhar;
+- itens/produtos/tabela de preço/condições comerciais de outra representada devem falhar com erro de regra de negócio (`422`) ou conflito (`409`) conforme o endpoint/action;
+- Sagrado não exige representada no fluxo inicial.
+
 ### Concorrência e revisão
 
 Actions que alteram dado comercial pós-confirmação/faturamento devem enviar `expected_revision_number`:
@@ -135,6 +147,7 @@ Gate D cobre contratos para:
 - condições de pagamento e parcelas;
 - orçamento salvo/numerado;
 - ORC -> PED como novo documento vinculado;
+- ORC/PED por uma única representada no ambiente Arco Representações;
 - pedidos confirmados/faturados editáveis por permissão;
 - revisão/auditoria/timeline;
 - faturamento operacional manual e correção;

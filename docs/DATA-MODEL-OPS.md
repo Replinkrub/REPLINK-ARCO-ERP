@@ -58,6 +58,10 @@ Proibidos como `commercial_status`:
 - `customer_addresses`
 - `customer_commercial_profiles`
 
+### Representadas (Arco Representações)
+
+- `represented_companies`
+
 ### Produtos
 
 - `products`
@@ -105,6 +109,9 @@ Proibidos como `commercial_status`:
 - `products` 1:N `price_table_items`
 - `payment_terms` 1:N `payment_term_installments`
 - `customers` 1:N `commercial_documents`
+- `represented_companies` 1:N `commercial_documents` no ambiente Arco Representações
+- `represented_companies` 1:N `products` no ambiente Arco Representações
+- `represented_companies` 1:N `price_tables` no ambiente Arco Representações
 - `commercial_documents` 1:N `commercial_document_items`
 - `commercial_documents` 1:N `commercial_document_payment_schedule`
 - `commercial_documents` 1:N `commercial_document_revisions`
@@ -120,6 +127,14 @@ Invariante multi-tenant:
 - documento não pode referenciar cliente, produto, tabela de preço, condição de pagamento, item ou faturamento operacional de outro tenant;
 - esse invariante deve ser validado em migrations/RLS/API, não apenas por filtro de tela.
 
+Invariante de representada:
+
+- representada não é tenant;
+- no banco/tenant Arco Representações, cada documento comercial deve pertencer a uma única representada;
+- ORC/PED não pode misturar representadas;
+- produtos, tabelas de preço e condições comerciais devem ser validados contra a mesma representada do documento quando essas entidades forem implementadas;
+- Sagrado não usa representadas no fluxo inicial; `represented_company_id` pode ser não aplicável/nulo conforme decisão física do gate de implementação.
+
 ## 5) ORC -> PED
 
 Decisão canônica:
@@ -127,6 +142,7 @@ Decisão canônica:
 - ORC e PED usam o mesmo aggregate lógico `commercial_documents`;
 - a confirmação cria um novo registro `commercial_documents` com `document_type = order`, `document_number = PED-####` e `source_quote_id` apontando para o orçamento original;
 - o orçamento original preserva `document_type = quote`, `document_number = ORC-####` e histórico próprio;
+- no ambiente Arco Representações, o PED herda `represented_company_id` do ORC;
 - o orçamento original recebe `lifecycle_event` de convertido quando aplicável;
 - é proibida mutação destrutiva do ORC para transformá-lo em PED;
 - Gate F define detalhes físicos/transacionais, sem substituir essa regra.
@@ -259,6 +275,7 @@ Regra de vigência:
 - `commercial_status`
 - `source_quote_id`
 - `customer_id`
+- `represented_company_id` quando aplicável ao ambiente Arco Representações
 - `owner_id`
 - `representative_id`
 - `current_revision_number`
@@ -277,6 +294,7 @@ Regra de vigência:
 - `tenant_id`
 - `commercial_document_id`
 - `product_id`
+- produto deve pertencer à mesma representada do documento quando `represented_company_id` for aplicável
 - `quantity`
 - `unit`
 - `base_unit_price`
