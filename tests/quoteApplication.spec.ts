@@ -7,10 +7,20 @@ import {
   convertQuoteToOrder,
   createQuote,
   createQuoteUseCase,
+  getRequiresRepresentedCompany,
   updateQuote,
 } from '../src/index.js';
 
 describe('quote application flow', () => {
+  it('represented company enforcement config only enables exact true', () => {
+    expect(getRequiresRepresentedCompany({ APP_REQUIRES_REPRESENTED_COMPANY: 'true' } as NodeJS.ProcessEnv)).toBe(true);
+    expect(getRequiresRepresentedCompany({} as NodeJS.ProcessEnv)).toBe(false);
+    expect(getRequiresRepresentedCompany({ APP_REQUIRES_REPRESENTED_COMPANY: 'false' } as NodeJS.ProcessEnv)).toBe(false);
+    expect(getRequiresRepresentedCompany({ APP_REQUIRES_REPRESENTED_COMPANY: '0' } as NodeJS.ProcessEnv)).toBe(false);
+    expect(getRequiresRepresentedCompany({ APP_REQUIRES_REPRESENTED_COMPANY: '' } as NodeJS.ProcessEnv)).toBe(false);
+    expect(getRequiresRepresentedCompany({ APP_REQUIRES_REPRESENTED_COMPANY: 'TRUE' } as NodeJS.ProcessEnv)).toBe(false);
+  });
+
   it('createQuote exige customerId obrigatório', async () => {
     const repository = new InMemoryQuoteRepository();
 
@@ -79,6 +89,93 @@ describe('quote application flow', () => {
     expect(result.data.representedCompanyId).toBe('represented-1');
 
     const reloaded = await repository.getById('q-represented-1');
+    expect(reloaded?.representedCompanyId).toBe('represented-1');
+  });
+
+  it('createQuote keeps representedCompanyId optional when enforcement is disabled', async () => {
+    const repository = new InMemoryQuoteRepository();
+
+    const result = await createQuoteUseCase(
+      { quoteRepository: repository },
+      {
+        id: 'q-represented-optional',
+        tenantId: 'tenant-1',
+        requiresRepresentedCompany: false,
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.representedCompanyId).toBeUndefined();
+  });
+
+  it('createQuote requires representedCompanyId when enforcement is enabled', async () => {
+    const repository = new InMemoryQuoteRepository();
+
+    const result = await createQuoteUseCase(
+      { quoteRepository: repository },
+      {
+        id: 'q-represented-required',
+        tenantId: 'tenant-1',
+        requiresRepresentedCompany: true,
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(APPLICATION_ERROR_CODES.REQUIRED_REPRESENTED_COMPANY);
+    }
+  });
+
+  it('createQuote treats blank representedCompanyId as missing when enforcement is enabled', async () => {
+    const repository = new InMemoryQuoteRepository();
+
+    const result = await createQuoteUseCase(
+      { quoteRepository: repository },
+      {
+        id: 'q-represented-blank',
+        tenantId: 'tenant-1',
+        representedCompanyId: '   ',
+        requiresRepresentedCompany: true,
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(APPLICATION_ERROR_CODES.REQUIRED_REPRESENTED_COMPANY);
+    }
+  });
+
+  it('createQuote persists normalized representedCompanyId when enforcement is enabled', async () => {
+    const repository = new InMemoryQuoteRepository();
+
+    const result = await createQuoteUseCase(
+      { quoteRepository: repository },
+      {
+        id: 'q-represented-normalized',
+        tenantId: 'tenant-1',
+        representedCompanyId: ' represented-1 ',
+        requiresRepresentedCompany: true,
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.representedCompanyId).toBe('represented-1');
+
+    const reloaded = await repository.getById('q-represented-normalized');
     expect(reloaded?.representedCompanyId).toBe('represented-1');
   });
 

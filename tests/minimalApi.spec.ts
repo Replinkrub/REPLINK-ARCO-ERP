@@ -2,9 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { createMinimalHttpApi, InMemoryOrderRepository, InMemoryQuoteRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
+const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
 
-async function withEnvironmentTenant<T>(tenantId: string, run: () => Promise<T> | T): Promise<T> {
+async function withEnvironmentTenant<T>(
+  tenantId: string,
+  run: () => Promise<T> | T,
+  requiresRepresentedCompany?: string
+): Promise<T> {
   process.env.APP_TENANT_ID = tenantId;
+  if (requiresRepresentedCompany === undefined) {
+    delete process.env.APP_REQUIRES_REPRESENTED_COMPANY;
+  } else {
+    process.env.APP_REQUIRES_REPRESENTED_COMPANY = requiresRepresentedCompany;
+  }
   try {
     return await run();
   } finally {
@@ -12,6 +22,12 @@ async function withEnvironmentTenant<T>(tenantId: string, run: () => Promise<T> 
       delete process.env.APP_TENANT_ID;
     } else {
       process.env.APP_TENANT_ID = ORIGINAL_APP_TENANT_ID;
+    }
+
+    if (ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY === undefined) {
+      delete process.env.APP_REQUIRES_REPRESENTED_COMPANY;
+    } else {
+      process.env.APP_REQUIRES_REPRESENTED_COMPANY = ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY;
     }
   }
 }
@@ -119,6 +135,92 @@ describe('minimal HTTP API', () => {
       expect(confirmed.representedCompanyId).toBe('represented-1');
       expect(confirmed.sourceQuoteSnapshot?.represented_company_id).toBe('represented-1');
     });
+  });
+
+  it('keeps representedCompanyId optional when enforcement config is disabled', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+      });
+
+      const response = await api(new Request('http://localhost/v0/quotes', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'q-http-represented-disabled', customerId: 'customer-1', numberSequence: 47 }),
+      }));
+
+      expect(response.status).toBe(201);
+      const created = (await response.json()) as { representedCompanyId?: string };
+      expect(created.representedCompanyId).toBeUndefined();
+    }, 'false');
+  });
+
+  it('requires representedCompanyId when enforcement config is true', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+      });
+
+      const response = await api(new Request('http://localhost/v0/quotes', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'q-http-represented-required', customerId: 'customer-1', numberSequence: 48 }),
+      }));
+
+      expect(response.status).toBe(422);
+      const error = await response.json() as { code: string };
+      expect(error.code).toBe('REQUIRED_REPRESENTED_COMPANY');
+    }, 'true');
+  });
+
+  it('treats blank representedCompanyId as missing when enforcement config is true', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+      });
+
+      const response = await api(new Request('http://localhost/v0/quotes', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({
+          id: 'q-http-represented-blank',
+          representedCompanyId: ' ',
+          customerId: 'customer-1',
+          numberSequence: 49,
+        }),
+      }));
+
+      expect(response.status).toBe(422);
+      const error = await response.json() as { code: string };
+      expect(error.code).toBe('REQUIRED_REPRESENTED_COMPANY');
+    }, 'true');
+  });
+
+  it('creates quote with normalized representedCompanyId when enforcement config is true', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+      });
+
+      const response = await api(new Request('http://localhost/v0/quotes', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({
+          id: 'q-http-represented-normalized',
+          representedCompanyId: ' represented-1 ',
+          customerId: 'customer-1',
+          numberSequence: 50,
+        }),
+      }));
+
+      expect(response.status).toBe(201);
+      const created = (await response.json()) as { representedCompanyId?: string };
+      expect(created.representedCompanyId).toBe('represented-1');
+    }, 'true');
   });
 
   it('does not allow missing actor headers', async () => {

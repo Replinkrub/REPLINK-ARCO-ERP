@@ -10,7 +10,7 @@ import type { OrderRepository } from '../../application/ports/orderRepository.js
 import type { QuoteRepository } from '../../application/ports/quoteRepository.js';
 import type { AccessContext } from '../../domain/ownership.js';
 import type { CommercialDocument } from '../../domain/commercialDocument.js';
-import { requireEnvironmentTenantId } from '../config/runtimeConfig.js';
+import { getRequiresRepresentedCompany, requireEnvironmentTenantId } from '../config/runtimeConfig.js';
 
 interface ApiDeps {
   quoteRepository: QuoteRepository;
@@ -19,6 +19,7 @@ interface ApiDeps {
 
 export function createMinimalHttpApi(deps: ApiDeps) {
   const environmentTenantId = requireEnvironmentTenantId();
+  const requiresRepresentedCompany = getRequiresRepresentedCompany();
 
   return async (request: Request): Promise<Response> => {
     try {
@@ -41,6 +42,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
             id: String(body.id ?? ''),
             tenantId: actor.actorTenantId,
             representedCompanyId: typeof body.representedCompanyId === 'string' ? body.representedCompanyId : undefined,
+            requiresRepresentedCompany,
             customerId: String(body.customerId ?? ''),
             ownerId: String(body.ownerId ?? actor.actorId),
             representativeId: String(body.representativeId ?? actor.actorId),
@@ -162,7 +164,11 @@ function mapResult(result: ApplicationResult<CommercialDocument>, successStatus:
   if (error.code === APPLICATION_ERROR_CODES.DOCUMENT_NOT_FOUND) return json(error, 404);
   if (error.code === APPLICATION_ERROR_CODES.FORBIDDEN) return json(error, 403);
   if (error.code === APPLICATION_ERROR_CODES.CONFLICT_ALREADY_CONFIRMED) return json(error, 409);
-  if (error.code === APPLICATION_ERROR_CODES.VALIDATION_ERROR || error.code === APPLICATION_ERROR_CODES.REQUIRED_CUSTOMER_ID) {
+  if (
+    error.code === APPLICATION_ERROR_CODES.VALIDATION_ERROR
+    || error.code === APPLICATION_ERROR_CODES.REQUIRED_CUSTOMER_ID
+    || error.code === APPLICATION_ERROR_CODES.REQUIRED_REPRESENTED_COMPANY
+  ) {
     return json(error, 422);
   }
   return json(error, 400);

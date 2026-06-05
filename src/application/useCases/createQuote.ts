@@ -7,6 +7,7 @@ export interface CreateQuoteUseCaseInput {
   id: string;
   tenantId: string;
   representedCompanyId?: string;
+  requiresRepresentedCompany?: boolean;
   customerId: string;
   ownerId: string;
   representativeId: string;
@@ -30,10 +31,18 @@ export async function createQuoteUseCase(
     );
   }
 
+  const representedCompanyId = input.representedCompanyId?.trim() || undefined;
+  if (input.requiresRepresentedCompany === true && !representedCompanyId) {
+    return applicationFailure(
+      APPLICATION_ERROR_CODES.REQUIRED_REPRESENTED_COMPANY,
+      'Representada é obrigatória para criar orçamento'
+    );
+  }
+
   const quote = createQuoteDocument({
     id: input.id,
     tenantId: input.tenantId,
-    representedCompanyId: input.representedCompanyId,
+    representedCompanyId,
     customerId,
     ownerId: input.ownerId,
     representativeId: input.representativeId,
