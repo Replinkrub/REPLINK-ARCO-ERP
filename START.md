@@ -3,27 +3,72 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate G integrado até PR5A**
+- Estado: **Gates A–F documentais mergeados; Gate G integrado até PR5B**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `ccb1c82` (merge PR #37)
+- `main` em: `3224458` (merge PR #39)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
 - Gate G inicial — ORC→PED canônico + migration runner controlado: ✅ **mergeado**
 - Gate G PR5A — represented companies foundation: ✅ **mergeado**
+- Gate G PR5B — represented company enforcement/config: ✅ **mergeado**
 - PR documental A–F: #30 — merge commit `0962558`
 - PR Gate G inicial: #31 — merge commit `6d7cd19`
 - PR Gate G PR5A: #37 — merge commit `ccb1c82`
+- PR Gate G PR5B: #39 — merge commit `3224458`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 94/94 (9 test files)
+- Tests: ✅ PASS — 112/112 (10 test files)
 - Smoke DB real contra Supabase dev: ✅ PASS
-- Próximo ponto: **Gate G PR5B — represented company enforcement/config**
-- Regra: não iniciar PR5B sem plano/review e autorização explícita; não assumir enforcement automático.
+- Próximo ponto: **planejar próximo slice técnico com autorização explícita**
+- Regra: não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem plano/review próprio.
+
+## Checkpoint da sessão (2026-06-05 pós-PR5B)
+
+### PR5B integrado
+
+- PR #39 — `Gate G: add represented company enforcement config`
+- Merge commit: `3224458`
+- Commit técnico: `b479fdf feat(erp): add represented company enforcement config`
+
+### Estado técnico pós-PR5B
+
+- `APP_REQUIRES_REPRESENTED_COMPANY` documentado em `.env.example`.
+- Enforcement ativo somente com valor exato `"true"`.
+- Enforcement fica em `createQuoteUseCase`.
+- API passa `requiresRepresentedCompany` para o use case.
+- `representedCompanyId` é normalizado com `trim`.
+- Valor vazio/espaço vira ausente.
+- `REQUIRED_REPRESENTED_COMPANY` mapeia HTTP `422`.
+- Representada continua opcional quando enforcement está desabilitado.
+
+### Validações registradas
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 112/112 |
+| `git diff --check` | ✅ PASS |
+| `npm run db:migrate` | ✅ PASS — 0 applied / 4 skipped |
+| `npm run test:smoke:db` | ✅ PASS — 4/4 |
+
+### Fora de escopo mantido
+
+- Nenhuma migration `005` criada.
+- Migrations `001`, `002`, `003` e `004` preservadas.
+- Sem DB enforcement / `NOT NULL` / trigger / check constraint.
+- Sem products/prices/payment terms.
+- Sem frontend.
+- Sem RBAC/auth runtime.
+- `erp_app_flow_map.html`: continua untracked e fora dos PRs.
+
+### Handoff oficial
+
+Ler `docs/SESSION-HANDOFF-GATE-G-POST-PR5B.md` antes de planejar o próximo slice.
 
 ## Checkpoint da sessão (2026-06-05)
 
@@ -146,16 +191,17 @@ Depois ler:
 
 1. `START.md` (este arquivo)
 2. `ROADMAP.md`
-3. `docs/SESSION-HANDOFF-GATE-G-POST-PR5A.md`
-4. `docs/SESSION-HANDOFF-GATE-G-INITIAL.md`
-5. `docs/SESSION-HANDOFF-GATE-F.md`
-6. `docs/MIGRATION-PLAN-OPS.md`
-7. `docs/TEST-STRATEGY-OPS.md`
-8. `docs/DATA-MODEL-OPS.md`
-9. `docs/RBAC-MATRIX.md`
-10. `docs/AUDIT-MODEL-OPS.md`
-11. `docs/API-CONTRACTS.yaml`
-12. `docs/API-CONTRACTS-OPS.md`
+3. `docs/SESSION-HANDOFF-GATE-G-POST-PR5B.md`
+4. `docs/SESSION-HANDOFF-GATE-G-POST-PR5A.md`
+5. `docs/SESSION-HANDOFF-GATE-G-INITIAL.md`
+6. `docs/SESSION-HANDOFF-GATE-F.md`
+7. `docs/MIGRATION-PLAN-OPS.md`
+8. `docs/TEST-STRATEGY-OPS.md`
+9. `docs/DATA-MODEL-OPS.md`
+10. `docs/RBAC-MATRIX.md`
+11. `docs/AUDIT-MODEL-OPS.md`
+12. `docs/API-CONTRACTS.yaml`
+13. `docs/API-CONTRACTS-OPS.md`
 
 ## Gate seguinte
 
@@ -165,9 +211,11 @@ Gate G inicial — ORC→PED + migration runner: **✅ mergeado em `6d7cd19`**.
 
 Gate G PR5A — represented companies foundation: **✅ mergeado em `ccb1c82`**.
 
-Próximo ponto: **Gate G PR5B — represented company enforcement/config**.
+Gate G PR5B — represented company enforcement/config: **✅ mergeado em `3224458`**.
 
-Regra: não iniciar PR5B sem autorização explícita, plano/review e decisão de ambiente/config para obrigatoriedade de representada.
+Próximo ponto: **planejar próximo slice técnico com autorização explícita**.
+
+Regra: não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem plano/review próprio.
 
 ## Checkpoint da sessão (2026-06-01)
 
