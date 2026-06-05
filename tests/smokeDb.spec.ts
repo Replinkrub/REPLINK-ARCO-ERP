@@ -12,6 +12,15 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is required to run npm run test:smoke:db');
 }
 
+async function expectPgError(promise: Promise<unknown>, code: string) {
+  try {
+    await promise;
+    throw new Error(`Expected Postgres error ${code}, but operation succeeded`);
+  } catch (error) {
+    expect(error).toMatchObject({ code });
+  }
+}
+
 describe('db smoke (real postgres)', () => {
   const now = Date.now();
   const quoteId = `q-smoke-${now}`;
@@ -99,5 +108,97 @@ describe('db smoke (real postgres)', () => {
       [quoteId, 'order']
     );
     expect(orderCount.rows[0]?.count).toBe(1);
+  });
+
+  it('validates security tenant roles and audit foundation', async () => {
+    const securityTenantId = `tenant-security-${now}`;
+    const userId = `user-security-${now}`;
+
+    const roles = await pgClient.query(
+      'SELECT code, status FROM roles WHERE code = ANY($1::text[]) ORDER BY code',
+      [['ADMIN', 'GESTOR_COMERCIAL', 'REPRESENTANTE']]
+    );
+    expect(roles.rows).toEqual([
+      { code: 'ADMIN', status: 'active' },
+      { code: 'GESTOR_COMERCIAL', status: 'reserved' },
+      { code: 'REPRESENTANTE', status: 'active' },
+    ]);
+
+    await expectPgError(
+      pgClient.query("INSERT INTO roles (id, code, status) VALUES ($1, 'VISUALIZADOR', 'active')", [
+        `role-visualizador-${now}`,
+      ]),
+      '23514'
+    );
+
+    await pgClient.query('INSERT INTO tenants (id, name, status) VALUES ($1, $2, $3)', [
+      securityTenantId,
+      `Security Tenant ${now}`,
+      'active',
+    ]);
+    await pgClient.query('INSERT INTO tenant_memberships (id, tenant_id, user_id, status) VALUES ($1, $2, $3, $4)', [
+      `membership-${now}`,
+      securityTenantId,
+      userId,
+      'active',
+    ]);
+
+    await expectPgError(
+      pgClient.query('INSERT INTO tenant_memberships (id, tenant_id, user_id, status) VALUES ($1, $2, $3, $4)', [
+        `membership-duplicate-${now}`,
+        securityTenantId,
+        userId,
+        'active',
+      ]),
+      '23505'
+    );
+
+    await pgClient.query('INSERT INTO user_roles (id, tenant_id, user_id, role_code, status) VALUES ($1, $2, $3, $4, $5)', [
+      `user-role-${now}`,
+      securityTenantId,
+      userId,
+      'ADMIN',
+      'active',
+    ]);
+
+    await expectPgError(
+      pgClient.query('INSERT INTO user_roles (id, tenant_id, user_id, role_code, status) VALUES ($1, $2, $3, $4, $5)', [
+        `user-role-duplicate-${now}`,
+        securityTenantId,
+        userId,
+        'ADMIN',
+        'active',
+      ]),
+      '23505'
+    );
+
+    await pgClient.query(
+      `INSERT INTO audit_events (id, tenant_id, actor_id, actor_role, entity_type, entity_id, action, result, reason_code, payload)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
+      [
+        `audit-denied-${now}`,
+        securityTenantId,
+        userId,
+        'REPRESENTANTE',
+        'commercial_document',
+        `outside-wallet-${now}`,
+        'view_confirmed_order',
+        'denied',
+        'OWNERSHIP_DENIED',
+        JSON.stringify({ attemptedTenantId: securityTenantId }),
+      ]
+    );
+
+    const auditEvent = await pgClient.query('SELECT result FROM audit_events WHERE id = $1', [`audit-denied-${now}`]);
+    expect(auditEvent.rows[0]?.result).toBe('denied');
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO audit_events (id, tenant_id, entity_type, action, result)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [`audit-invalid-${now}`, securityTenantId, 'tenant', 'invalid_result_test', 'blocked']
+      ),
+      '23514'
+    );
   });
 });
