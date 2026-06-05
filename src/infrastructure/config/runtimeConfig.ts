@@ -10,3 +10,7 @@ export function requireEnvironmentTenantId(env: NodeJS.ProcessEnv = process.env)
   }
   return tenantId;
 }
+
+export function getRequiresRepresentedCompany(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.APP_REQUIRES_REPRESENTED_COMPANY === 'true';
+}
