@@ -386,7 +386,7 @@ Planejar migrations e testes antes de tocar no banco.
 
 **Tipo:** implementação técnica em andamento
 **Dependências:** Gate F
-**Status:** iniciado — PR inicial mergeado em `6d7cd19`
+**Status:** iniciado — PRs iniciais mergeados até `86836dd`
 
 ### Objetivo
 
@@ -405,9 +405,12 @@ Implementar fundação de dados e backend para V1 operacional, sem frontend comp
 
 - PR #31 — `Gate G: backend/data foundation for quote-to-order and migrations`.
 - Merge commit: `6d7cd19`.
+- PR #33 — `Gate G: add security tenant roles audit foundation`.
+- Merge commit: `86836dd`.
 - Commits técnicos:
   - `e78a724 feat(erp): align quote to order conversion foundation`;
-  - `13c1b5e fix(erp): track applied database migrations`.
+  - `13c1b5e fix(erp): track applied database migrations`;
+  - `63593d0 feat(erp): add security tenant roles audit foundation`.
 - Validações registradas:
   - `npm run typecheck` PASS;
   - `npm run test` PASS — 94/94;
@@ -416,17 +419,32 @@ Implementar fundação de dados e backend para V1 operacional, sem frontend comp
   - `npm run test:smoke:db` PASS;
   - `git diff --check` PASS.
 
-### Próximo slice recomendado
+### Próximos slices recomendados
 
-**Gate G PR 3 — security/tenant/roles/audit base**.
+**PR documental — represented companies decision**.
+
+Registrar a decisão canônica de representadas antes de novas mudanças estruturais de documento/produto/preço.
+
+**Gate G PR4 — Bind commercial documents to environment tenant**.
 
 Escopo a declarar antes de editar:
 
-- migration `002_security_tenant_roles` ou equivalente;
-- tabela(s) de roles, user roles e tenant memberships;
-- base de `audit_events` se necessária para negações RBAC;
-- testes de migration runner, tenant e RBAC negativo mínimo;
-- manter `GESTOR_COMERCIAL` como perfil reservado/condicionado, sem fluxo operacional ativo.
+- `APP_TENANT_ID`;
+- bootstrap/seed do tenant de ambiente;
+- ORC nasce com tenant do ambiente;
+- PED herda tenant do ORC;
+- backfill/compatibilidade para `commercial_documents.tenant_id`;
+- FK/índice quando seguro.
+
+**Gate G PR5 — represented companies foundation**.
+
+Escopo a declarar antes de editar:
+
+- `represented_companies`;
+- `represented_company_id` em documentos comerciais quando aplicável;
+- ORC/PED da Arco com uma única representada;
+- PED herdando representada do ORC;
+- bloqueio de item/produto/tabela/condição comercial de representada diferente.
 
 ### Critério de saída
 
@@ -434,6 +452,7 @@ Escopo a declarar antes de editar:
 - `npm run test` PASS;
 - smoke DB PASS quando ambiente existir;
 - revisão SPEC x diff;
+- revisão da decisão `docs/DECISION-REPRESENTED-COMPANIES.md` quando representada estiver no escopo;
 - nenhum escopo fiscal avançado introduzido.
 
 ## Gate H — API Implementation Slices
