@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude tests/smokeDb.spec.ts",
     "db:migrate": "node ./scripts/db-migrate.mjs",
+    "db:bootstrap": "node ./scripts/db-bootstrap.mjs",
     "test:smoke:db": "vitest run tests/smokeDb.spec.ts"
   },
   "devDependencies": {

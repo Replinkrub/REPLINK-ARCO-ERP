@@ -20,4 +20,5 @@ export * from './infrastructure/repositories/inMemoryOrderRepository.js';
 export * from './infrastructure/postgres/postgresClient.js';
 export * from './infrastructure/postgres/postgresQuoteRepository.js';
 export * from './infrastructure/postgres/postgresOrderRepository.js';
+export * from './infrastructure/config/runtimeConfig.js';
 export * from './infrastructure/http/minimalApi.js';

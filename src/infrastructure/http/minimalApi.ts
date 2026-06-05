@@ -10,6 +10,7 @@ import type { OrderRepository } from '../../application/ports/orderRepository.js
 import type { QuoteRepository } from '../../application/ports/quoteRepository.js';
 import type { AccessContext } from '../../domain/ownership.js';
 import type { CommercialDocument } from '../../domain/commercialDocument.js';
+import { requireEnvironmentTenantId } from '../config/runtimeConfig.js';
 
 interface ApiDeps {
   quoteRepository: QuoteRepository;
@@ -17,11 +18,18 @@ interface ApiDeps {
 }
 
 export function createMinimalHttpApi(deps: ApiDeps) {
+  const environmentTenantId = requireEnvironmentTenantId();
+
   return async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url);
-      const actor = buildActorFromHeaders(request.headers);
-      if (!actor) return json({ code: 'UNAUTHORIZED', message: 'Missing actor headers' }, 401);
+      const actorResult = buildActorFromHeaders(request.headers, environmentTenantId);
+      if (!actorResult.ok) {
+        return actorResult.status === 403
+          ? json({ code: 'TENANT_MISMATCH', message: 'Tenant header does not match environment tenant' }, 403)
+          : json({ code: 'UNAUTHORIZED', message: 'Missing actor headers' }, 401);
+      }
+      const actor = actorResult.actor;
 
       const method = request.method.toUpperCase();
 
@@ -130,13 +138,18 @@ function isDependencyUnavailableError(error: unknown): boolean {
   return message.includes('connect') || message.includes('connection terminated') || message.includes('econnrefused');
 }
 
-function buildActorFromHeaders(headers: Headers): AccessContext | null {
+type ActorBuildResult =
+  | { ok: true; actor: AccessContext }
+  | { ok: false; status: 401 | 403 };
+
+function buildActorFromHeaders(headers: Headers, environmentTenantId: string): ActorBuildResult {
   const role = headers.get('x-actor-role');
   const actorId = headers.get('x-actor-id');
-  const actorTenantId = headers.get('x-tenant-id');
-  if (!role || !actorId || !actorTenantId) return null;
-  if (role !== 'ADMIN' && role !== 'REPRESENTANTE') return null;
-  return { role, actorId, actorTenantId };
+  const headerTenantId = headers.get('x-tenant-id')?.trim();
+  if (!role || !actorId) return { ok: false, status: 401 };
+  if (role !== 'ADMIN' && role !== 'REPRESENTANTE') return { ok: false, status: 401 };
+  if (headerTenantId && headerTenantId !== environmentTenantId) return { ok: false, status: 403 };
+  return { ok: true, actor: { role, actorId, actorTenantId: environmentTenantId } };
 }
 
 function mapResult(result: ApplicationResult<CommercialDocument>, successStatus: number): Response {

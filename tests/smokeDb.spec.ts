@@ -24,7 +24,7 @@ async function expectPgError(promise: Promise<unknown>, code: string) {
 describe('db smoke (real postgres)', () => {
   const now = Date.now();
   const quoteId = `q-smoke-${now}`;
-  const tenantId = `tenant-smoke-${now}`;
+  const tenantId = process.env.APP_TENANT_ID?.trim() || `tenant-smoke-${now}`;
   const baseSequence = 100000 + (now % 700000);
 
   const db = new PostgresClient(databaseUrl as string);
@@ -40,6 +40,7 @@ describe('db smoke (real postgres)', () => {
   });
 
   it('persists quote + order through minimal HTTP API flow', async () => {
+    process.env.APP_TENANT_ID = tenantId;
     const api = createMinimalHttpApi({
       quoteRepository: new PostgresQuoteRepository(db),
       orderRepository: new PostgresOrderRepository(db),
@@ -66,11 +67,12 @@ describe('db smoke (real postgres)', () => {
     expect(createResponse.status).toBe(201);
 
     const createdQuoteRow = await pgClient.query(
-      'SELECT id, document_type, status FROM commercial_documents WHERE id = $1 LIMIT 1',
+      'SELECT id, document_type, tenant_id, status FROM commercial_documents WHERE id = $1 LIMIT 1',
       [quoteId]
     );
     expect(createdQuoteRow.rowCount).toBe(1);
     expect(createdQuoteRow.rows[0]?.document_type).toBe('quote');
+    expect(createdQuoteRow.rows[0]?.tenant_id).toBe(tenantId);
 
     const confirmResponse = await api(new Request(`http://localhost/v0/quotes/${quoteId}/confirm`, {
       method: 'POST',
@@ -88,12 +90,13 @@ describe('db smoke (real postgres)', () => {
     expect(quoteRow.rows[0]?.number).toMatch(/^ORC-/);
 
     const orderRow = await pgClient.query(
-      'SELECT id, source_quote_id, document_type, number, status FROM commercial_documents WHERE source_quote_id = $1 LIMIT 1',
+      'SELECT id, source_quote_id, document_type, tenant_id, number, status FROM commercial_documents WHERE source_quote_id = $1 LIMIT 1',
       [quoteId]
     );
     expect(orderRow.rowCount).toBe(1);
     expect(orderRow.rows[0]?.id).not.toBe(quoteId);
     expect(orderRow.rows[0]?.document_type).toBe('order');
+    expect(orderRow.rows[0]?.tenant_id).toBe(tenantId);
     expect(orderRow.rows[0]?.number).toMatch(/^PED-/);
 
     const duplicateConfirmResponse = await api(new Request(`http://localhost/v0/quotes/${quoteId}/confirm`, {
