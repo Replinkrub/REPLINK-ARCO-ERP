@@ -11,6 +11,7 @@ export interface PersistedCommercialDocumentRow {
   document_type: 'quote' | 'order';
   number: string;
   tenant_id: string;
+  represented_company_id: string | null;
   customer_id: string | null;
   owner_id: string;
   representative_id: string;
@@ -41,6 +42,7 @@ export function serializeDocument(document: CommercialDocument): PersistedCommer
     document_type: document.documentType,
     number: document.number,
     tenant_id: document.tenantId,
+    represented_company_id: document.representedCompanyId ?? null,
     customer_id: document.customerId ?? null,
     owner_id: document.ownerId,
     representative_id: document.representativeId,
@@ -73,6 +75,7 @@ export function deserializeDocument(row: PersistedCommercialDocumentRow): Commer
     documentType: row.document_type,
     number: row.number,
     tenantId: row.tenant_id,
+    representedCompanyId: row.represented_company_id ?? undefined,
     customerId: row.customer_id ?? undefined,
     ownerId: row.owner_id,
     representativeId: row.representative_id,

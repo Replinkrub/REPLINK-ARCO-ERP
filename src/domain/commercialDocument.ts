@@ -50,6 +50,7 @@ export interface CommercialDocumentSourceQuoteSnapshot {
   source_quote_id: string;
   source_quote_number: string;
   source_quote_revision?: string | number;
+  represented_company_id?: string;
   customerId?: string;
   ownerId: string;
   representativeId: string;
@@ -63,6 +64,7 @@ export interface CommercialDocument {
   documentType: CommercialDocumentType;
   number: string;
   tenantId: string;
+  representedCompanyId?: string;
   customerId?: string;
   ownerId: string;
   representativeId: string;
@@ -132,6 +134,7 @@ export type OperationResult = DomainResult<CommercialDocument>;
 export interface CreateQuoteInput {
   id: string;
   tenantId: string;
+  representedCompanyId?: string;
   customerId?: string;
   ownerId: string;
   representativeId: string;
@@ -195,6 +198,7 @@ export function createQuote(input: CreateQuoteInput): CommercialDocument {
     documentType: 'quote',
     number,
     tenantId: input.tenantId,
+    representedCompanyId: input.representedCompanyId,
     customerId: input.customerId,
     ownerId: input.ownerId,
     representativeId: input.representativeId,
@@ -307,6 +311,10 @@ function buildSourceQuoteSnapshot(quote: CommercialDocument, convertedAt: Date):
 
   if ('customerId' in rawQuote && typeof rawQuote.customerId === 'string') {
     snapshot.customerId = rawQuote.customerId;
+  }
+
+  if (quote.representedCompanyId) {
+    snapshot.represented_company_id = quote.representedCompanyId;
   }
 
   return snapshot;

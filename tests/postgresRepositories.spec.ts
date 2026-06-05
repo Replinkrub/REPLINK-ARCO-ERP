@@ -69,6 +69,26 @@ describe('postgres repositories', () => {
     expect(db.calls[0]?.text).toContain('INSERT INTO commercial_documents');
   });
 
+  it('persists represented_company_id when saving quote', async () => {
+    const db = new FakeSqlExecutor();
+    const repository = new PostgresQuoteRepository(db);
+    const quote = createQuote({
+      id: 'q-db-represented',
+      tenantId: 'tenant-1',
+      representedCompanyId: 'represented-1',
+      customerId: 'customer-1',
+      ownerId: 'owner-1',
+      representativeId: 'rep-1',
+      numberSequence: 12,
+    });
+
+    await repository.save(quote);
+
+    expect(db.calls).toHaveLength(1);
+    expect(db.calls[0]?.text).toContain('represented_company_id');
+    expect(db.calls[0]?.values?.[4]).toBe('represented-1');
+  });
+
   it('order save upserts only the order row without mutating source quote row', async () => {
     const db = new FakeSqlExecutor();
     const repository = new PostgresOrderRepository(db);
@@ -116,6 +136,7 @@ describe('postgres repositories', () => {
     expect(result.ok).toBe(true);
     expect(db.calls).toHaveLength(1);
     expect(db.calls[0]?.text).toContain('INSERT INTO commercial_documents');
+    expect(db.calls[0]?.text).toContain('represented_company_id');
     expect(db.calls[0]?.text).not.toContain('ON CONFLICT (id) DO UPDATE SET');
   });
 });

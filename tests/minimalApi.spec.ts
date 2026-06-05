@@ -87,6 +87,40 @@ describe('minimal HTTP API', () => {
     });
   });
 
+  it('accepts optional representedCompanyId without requiring it', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const quoteRepository = new InMemoryQuoteRepository();
+      const orderRepository = new InMemoryOrderRepository();
+      const api = createMinimalHttpApi({ quoteRepository, orderRepository });
+
+      const createResponse = await api(new Request('http://localhost/v0/quotes', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({
+          id: 'q-http-represented-1',
+          representedCompanyId: 'represented-1',
+          customerId: 'customer-1',
+          numberSequence: 46,
+        }),
+      }));
+
+      expect(createResponse.status).toBe(201);
+      const created = (await createResponse.json()) as { representedCompanyId?: string };
+      expect(created.representedCompanyId).toBe('represented-1');
+
+      const confirmResponse = await api(new Request('http://localhost/v0/quotes/q-http-represented-1/confirm', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ orderSequence: 100 }),
+      }));
+
+      expect(confirmResponse.status).toBe(200);
+      const confirmed = (await confirmResponse.json()) as { representedCompanyId?: string; sourceQuoteSnapshot?: { represented_company_id?: string } };
+      expect(confirmed.representedCompanyId).toBe('represented-1');
+      expect(confirmed.sourceQuoteSnapshot?.represented_company_id).toBe('represented-1');
+    });
+  });
+
   it('does not allow missing actor headers', async () => {
     await withEnvironmentTenant('tenant-env-1', async () => {
       const api = createMinimalHttpApi({
