@@ -3,25 +3,66 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate G inicial mergeado**
+- Estado: **Gates A–F documentais mergeados; Gate G integrado até PR5A**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `6d7cd19` (merge PR #31)
+- `main` em: `ccb1c82` (merge PR #37)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
 - Gate G inicial — ORC→PED canônico + migration runner controlado: ✅ **mergeado**
+- Gate G PR5A — represented companies foundation: ✅ **mergeado**
 - PR documental A–F: #30 — merge commit `0962558`
 - PR Gate G inicial: #31 — merge commit `6d7cd19`
+- PR Gate G PR5A: #37 — merge commit `ccb1c82`
 - Typecheck: ✅ PASS
 - Tests: ✅ PASS — 94/94 (9 test files)
 - Smoke DB real contra Supabase dev: ✅ PASS
-- Próximo ponto: **Gate G PR 3 — security/tenant/roles/audit base**
-- Regra: não criar migration funcional nova antes de declarar escopo técnico do PR 3.
+- Próximo ponto: **Gate G PR5B — represented company enforcement/config**
+- Regra: não iniciar PR5B sem plano/review e autorização explícita; não assumir enforcement automático.
+
+## Checkpoint da sessão (2026-06-05)
+
+### PRs Gate G integrados até PR5A
+
+| PR | Entrega | Status |
+|---|---|---|
+| #32 | Gate G initial handoff | ✅ mergeado |
+| #33 | security tenant roles audit foundation | ✅ mergeado |
+| #34 | represented companies decision | ✅ mergeado |
+| #35 | environment tenant runtime | ✅ mergeado |
+| #36 | commercial documents tenant FK/integrity | ✅ mergeado |
+| #37 | represented companies foundation | ✅ mergeado em `ccb1c82` |
+
+### Estado técnico pós-PR5A
+
+- Migration `004` integrada.
+- Migrations `001`, `002` e `003` preservadas.
+- Nenhuma migration `005` criada.
+- Foundation de `represented_companies` criada.
+- `commercial_documents.represented_company_id` nullable.
+- FK composta tenant-safe.
+- API aceita `representedCompanyId` opcional.
+- PED herda `representedCompanyId` do ORC quando presente.
+- Fluxo Sagrado/null preservado.
+
+### Fora de escopo mantido
+
+- Sem enforcement.
+- Sem `APP_REQUIRES_REPRESENTED_COMPANY`.
+- Sem products/prices/payment terms.
+- Sem frontend.
+- Sem RBAC/auth runtime.
+- Sem PR5B iniciado.
+- `erp_app_flow_map.html`: continua untracked e fora dos PRs.
+
+### Handoff oficial
+
+Ler `docs/SESSION-HANDOFF-GATE-G-POST-PR5A.md` antes de planejar PR5B.
 
 ## Checkpoint da sessão (2026-06-04)
 
@@ -105,15 +146,16 @@ Depois ler:
 
 1. `START.md` (este arquivo)
 2. `ROADMAP.md`
-3. `docs/SESSION-HANDOFF-GATE-G-INITIAL.md`
-4. `docs/SESSION-HANDOFF-GATE-F.md`
-5. `docs/MIGRATION-PLAN-OPS.md`
-6. `docs/TEST-STRATEGY-OPS.md`
-7. `docs/DATA-MODEL-OPS.md`
-8. `docs/RBAC-MATRIX.md`
-9. `docs/AUDIT-MODEL-OPS.md`
-10. `docs/API-CONTRACTS.yaml`
-11. `docs/API-CONTRACTS-OPS.md`
+3. `docs/SESSION-HANDOFF-GATE-G-POST-PR5A.md`
+4. `docs/SESSION-HANDOFF-GATE-G-INITIAL.md`
+5. `docs/SESSION-HANDOFF-GATE-F.md`
+6. `docs/MIGRATION-PLAN-OPS.md`
+7. `docs/TEST-STRATEGY-OPS.md`
+8. `docs/DATA-MODEL-OPS.md`
+9. `docs/RBAC-MATRIX.md`
+10. `docs/AUDIT-MODEL-OPS.md`
+11. `docs/API-CONTRACTS.yaml`
+12. `docs/API-CONTRACTS-OPS.md`
 
 ## Gate seguinte
 
@@ -121,9 +163,11 @@ Gate F — Migration Plan + Test Strategy: **✅ PASS e mergeado**.
 
 Gate G inicial — ORC→PED + migration runner: **✅ mergeado em `6d7cd19`**.
 
-Próximo ponto: **Gate G PR 3 — security/tenant/roles/audit base**.
+Gate G PR5A — represented companies foundation: **✅ mergeado em `ccb1c82`**.
 
-Regra: qualquer nova migration funcional precisa de escopo técnico declarado, revisão contra RBAC/Audit/Test Strategy e validação real de migration runner.
+Próximo ponto: **Gate G PR5B — represented company enforcement/config**.
+
+Regra: não iniciar PR5B sem autorização explícita, plano/review e decisão de ambiente/config para obrigatoriedade de representada.
 
 ## Checkpoint da sessão (2026-06-01)
 
