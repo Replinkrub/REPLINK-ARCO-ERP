@@ -204,4 +204,39 @@ describe('db smoke (real postgres)', () => {
       '23514'
     );
   });
+
+  it('enforces commercial document tenant foreign key', async () => {
+    const constraint = await pgClient.query(
+      `SELECT conname
+       FROM pg_constraint
+       WHERE conname = $1
+         AND conrelid = 'commercial_documents'::regclass
+       LIMIT 1`,
+      ['commercial_documents_tenant_id_fkey']
+    );
+    expect(constraint.rowCount).toBe(1);
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO commercial_documents (
+          id, document_type, number, tenant_id, customer_id, owner_id, representative_id, status,
+          items, totals, created_at, updated_at
+        ) VALUES (
+          $1, 'quote', $2, $3, $4, $5, $6, 'QUOTE_DRAFT',
+          $7::jsonb, $8::jsonb, now(), now()
+        )`,
+        [
+          `q-invalid-tenant-${now}`,
+          `ORC-${baseSequence + 2}`,
+          `tenant-invalid-${now}`,
+          `customer-invalid-tenant-${now}`,
+          `owner-invalid-tenant-${now}`,
+          `rep-invalid-tenant-${now}`,
+          JSON.stringify([]),
+          JSON.stringify({ subtotal: 0, discountTotal: 0, grandTotal: 0 }),
+        ]
+      ),
+      '23503'
+    );
+  });
 });
