@@ -40,6 +40,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
           {
             id: String(body.id ?? ''),
             tenantId: actor.actorTenantId,
+            representedCompanyId: typeof body.representedCompanyId === 'string' ? body.representedCompanyId : undefined,
             customerId: String(body.customerId ?? ''),
             ownerId: String(body.ownerId ?? actor.actorId),
             representativeId: String(body.representativeId ?? actor.actorId),

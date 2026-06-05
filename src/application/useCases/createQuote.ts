@@ -6,6 +6,7 @@ import type { QuoteRepository } from '../ports/quoteRepository.js';
 export interface CreateQuoteUseCaseInput {
   id: string;
   tenantId: string;
+  representedCompanyId?: string;
   customerId: string;
   ownerId: string;
   representativeId: string;
@@ -32,6 +33,7 @@ export async function createQuoteUseCase(
   const quote = createQuoteDocument({
     id: input.id,
     tenantId: input.tenantId,
+    representedCompanyId: input.representedCompanyId,
     customerId,
     ownerId: input.ownerId,
     representativeId: input.representativeId,

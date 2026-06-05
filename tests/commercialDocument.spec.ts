@@ -29,6 +29,19 @@ describe('commercialDocument core', () => {
     const doc = createQuote({ id: 'doc-0', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
     expect(doc.status).toBe('QUOTE_DRAFT');
     expect(doc.totals.total).toBe(0);
+    expect(doc.representedCompanyId).toBeUndefined();
+  });
+
+  it('criar orçamento preserva representada opcional', () => {
+    const doc = createQuote({
+      id: 'doc-represented',
+      tenantId: 'tenant-1',
+      representedCompanyId: 'represented-1',
+      ownerId: 'owner-1',
+      representativeId: 'rep-1',
+    });
+
+    expect(doc.representedCompanyId).toBe('represented-1');
   });
 
   it('retorno de sucesso traz payload mínimo e events array', () => {
@@ -426,6 +439,24 @@ describe('commercialDocument core', () => {
       totals: { subtotal: 0, discountTotal: 0, total: 0 },
       items: [],
     });
+  });
+
+  it('conversão quote→order herda representada e preserva no snapshot', () => {
+    const quote = createQuote({
+      id: 'doc-conv-represented',
+      tenantId: 'tenant-1',
+      representedCompanyId: 'represented-1',
+      ownerId: 'owner-1',
+      representativeId: 'rep-1',
+      numberSequence: 32,
+    });
+
+    const converted = convertQuoteToOrder(quote, 78);
+    expect(converted.ok).toBe(true);
+    if (!converted.ok) return;
+
+    expect(converted.document.representedCompanyId).toBe('represented-1');
+    expect(converted.document.sourceQuoteSnapshot?.represented_company_id).toBe('represented-1');
   });
 
   it('quote cancelado não converte para order', () => {

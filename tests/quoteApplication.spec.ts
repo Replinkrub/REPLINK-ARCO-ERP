@@ -58,6 +58,30 @@ describe('quote application flow', () => {
     expect(reloaded?.status).toBe('QUOTE_DRAFT');
   });
 
+  it('createQuote preserva representedCompanyId opcional', async () => {
+    const repository = new InMemoryQuoteRepository();
+
+    const result = await createQuoteUseCase(
+      { quoteRepository: repository },
+      {
+        id: 'q-represented-1',
+        tenantId: 'tenant-1',
+        representedCompanyId: 'represented-1',
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+        numberSequence: 14,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.representedCompanyId).toBe('represented-1');
+
+    const reloaded = await repository.getById('q-represented-1');
+    expect(reloaded?.representedCompanyId).toBe('represented-1');
+  });
+
   it('updateQuote mantém documentType quote e atualiza itens/customerId', async () => {
     const repository = new InMemoryQuoteRepository();
 

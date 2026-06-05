@@ -239,4 +239,164 @@ describe('db smoke (real postgres)', () => {
       '23503'
     );
   });
+
+  it('validates represented companies nullable foundation', async () => {
+    const otherTenantId = `tenant-represented-other-${now}`;
+    const representedCompanyId = `represented-smoke-${now}`;
+    const otherRepresentedCompanyId = `represented-other-${now}`;
+
+    await pgClient.query('INSERT INTO tenants (id, name, status) VALUES ($1, $2, $3)', [
+      otherTenantId,
+      `Represented Other Tenant ${now}`,
+      'active',
+    ]);
+
+    await pgClient.query(
+      'INSERT INTO represented_companies (id, tenant_id, name, status) VALUES ($1, $2, $3, $4)',
+      [representedCompanyId, tenantId, `Represented Smoke ${now}`, 'active']
+    );
+    await pgClient.query(
+      'INSERT INTO represented_companies (id, tenant_id, name, status) VALUES ($1, $2, $3, $4)',
+      [otherRepresentedCompanyId, otherTenantId, `Other Represented Smoke ${now}`, 'active']
+    );
+
+    const representedCompanyColumn = await pgClient.query(
+      `SELECT is_nullable
+       FROM information_schema.columns
+       WHERE table_name = $1 AND column_name = $2`,
+      ['commercial_documents', 'represented_company_id']
+    );
+    expect(representedCompanyColumn.rows[0]?.is_nullable).toBe('YES');
+
+    await pgClient.query(
+      `INSERT INTO commercial_documents (
+        id, document_type, number, tenant_id, represented_company_id, customer_id, owner_id, representative_id, status,
+        items, totals, created_at, updated_at
+      ) VALUES (
+        $1, 'quote', $2, $3, $4, $5, $6, $7, 'QUOTE_DRAFT',
+        $8::jsonb, $9::jsonb, now(), now()
+      )`,
+      [
+        `q-represented-direct-${now}`,
+        `ORC-${baseSequence + 3}`,
+        tenantId,
+        representedCompanyId,
+        `customer-represented-${now}`,
+        `owner-represented-${now}`,
+        `rep-represented-${now}`,
+        JSON.stringify([]),
+        JSON.stringify({ subtotal: 0, discountTotal: 0, grandTotal: 0 }),
+      ]
+    );
+
+    await pgClient.query(
+      `INSERT INTO commercial_documents (
+        id, document_type, number, tenant_id, represented_company_id, customer_id, owner_id, representative_id, status,
+        items, totals, created_at, updated_at
+      ) VALUES (
+        $1, 'quote', $2, $3, NULL, $4, $5, $6, 'QUOTE_DRAFT',
+        $7::jsonb, $8::jsonb, now(), now()
+      )`,
+      [
+        `q-represented-null-${now}`,
+        `ORC-${baseSequence + 4}`,
+        tenantId,
+        `customer-represented-null-${now}`,
+        `owner-represented-null-${now}`,
+        `rep-represented-null-${now}`,
+        JSON.stringify([]),
+        JSON.stringify({ subtotal: 0, discountTotal: 0, grandTotal: 0 }),
+      ]
+    );
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO commercial_documents (
+          id, document_type, number, tenant_id, represented_company_id, customer_id, owner_id, representative_id, status,
+          items, totals, created_at, updated_at
+        ) VALUES (
+          $1, 'quote', $2, $3, $4, $5, $6, $7, 'QUOTE_DRAFT',
+          $8::jsonb, $9::jsonb, now(), now()
+        )`,
+        [
+          `q-represented-missing-${now}`,
+          `ORC-${baseSequence + 5}`,
+          tenantId,
+          `represented-missing-${now}`,
+          `customer-represented-missing-${now}`,
+          `owner-represented-missing-${now}`,
+          `rep-represented-missing-${now}`,
+          JSON.stringify([]),
+          JSON.stringify({ subtotal: 0, discountTotal: 0, grandTotal: 0 }),
+        ]
+      ),
+      '23503'
+    );
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO commercial_documents (
+          id, document_type, number, tenant_id, represented_company_id, customer_id, owner_id, representative_id, status,
+          items, totals, created_at, updated_at
+        ) VALUES (
+          $1, 'quote', $2, $3, $4, $5, $6, $7, 'QUOTE_DRAFT',
+          $8::jsonb, $9::jsonb, now(), now()
+        )`,
+        [
+          `q-represented-cross-tenant-${now}`,
+          `ORC-${baseSequence + 6}`,
+          otherTenantId,
+          representedCompanyId,
+          `customer-represented-cross-${now}`,
+          `owner-represented-cross-${now}`,
+          `rep-represented-cross-${now}`,
+          JSON.stringify([]),
+          JSON.stringify({ subtotal: 0, discountTotal: 0, grandTotal: 0 }),
+        ]
+      ),
+      '23503'
+    );
+
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-represented-${now}`,
+      'content-type': 'application/json',
+    };
+
+    const createResponse = await api(new Request('http://localhost/v0/quotes', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        id: `q-represented-api-${now}`,
+        representedCompanyId,
+        customerId: `customer-represented-api-${now}`,
+        numberSequence: baseSequence + 7,
+      }),
+    }));
+    expect(createResponse.status).toBe(201);
+    const created = await createResponse.json() as { representedCompanyId?: string };
+    expect(created.representedCompanyId).toBe(representedCompanyId);
+
+    const confirmResponse = await api(new Request(`http://localhost/v0/quotes/q-represented-api-${now}/confirm`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ orderSequence: baseSequence + 8 }),
+    }));
+    expect(confirmResponse.status).toBe(200);
+
+    const orderRow = await pgClient.query(
+      `SELECT represented_company_id, source_quote_snapshot
+       FROM commercial_documents
+       WHERE source_quote_id = $1 AND document_type = 'order'
+       LIMIT 1`,
+      [`q-represented-api-${now}`]
+    );
+    expect(orderRow.rows[0]?.represented_company_id).toBe(representedCompanyId);
+    expect(orderRow.rows[0]?.source_quote_snapshot?.represented_company_id).toBe(representedCompanyId);
+  });
 });

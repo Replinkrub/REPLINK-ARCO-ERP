@@ -40,6 +40,7 @@ export class PostgresOrderRepository implements OrderRepository {
         document_type = EXCLUDED.document_type,
         number = EXCLUDED.number,
         tenant_id = EXCLUDED.tenant_id,
+        represented_company_id = EXCLUDED.represented_company_id,
         customer_id = EXCLUDED.customer_id,
         owner_id = EXCLUDED.owner_id,
         representative_id = EXCLUDED.representative_id,
@@ -66,18 +67,18 @@ export class PostgresOrderRepository implements OrderRepository {
 
     await this.db.query(
       `INSERT INTO commercial_documents (
-        id, document_type, number, tenant_id, customer_id, owner_id, representative_id, status,
+        id, document_type, number, tenant_id, represented_company_id, customer_id, owner_id, representative_id, status,
         items, totals, created_at, updated_at, confirmed_at, invoiced_at, invoice_manual_reference,
         source_quote_id, source_quote_number, source_quote_revision, converted_at, source_quote_snapshot,
         canceled_at, cancel_reason, cancel_note, lifecycle_events, output_events, order_revisions
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8,
-        $9::jsonb, $10::jsonb, $11, $12, $13, $14, $15,
-        $16, $17, $18, $19, $20::jsonb,
-        $21, $22, $23, $24::jsonb, $25::jsonb, $26::jsonb
+        $1, $2, $3, $4, $5, $6, $7, $8, $9,
+        $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16,
+        $17, $18, $19, $20, $21::jsonb,
+        $22, $23, $24, $25::jsonb, $26::jsonb, $27::jsonb
       )${conflictClause}`,
       [
-        row.id, row.document_type, row.number, row.tenant_id, row.customer_id, row.owner_id, row.representative_id, row.status,
+        row.id, row.document_type, row.number, row.tenant_id, row.represented_company_id, row.customer_id, row.owner_id, row.representative_id, row.status,
         JSON.stringify(row.items), JSON.stringify(row.totals), row.created_at, row.updated_at, row.confirmed_at, row.invoiced_at,
         row.invoice_manual_reference, row.source_quote_id, row.source_quote_number, row.source_quote_revision, row.converted_at,
         JSON.stringify(row.source_quote_snapshot), row.canceled_at, row.cancel_reason, row.cancel_note,
