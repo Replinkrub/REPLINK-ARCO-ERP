@@ -386,7 +386,7 @@ Planejar migrations e testes antes de tocar no banco.
 
 **Tipo:** implementação técnica em andamento
 **Dependências:** Gate F
-**Status:** iniciado — integrado até PR5A / merge commit `ccb1c82`
+**Status:** iniciado — integrado até PR5B / merge commit `3224458`
 
 ### Objetivo
 
@@ -413,6 +413,9 @@ Implementar fundação de dados e backend para V1 operacional, sem frontend comp
 - PR #36 — commercial documents tenant FK/integrity.
 - PR #37 — represented companies foundation.
 - Merge commit: `ccb1c82`.
+- PR #38 — Gate G post-PR5A handoff.
+- PR #39 — represented company enforcement config.
+- Merge commit: `3224458`.
 - Commits técnicos:
   - `e78a724 feat(erp): align quote to order conversion foundation`;
   - `13c1b5e fix(erp): track applied database migrations`;
@@ -451,24 +454,29 @@ Escopo PR5A integrado:
 - ORC/PED da Arco com uma única representada;
 - PED herdando representada do ORC.
 
-Fora de PR5A:
+Fora de PR5A e integrado no PR5B:
 
-- enforcement de representada obrigatória;
-- `APP_REQUIRES_REPRESENTED_COMPANY`;
+- enforcement configurável de representada obrigatória;
+- `APP_REQUIRES_REPRESENTED_COMPANY`, ativo somente com valor exato `"true"`;
+- validação no `createQuoteUseCase`;
+- HTTP `422` para `REQUIRED_REPRESENTED_COMPANY`;
+- normalização de `representedCompanyId` com `trim`;
+
+Fora de PR5B:
+
 - products/prices/payment terms;
 - frontend;
 - RBAC/auth runtime.
 
 ### Próximo slice recomendado
 
-**Gate G PR5B — represented company enforcement/config**.
+**Planejar próximo slice técnico com autorização explícita**.
 
 Antes de implementar:
 
 - começar com plano/review de escopo;
-- não assumir enforcement automático;
-- decidir por ambiente/config se representada será obrigatória;
-- preservar o fluxo Sagrado/null enquanto não houver decisão explícita.
+- não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem escopo próprio;
+- preservar o fluxo Sagrado/null quando enforcement estiver desabilitado.
 
 ### Critério de saída
 
@@ -610,8 +618,8 @@ Continuar **Gate G — Backend/Data Foundation Implementation** pelo próximo sl
 
 Menor próximo passo seguro:
 
-1. preparar plano/review do **Gate G PR5B — represented company enforcement/config**;
-2. decidir por ambiente/config se representada será obrigatória;
+1. preparar plano/review do próximo slice técnico;
+2. confirmar autorização explícita antes de implementar;
 3. declarar migrations, adapters, serviços e testes previstos antes de editar código;
 4. manter `erp_app_flow_map.html` não versionado e fora do gate;
 5. não criar migration funcional nova sem escopo e validação do migration runner.
@@ -628,4 +636,4 @@ Implementação técnica só pode iniciar quando, no mínimo, estes gates estive
 
 Frontend só pode iniciar quando Gate E também estiver `PASS`.
 
-Gates A–F estão em PASS e Gate G foi integrado até PR5A. Próximos slices técnicos continuam exigindo escopo explícito, branch fora de `main`, validação local e smoke DB quando `DATABASE_URL` existir.
+Gates A–F estão em PASS e Gate G foi integrado até PR5B. Próximos slices técnicos continuam exigindo escopo explícito, branch fora de `main`, validação local e smoke DB quando `DATABASE_URL` existir.
