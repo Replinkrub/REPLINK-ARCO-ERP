@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate G integrado até PR6**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até PR7B**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `47f5130` (merge PR #41 — Customers Foundation)
+- `main` em: `abe113c` (merge PR #44 — Customer Contacts + Addresses API)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -18,16 +18,74 @@
 - Gate G PR5A — represented companies foundation: ✅ **mergeado**
 - Gate G PR5B — represented company enforcement/config: ✅ **mergeado**
 - Gate G PR6 — customers foundation: ✅ **mergeado**
+- Gate H PR7A — Customer API Core: ✅ **mergeado**
+- Gate H PR7B — Customer Contacts + Addresses API: ✅ **mergeado**
 - PR documental A–F: #30 — merge commit `0962558`
 - PR Gate G inicial: #31 — merge commit `6d7cd19`
 - PR Gate G PR5A: #37 — merge commit `ccb1c82`
 - PR Gate G PR5B: #39 — merge commit `3224458`
 - PR Gate G PR6: #41 — merge commit `47f5130`
+- PR Gate H PR7A: #43 — merge commit `6366729`
+- PR Gate H PR7B: #44 — merge commit `abe113c`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 118/118 (10 test files)
-- Smoke DB real contra Supabase dev: ✅ PASS — 5/5
+- Tests: ✅ PASS — 133/133 (11 test files)
+- Smoke DB real contra Supabase dev: ✅ PASS — 7/7
 - Próximo ponto: **planejar próximo slice técnico com autorização explícita**
 - Regra: não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem plano/review próprio.
+
+## Checkpoint da sessão (2026-06-06 pós-PR7B merge)
+
+### PR7B integrado
+
+- PR #44 — `Gate H PR7B — Customer Contacts + Addresses API`
+- Merge commit: `abe113c`
+- Branch: `feat/gate-h-pr7b-customer-contacts-addresses-api`
+- Commit técnico: `044a47b feat(erp): add customer contacts addresses api`
+- Handoff: `docs/SESSION-HANDOFF-GATE-H-PR7B.md`
+
+### Estado técnico PR7B
+
+- Customer Contacts + Addresses API foundation integrada em `/v1/customers/{customerId}`.
+- Rotas entregues:
+  - `GET /v1/customers/{customerId}/contacts`;
+  - `POST /v1/customers/{customerId}/contacts`;
+  - `PATCH /v1/customers/{customerId}/contacts/{contactId}`;
+  - `GET /v1/customers/{customerId}/addresses`;
+  - `POST /v1/customers/{customerId}/addresses`;
+  - `PATCH /v1/customers/{customerId}/addresses/{addressId}`.
+- Contacts/addresses herdam acesso do customer pai.
+- Child scoping preservado por `tenantId + customerId + contactId/addressId`.
+- `is_primary=true` em Postgres usa `withTransaction(...)` + `pg_advisory_xact_lock(hashtext(tenantId:customerId))` para manter unset siblings + insert/update atômicos.
+- Sem migration nova; schema já existia em `005_customers_core.sql`.
+
+### Validações registradas PR7B
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 133/133 |
+| `npm run db:migrate` | ✅ PASS — 0 applied / 5 skipped |
+| `npm run test:smoke:db` | ✅ PASS — 7/7 |
+| `git diff --check` | ✅ PASS |
+
+### Fora de escopo mantido
+
+- Sem products/prices/payment terms.
+- Sem frontend.
+- Sem commercial profile/credit rules/tax profile.
+- Sem customer import/search avançado/delete físico/ownership transfer.
+- Sem RBAC runtime completo, `GESTOR_COMERCIAL` ou audit events de denied.
+- Sem mudança em quote para exigir contato/endereço.
+- Sem mudança ORC→PED.
+- `erp_app_flow_map.html`: continua untracked e fora do PR.
+
+### Nota futura não bloqueante
+
+- Avaliar hardening com constraint parcial no banco para garantir estruturalmente um único `is_primary=true` por `tenantId/customerId`.
+
+### Próximo ponto
+
+Planejar próximo slice técnico com autorização explícita. Não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem plano/review próprio.
 
 ## Checkpoint da sessão (2026-06-06 pós-PR6 merge)
 
@@ -260,6 +318,12 @@ Gate G inicial — ORC→PED + migration runner: **✅ mergeado em `6d7cd19`**.
 Gate G PR5A — represented companies foundation: **✅ mergeado em `ccb1c82`**.
 
 Gate G PR5B — represented company enforcement/config: **✅ mergeado em `3224458`**.
+
+Gate G PR6 — customers foundation: **✅ mergeado em `47f5130`**.
+
+Gate H PR7A — Customer API Core: **✅ mergeado em `6366729`**.
+
+Gate H PR7B — Customer Contacts + Addresses API: **✅ mergeado em `abe113c`**.
 
 Próximo ponto: **planejar próximo slice técnico com autorização explícita**.
 
