@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import {
   PostgresClient,
+  PostgresCustomerAddressRepository,
+  PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresOrderRepository,
   PostgresQuoteRepository,
@@ -376,6 +378,69 @@ describe('db smoke (real postgres)', () => {
     expect(duplicateResponse.status).toBe(422);
     const duplicate = await duplicateResponse.json() as { code: string };
     expect(duplicate.code).toBe('DUPLICATE_CUSTOMER_DOCUMENT');
+  });
+
+  it('exercises Customer Contacts + Addresses API foundation against real postgres', async () => {
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
+      customerContactRepository: new PostgresCustomerContactRepository(db),
+      customerAddressRepository: new PostgresCustomerAddressRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-customer-child-api-${now}`,
+      'x-tenant-id': tenantId,
+      'content-type': 'application/json',
+    };
+    const customerId = `customer-child-api-smoke-${now}`;
+
+    await pgClient.query(
+      `INSERT INTO customers (id, tenant_id, legal_name, document_type, document_number, status, owner_id, representative_id)
+       VALUES ($1, $2, $3, 'cnpj', $4, 'active', $5, $5)
+       ON CONFLICT (id) DO NOTHING`,
+      [customerId, tenantId, `Customer Child API Smoke ${now}`, `DOC-CHILD-API-SMOKE-${now}`, headers['x-actor-id']]
+    );
+
+    const createContact = await api(new Request(`http://localhost/v1/customers/${customerId}/contacts`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `contact-api-smoke-${now}`, name: 'Contato Smoke', email: 'smoke@example.com', is_primary: true }),
+    }));
+    expect(createContact.status).toBe(201);
+
+    const listContacts = await api(new Request(`http://localhost/v1/customers/${customerId}/contacts`, { headers }));
+    expect(listContacts.status).toBe(200);
+    const contacts = await listContacts.json() as { items: Array<{ id: string; isPrimary: boolean }> };
+    expect(contacts.items.some((item) => item.id === `contact-api-smoke-${now}` && item.isPrimary)).toBe(true);
+
+    const patchContact = await api(new Request(`http://localhost/v1/customers/${customerId}/contacts/contact-api-smoke-${now}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ phone: '11999999999' }),
+    }));
+    expect(patchContact.status).toBe(200);
+
+    const createAddress = await api(new Request(`http://localhost/v1/customers/${customerId}/addresses`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `address-api-smoke-${now}`, street: 'Rua Smoke', city: 'São Paulo', state: 'SP', is_primary: true }),
+    }));
+    expect(createAddress.status).toBe(201);
+
+    const listAddresses = await api(new Request(`http://localhost/v1/customers/${customerId}/addresses`, { headers }));
+    expect(listAddresses.status).toBe(200);
+    const addresses = await listAddresses.json() as { items: Array<{ id: string; country: string; isPrimary: boolean }> };
+    expect(addresses.items.some((item) => item.id === `address-api-smoke-${now}` && item.country === 'BR' && item.isPrimary)).toBe(true);
+
+    const patchAddress = await api(new Request(`http://localhost/v1/customers/${customerId}/addresses/address-api-smoke-${now}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ number: '100' }),
+    }));
+    expect(patchAddress.status).toBe(200);
   });
 
   it('validates represented companies nullable foundation', async () => {

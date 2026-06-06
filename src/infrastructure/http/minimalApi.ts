@@ -1,5 +1,7 @@
 import { APPLICATION_ERROR_CODES } from '../../application/errors.js';
 import type { ApplicationResult } from '../../application/result.js';
+import { createCustomerAddressUseCase, listCustomerAddressesUseCase, updateCustomerAddressUseCase } from '../../application/useCases/customerAddresses.js';
+import { createCustomerContactUseCase, listCustomerContactsUseCase, updateCustomerContactUseCase } from '../../application/useCases/customerContacts.js';
 import { createCustomerUseCase, getCustomerUseCase, listCustomersUseCase, updateCustomerUseCase } from '../../application/useCases/customers.js';
 import { adjustOrderUseCase, cancelOrderUseCase } from '../../application/useCases/closeOrder.js';
 import { confirmQuoteUseCase } from '../../application/useCases/confirmQuote.js';
@@ -8,6 +10,8 @@ import { registerDocumentCommunicationUseCase } from '../../application/useCases
 import { registerSimpleInvoiceUseCase } from '../../application/useCases/registerSimpleInvoice.js';
 import { updateQuote } from '../../application/useCases/updateQuote.js';
 import type { CustomerRepository } from '../../application/ports/customerRepository.js';
+import type { CustomerContactRepository } from '../../application/ports/customerContactRepository.js';
+import type { CustomerAddressRepository } from '../../application/ports/customerAddressRepository.js';
 import type { OrderRepository } from '../../application/ports/orderRepository.js';
 import type { QuoteRepository } from '../../application/ports/quoteRepository.js';
 import type { AccessContext } from '../../domain/ownership.js';
@@ -18,6 +22,8 @@ interface ApiDeps {
   quoteRepository: QuoteRepository;
   orderRepository: OrderRepository;
   customerRepository: CustomerRepository;
+  customerContactRepository?: CustomerContactRepository;
+  customerAddressRepository?: CustomerAddressRepository;
 }
 
 export function createMinimalHttpApi(deps: ApiDeps) {
@@ -74,6 +80,76 @@ export function createMinimalHttpApi(deps: ApiDeps) {
         const result = await updateCustomerUseCase(
           { customerRepository: deps.customerRepository },
           { actor, customerId, payload: body }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'GET' && url.pathname.match(/^\/v1\/customers\/[^/]+\/contacts$/)) {
+        const customerId = url.pathname.split('/')[3] ?? '';
+        const customerContactRepository = deps.customerContactRepository;
+        if (!customerContactRepository) return dependencyUnavailable('Customer contact repository dependency unavailable');
+        const result = await listCustomerContactsUseCase(
+          { customerRepository: deps.customerRepository, customerContactRepository },
+          { actor, customerId }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'POST' && url.pathname.match(/^\/v1\/customers\/[^/]+\/contacts$/)) {
+        const customerId = url.pathname.split('/')[3] ?? '';
+        const customerContactRepository = deps.customerContactRepository;
+        if (!customerContactRepository) return dependencyUnavailable('Customer contact repository dependency unavailable');
+        const body = await request.json() as Record<string, unknown>;
+        const result = await createCustomerContactUseCase(
+          { customerRepository: deps.customerRepository, customerContactRepository },
+          { actor, customerId, payload: body }
+        );
+        return mapResult(result, 201);
+      }
+
+      if (method === 'PATCH' && url.pathname.match(/^\/v1\/customers\/[^/]+\/contacts\/[^/]+$/)) {
+        const [, , , customerId, , contactId] = url.pathname.split('/');
+        const customerContactRepository = deps.customerContactRepository;
+        if (!customerContactRepository) return dependencyUnavailable('Customer contact repository dependency unavailable');
+        const body = await request.json() as Record<string, unknown>;
+        const result = await updateCustomerContactUseCase(
+          { customerRepository: deps.customerRepository, customerContactRepository },
+          { actor, customerId: customerId ?? '', contactId: contactId ?? '', payload: body }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'GET' && url.pathname.match(/^\/v1\/customers\/[^/]+\/addresses$/)) {
+        const customerId = url.pathname.split('/')[3] ?? '';
+        const customerAddressRepository = deps.customerAddressRepository;
+        if (!customerAddressRepository) return dependencyUnavailable('Customer address repository dependency unavailable');
+        const result = await listCustomerAddressesUseCase(
+          { customerRepository: deps.customerRepository, customerAddressRepository },
+          { actor, customerId }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'POST' && url.pathname.match(/^\/v1\/customers\/[^/]+\/addresses$/)) {
+        const customerId = url.pathname.split('/')[3] ?? '';
+        const customerAddressRepository = deps.customerAddressRepository;
+        if (!customerAddressRepository) return dependencyUnavailable('Customer address repository dependency unavailable');
+        const body = await request.json() as Record<string, unknown>;
+        const result = await createCustomerAddressUseCase(
+          { customerRepository: deps.customerRepository, customerAddressRepository },
+          { actor, customerId, payload: body }
+        );
+        return mapResult(result, 201);
+      }
+
+      if (method === 'PATCH' && url.pathname.match(/^\/v1\/customers\/[^/]+\/addresses\/[^/]+$/)) {
+        const [, , , customerId, , addressId] = url.pathname.split('/');
+        const customerAddressRepository = deps.customerAddressRepository;
+        if (!customerAddressRepository) return dependencyUnavailable('Customer address repository dependency unavailable');
+        const body = await request.json() as Record<string, unknown>;
+        const result = await updateCustomerAddressUseCase(
+          { customerRepository: deps.customerRepository, customerAddressRepository },
+          { actor, customerId: customerId ?? '', addressId: addressId ?? '', payload: body }
         );
         return mapResult(result, 200);
       }
@@ -185,6 +261,10 @@ function isDependencyUnavailableError(error: unknown): boolean {
   return message.includes('connect') || message.includes('connection terminated') || message.includes('econnrefused');
 }
 
+function dependencyUnavailable(message: string): Response {
+  return json({ code: 'SERVICE_UNAVAILABLE', message }, 503);
+}
+
 type ActorBuildResult =
   | { ok: true; actor: AccessContext }
   | { ok: false; status: 401 | 403 };
@@ -207,6 +287,8 @@ function mapResult(result: ApplicationResult<CommercialDocument | unknown>, succ
   const error = result.error;
   if (error.code === APPLICATION_ERROR_CODES.DOCUMENT_NOT_FOUND) return json(error, 404);
   if (error.code === APPLICATION_ERROR_CODES.CUSTOMER_NOT_FOUND) return json(error, 404);
+  if (error.code === APPLICATION_ERROR_CODES.CUSTOMER_CONTACT_NOT_FOUND) return json(error, 404);
+  if (error.code === APPLICATION_ERROR_CODES.CUSTOMER_ADDRESS_NOT_FOUND) return json(error, 404);
   if (error.code === APPLICATION_ERROR_CODES.FORBIDDEN) return json(error, 403);
   if (error.code === APPLICATION_ERROR_CODES.CONFLICT_ALREADY_CONFIRMED) return json(error, 409);
   if (

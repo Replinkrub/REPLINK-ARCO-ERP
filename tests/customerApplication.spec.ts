@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   APPLICATION_ERROR_CODES,
+  InMemoryCustomerAddressRepository,
+  InMemoryCustomerContactRepository,
   InMemoryCustomerRepository,
+  createCustomerAddressUseCase,
+  createCustomerContactUseCase,
   createCustomerUseCase,
   getCustomerUseCase,
+  listCustomerAddressesUseCase,
+  listCustomerContactsUseCase,
   listCustomersUseCase,
+  updateCustomerAddressUseCase,
+  updateCustomerContactUseCase,
   updateCustomerUseCase,
 } from '../src/index.js';
 
@@ -101,5 +109,135 @@ describe('customer application flow', () => {
     expect(statusOnly.data.legalName).toBe('Cliente Parcial');
     expect(statusOnly.data.documentNumber).toBe('PARTIAL-1');
     expect(statusOnly.data.status).toBe('inactive');
+  });
+
+  it('creates, lists and patches customer contacts with parent ownership guard', async () => {
+    const customerRepository = new InMemoryCustomerRepository([
+      { id: 'customer-owner-1', tenantId: 'tenant-1', status: 'active', legalName: 'Owner 1', documentType: 'cnpj', documentNumber: 'C1', ownerId: 'rep-1', representativeId: 'rep-1' },
+      { id: 'customer-owner-2', tenantId: 'tenant-1', status: 'active', legalName: 'Owner 2', documentType: 'cnpj', documentNumber: 'C2', ownerId: 'rep-2', representativeId: 'rep-2' },
+    ]);
+    const customerContactRepository = new InMemoryCustomerContactRepository();
+    const admin = { role: 'ADMIN' as const, actorId: 'admin-1', actorTenantId: 'tenant-1' };
+    const rep1 = { role: 'REPRESENTANTE' as const, actorId: 'rep-1', actorTenantId: 'tenant-1' };
+
+    const created = await createCustomerContactUseCase(
+      { customerRepository, customerContactRepository },
+      { actor: admin, customerId: 'customer-owner-1', payload: { id: 'contact-1', name: 'Contato 1', email: 'c1@example.com', is_primary: true } }
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(created.data.status).toBe('active');
+    expect(created.data.isPrimary).toBe(true);
+
+    const list = await listCustomerContactsUseCase({ customerRepository, customerContactRepository }, { actor: admin, customerId: 'customer-owner-1' });
+    expect(list.ok).toBe(true);
+    if (list.ok) expect(list.data.items).toHaveLength(1);
+
+    const secondPrimary = await createCustomerContactUseCase(
+      { customerRepository, customerContactRepository },
+      { actor: admin, customerId: 'customer-owner-1', payload: { id: 'contact-2', name: 'Contato 2', is_primary: true } }
+    );
+    expect(secondPrimary.ok).toBe(true);
+    const contactsAfterPrimary = await listCustomerContactsUseCase({ customerRepository, customerContactRepository }, { actor: admin, customerId: 'customer-owner-1' });
+    expect(contactsAfterPrimary.ok).toBe(true);
+    if (contactsAfterPrimary.ok) {
+      expect(contactsAfterPrimary.data.items.find((item) => item.id === 'contact-2')?.isPrimary).toBe(true);
+      expect(contactsAfterPrimary.data.items.find((item) => item.id === 'contact-1')?.isPrimary).toBe(false);
+    }
+
+    const patched = await updateCustomerContactUseCase(
+      { customerRepository, customerContactRepository },
+      { actor: admin, customerId: 'customer-owner-1', contactId: 'contact-1', payload: { phone: '11999999999' } }
+    );
+    expect(patched.ok).toBe(true);
+    if (patched.ok) {
+      expect(patched.data.name).toBe('Contato 1');
+      expect(patched.data.email).toBe('c1@example.com');
+      expect(patched.data.phone).toBe('11999999999');
+    }
+
+    const forbidden = await listCustomerContactsUseCase({ customerRepository, customerContactRepository }, { actor: rep1, customerId: 'customer-owner-2' });
+    expect(forbidden.ok).toBe(false);
+    if (!forbidden.ok) expect(forbidden.error.code).toBe(APPLICATION_ERROR_CODES.FORBIDDEN);
+
+    const wrongCustomer = await updateCustomerContactUseCase(
+      { customerRepository, customerContactRepository },
+      { actor: admin, customerId: 'customer-owner-2', contactId: 'contact-1', payload: { name: 'Wrong' } }
+    );
+    expect(wrongCustomer.ok).toBe(false);
+    if (!wrongCustomer.ok) expect(wrongCustomer.error.code).toBe(APPLICATION_ERROR_CODES.CUSTOMER_CONTACT_NOT_FOUND);
+
+    const invalid = await createCustomerContactUseCase({ customerRepository, customerContactRepository }, { actor: admin, customerId: 'customer-owner-1', payload: { email: 'missing-name@example.com' } });
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.error.code).toBe(APPLICATION_ERROR_CODES.VALIDATION_ERROR);
+
+    const outOfScope = await createCustomerContactUseCase({ customerRepository, customerContactRepository }, { actor: admin, customerId: 'customer-owner-1', payload: { name: 'Contato', tenant_id: 'tenant-2' } });
+    expect(outOfScope.ok).toBe(false);
+    if (!outOfScope.ok) expect(outOfScope.error.code).toBe(APPLICATION_ERROR_CODES.VALIDATION_ERROR);
+  });
+
+  it('creates, lists and patches customer addresses with parent ownership guard', async () => {
+    const customerRepository = new InMemoryCustomerRepository([
+      { id: 'customer-owner-1', tenantId: 'tenant-1', status: 'active', legalName: 'Owner 1', documentType: 'cnpj', documentNumber: 'A1', ownerId: 'rep-1', representativeId: 'rep-1' },
+      { id: 'customer-owner-2', tenantId: 'tenant-1', status: 'active', legalName: 'Owner 2', documentType: 'cnpj', documentNumber: 'A2', ownerId: 'rep-2', representativeId: 'rep-2' },
+    ]);
+    const customerAddressRepository = new InMemoryCustomerAddressRepository();
+    const admin = { role: 'ADMIN' as const, actorId: 'admin-1', actorTenantId: 'tenant-1' };
+    const rep1 = { role: 'REPRESENTANTE' as const, actorId: 'rep-1', actorTenantId: 'tenant-1' };
+
+    const created = await createCustomerAddressUseCase(
+      { customerRepository, customerAddressRepository },
+      { actor: admin, customerId: 'customer-owner-1', payload: { id: 'address-1', street: 'Rua 1', city: 'São Paulo', state: 'SP', is_primary: true } }
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(created.data.country).toBe('BR');
+    expect(created.data.status).toBe('active');
+
+    const list = await listCustomerAddressesUseCase({ customerRepository, customerAddressRepository }, { actor: admin, customerId: 'customer-owner-1' });
+    expect(list.ok).toBe(true);
+    if (list.ok) expect(list.data.items).toHaveLength(1);
+
+    const secondPrimary = await createCustomerAddressUseCase(
+      { customerRepository, customerAddressRepository },
+      { actor: admin, customerId: 'customer-owner-1', payload: { id: 'address-2', street: 'Rua 2', city: 'São Paulo', state: 'SP', is_primary: true } }
+    );
+    expect(secondPrimary.ok).toBe(true);
+    const addressesAfterPrimary = await listCustomerAddressesUseCase({ customerRepository, customerAddressRepository }, { actor: admin, customerId: 'customer-owner-1' });
+    expect(addressesAfterPrimary.ok).toBe(true);
+    if (addressesAfterPrimary.ok) {
+      expect(addressesAfterPrimary.data.items.find((item) => item.id === 'address-2')?.isPrimary).toBe(true);
+      expect(addressesAfterPrimary.data.items.find((item) => item.id === 'address-1')?.isPrimary).toBe(false);
+    }
+
+    const patched = await updateCustomerAddressUseCase(
+      { customerRepository, customerAddressRepository },
+      { actor: admin, customerId: 'customer-owner-1', addressId: 'address-1', payload: { number: '100' } }
+    );
+    expect(patched.ok).toBe(true);
+    if (patched.ok) {
+      expect(patched.data.street).toBe('Rua 1');
+      expect(patched.data.city).toBe('São Paulo');
+      expect(patched.data.number).toBe('100');
+    }
+
+    const forbidden = await listCustomerAddressesUseCase({ customerRepository, customerAddressRepository }, { actor: rep1, customerId: 'customer-owner-2' });
+    expect(forbidden.ok).toBe(false);
+    if (!forbidden.ok) expect(forbidden.error.code).toBe(APPLICATION_ERROR_CODES.FORBIDDEN);
+
+    const wrongCustomer = await updateCustomerAddressUseCase(
+      { customerRepository, customerAddressRepository },
+      { actor: admin, customerId: 'customer-owner-2', addressId: 'address-1', payload: { street: 'Wrong' } }
+    );
+    expect(wrongCustomer.ok).toBe(false);
+    if (!wrongCustomer.ok) expect(wrongCustomer.error.code).toBe(APPLICATION_ERROR_CODES.CUSTOMER_ADDRESS_NOT_FOUND);
+
+    const invalid = await createCustomerAddressUseCase({ customerRepository, customerAddressRepository }, { actor: admin, customerId: 'customer-owner-1', payload: { street: 'Rua sem cidade' } });
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.error.code).toBe(APPLICATION_ERROR_CODES.VALIDATION_ERROR);
+
+    const outOfScope = await createCustomerAddressUseCase({ customerRepository, customerAddressRepository }, { actor: admin, customerId: 'customer-owner-1', payload: { street: 'Rua 2', city: 'SP', state: 'SP', commercial_profile: {} } });
+    expect(outOfScope.ok).toBe(false);
+    if (!outOfScope.ok) expect(outOfScope.error.code).toBe(APPLICATION_ERROR_CODES.VALIDATION_ERROR);
   });
 });
