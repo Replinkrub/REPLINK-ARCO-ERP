@@ -1,5 +1,6 @@
 import { APPLICATION_ERROR_CODES } from '../../application/errors.js';
 import type { ApplicationResult } from '../../application/result.js';
+import { createCustomerUseCase, getCustomerUseCase, listCustomersUseCase, updateCustomerUseCase } from '../../application/useCases/customers.js';
 import { adjustOrderUseCase, cancelOrderUseCase } from '../../application/useCases/closeOrder.js';
 import { confirmQuoteUseCase } from '../../application/useCases/confirmQuote.js';
 import { createQuoteUseCase } from '../../application/useCases/createQuote.js';
@@ -35,6 +36,47 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       const actor = actorResult.actor;
 
       const method = request.method.toUpperCase();
+
+      if (method === 'GET' && url.pathname === '/v1/customers') {
+        const result = await listCustomersUseCase(
+          { customerRepository: deps.customerRepository },
+          {
+            actor,
+            page: Number(url.searchParams.get('page') ?? 1),
+            pageSize: Number(url.searchParams.get('page_size') ?? 20),
+            q: url.searchParams.get('q') ?? undefined,
+          }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'POST' && url.pathname === '/v1/customers') {
+        const body = await request.json() as Record<string, unknown>;
+        const result = await createCustomerUseCase(
+          { customerRepository: deps.customerRepository },
+          { actor, payload: body }
+        );
+        return mapResult(result, 201);
+      }
+
+      if (method === 'GET' && url.pathname.match(/^\/v1\/customers\/[^/]+$/)) {
+        const customerId = url.pathname.split('/')[3] ?? '';
+        const result = await getCustomerUseCase(
+          { customerRepository: deps.customerRepository },
+          { actor, customerId }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'PATCH' && url.pathname.match(/^\/v1\/customers\/[^/]+$/)) {
+        const customerId = url.pathname.split('/')[3] ?? '';
+        const body = await request.json() as Record<string, unknown>;
+        const result = await updateCustomerUseCase(
+          { customerRepository: deps.customerRepository },
+          { actor, customerId, payload: body }
+        );
+        return mapResult(result, 200);
+      }
 
       if (method === 'POST' && url.pathname === '/v0/quotes') {
         const body = await request.json() as Record<string, unknown>;
@@ -157,19 +199,21 @@ function buildActorFromHeaders(headers: Headers, environmentTenantId: string): A
   return { ok: true, actor: { role, actorId, actorTenantId: environmentTenantId } };
 }
 
-function mapResult(result: ApplicationResult<CommercialDocument>, successStatus: number): Response {
+function mapResult(result: ApplicationResult<CommercialDocument | unknown>, successStatus: number): Response {
   if (result.ok) {
     return json(result.data, successStatus);
   }
 
   const error = result.error;
   if (error.code === APPLICATION_ERROR_CODES.DOCUMENT_NOT_FOUND) return json(error, 404);
+  if (error.code === APPLICATION_ERROR_CODES.CUSTOMER_NOT_FOUND) return json(error, 404);
   if (error.code === APPLICATION_ERROR_CODES.FORBIDDEN) return json(error, 403);
   if (error.code === APPLICATION_ERROR_CODES.CONFLICT_ALREADY_CONFIRMED) return json(error, 409);
   if (
     error.code === APPLICATION_ERROR_CODES.VALIDATION_ERROR
     || error.code === APPLICATION_ERROR_CODES.REQUIRED_CUSTOMER_ID
     || error.code === APPLICATION_ERROR_CODES.CUSTOMER_NOT_AVAILABLE
+    || error.code === APPLICATION_ERROR_CODES.DUPLICATE_CUSTOMER_DOCUMENT
     || error.code === APPLICATION_ERROR_CODES.REQUIRED_REPRESENTED_COMPANY
   ) {
     return json(error, 422);
