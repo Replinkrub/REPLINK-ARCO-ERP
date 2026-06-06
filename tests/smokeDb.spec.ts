@@ -314,6 +314,70 @@ describe('db smoke (real postgres)', () => {
     );
   });
 
+  it('exercises Customer API Core against real postgres', async () => {
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-customer-api-${now}`,
+      'x-tenant-id': tenantId,
+      'content-type': 'application/json',
+    };
+    const customerId = `customer-api-smoke-${now}`;
+    const documentNumber = `DOC-API-SMOKE-${now}`;
+
+    const createResponse = await api(new Request('http://localhost/v1/customers', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        id: customerId,
+        legal_name: `Customer API Smoke ${now}`,
+        document_type: 'cnpj',
+        document_number: documentNumber,
+      }),
+    }));
+    expect(createResponse.status).toBe(201);
+
+    const customerRow = await pgClient.query('SELECT id, tenant_id, status FROM customers WHERE id = $1 LIMIT 1', [customerId]);
+    expect(customerRow.rowCount).toBe(1);
+    expect(customerRow.rows[0]?.tenant_id).toBe(tenantId);
+
+    const listResponse = await api(new Request(`http://localhost/v1/customers?q=${documentNumber}`, { headers }));
+    expect(listResponse.status).toBe(200);
+    const list = await listResponse.json() as { items: Array<{ id: string }> };
+    expect(list.items.some((item) => item.id === customerId)).toBe(true);
+
+    const getResponse = await api(new Request(`http://localhost/v1/customers/${customerId}`, { headers }));
+    expect(getResponse.status).toBe(200);
+
+    const patchResponse = await api(new Request(`http://localhost/v1/customers/${customerId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ legal_name: `Customer API Smoke Updated ${now}`, status: 'inactive' }),
+    }));
+    expect(patchResponse.status).toBe(200);
+    const patched = await patchResponse.json() as { status: string; legalName: string };
+    expect(patched.status).toBe('inactive');
+
+    const duplicateResponse = await api(new Request('http://localhost/v1/customers', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        id: `customer-api-smoke-duplicate-${now}`,
+        legal_name: `Customer API Smoke Duplicate ${now}`,
+        document_type: 'cnpj',
+        document_number: documentNumber,
+      }),
+    }));
+    expect(duplicateResponse.status).toBe(422);
+    const duplicate = await duplicateResponse.json() as { code: string };
+    expect(duplicate.code).toBe('DUPLICATE_CUSTOMER_DOCUMENT');
+  });
+
   it('validates represented companies nullable foundation', async () => {
     const otherTenantId = `tenant-represented-other-${now}`;
     const representedCompanyId = `represented-smoke-${now}`;

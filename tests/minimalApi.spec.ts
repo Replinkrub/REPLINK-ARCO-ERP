@@ -41,17 +41,140 @@ function actorHeaders(overrides: Record<string, string> = {}) {
   };
 }
 
-function customerRepository(customers: Array<{ id: string; tenantId?: string; status?: 'active' | 'inactive' }> = []) {
+function customerRepository(customers: Array<{
+  id: string;
+  tenantId?: string;
+  status?: 'active' | 'inactive';
+  legalName?: string;
+  documentType?: string;
+  documentNumber?: string;
+  ownerId?: string;
+  representativeId?: string;
+}> = []) {
   return new InMemoryCustomerRepository(
     customers.map((customer) => ({
       id: customer.id,
       tenantId: customer.tenantId ?? 'tenant-env-1',
       status: customer.status ?? 'active',
+      legalName: customer.legalName,
+      documentType: customer.documentType,
+      documentNumber: customer.documentNumber,
+      ownerId: customer.ownerId,
+      representativeId: customer.representativeId,
     }))
   );
 }
 
 describe('minimal HTTP API', () => {
+  it('supports Customer API Core create/list/get/patch', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+      });
+
+      const createResponse = await api(new Request('http://localhost/v1/customers', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({
+          id: 'customer-api-1',
+          legal_name: 'Cliente API',
+          document_type: 'cnpj',
+          document_number: '123',
+        }),
+      }));
+      expect(createResponse.status).toBe(201);
+      const created = await createResponse.json() as { id: string; status: string; tenantId: string; ownerId: string };
+      expect(created).toMatchObject({ id: 'customer-api-1', status: 'active', tenantId: 'tenant-env-1', ownerId: 'admin-1' });
+
+      const listResponse = await api(new Request('http://localhost/v1/customers?q=Cliente', { headers: actorHeaders() }));
+      expect(listResponse.status).toBe(200);
+      const list = await listResponse.json() as { items: Array<{ id: string }>; total: number };
+      expect(list.total).toBe(1);
+      expect(list.items[0]?.id).toBe('customer-api-1');
+
+      const getResponse = await api(new Request('http://localhost/v1/customers/customer-api-1', { headers: actorHeaders() }));
+      expect(getResponse.status).toBe(200);
+
+      const patchResponse = await api(new Request('http://localhost/v1/customers/customer-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ legal_name: 'Cliente API Editado', status: 'inactive' }),
+      }));
+      expect(patchResponse.status).toBe(200);
+      const patched = await patchResponse.json() as { legalName: string; status: string };
+      expect(patched.legalName).toBe('Cliente API Editado');
+      expect(patched.status).toBe('inactive');
+    });
+  });
+
+  it('rejects invalid and duplicate customer API payloads deterministically', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+      });
+
+      const invalid = await api(new Request('http://localhost/v1/customers', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ legal_name: 'Cliente sem documento' }),
+      }));
+      expect(invalid.status).toBe(422);
+      await expect(invalid.json()).resolves.toMatchObject({ code: 'VALIDATION_ERROR' });
+
+      const first = await api(new Request('http://localhost/v1/customers', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'customer-dup-1', legal_name: 'Cliente 1', document_type: 'cnpj', document_number: 'DUP' }),
+      }));
+      expect(first.status).toBe(201);
+
+      const duplicate = await api(new Request('http://localhost/v1/customers', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'customer-dup-2', legal_name: 'Cliente 2', document_type: 'cnpj', document_number: 'DUP' }),
+      }));
+      expect(duplicate.status).toBe(422);
+      await expect(duplicate.json()).resolves.toMatchObject({ code: 'DUPLICATE_CUSTOMER_DOCUMENT' });
+
+      const outOfScope = await api(new Request('http://localhost/v1/customers', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ legal_name: 'Cliente 3', document_type: 'cnpj', document_number: 'OUT', addresses: [] }),
+      }));
+      expect(outOfScope.status).toBe(422);
+      await expect(outOfScope.json()).resolves.toMatchObject({ code: 'VALIDATION_ERROR' });
+    });
+  });
+
+  it('scopes Customer API Core by tenant and representative ownership', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([
+          { id: 'customer-rep-1', legalName: 'Rep 1', documentType: 'cnpj', documentNumber: 'R1', ownerId: 'rep-1', representativeId: 'rep-1' },
+          { id: 'customer-rep-2', legalName: 'Rep 2', documentType: 'cnpj', documentNumber: 'R2', ownerId: 'rep-2', representativeId: 'rep-2' },
+        ]),
+      });
+
+      const repHeaders = actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' });
+      const listResponse = await api(new Request('http://localhost/v1/customers', { headers: repHeaders }));
+      expect(listResponse.status).toBe(200);
+      const list = await listResponse.json() as { items: Array<{ id: string }> };
+      expect(list.items.map((item) => item.id)).toEqual(['customer-rep-1']);
+
+      const deniedGet = await api(new Request('http://localhost/v1/customers/customer-rep-2', { headers: repHeaders }));
+      expect(deniedGet.status).toBe(404);
+
+      const tenantMismatch = await api(new Request('http://localhost/v1/customers', { headers: actorHeaders({ 'x-tenant-id': 'tenant-other' }) }));
+      expect(tenantMismatch.status).toBe(403);
+    });
+  });
+
   it('creates quote and confirms into order using use cases', async () => {
     await withEnvironmentTenant('tenant-env-1', async () => {
       const quoteRepository = new InMemoryQuoteRepository();
@@ -317,6 +440,18 @@ describe('minimal HTTP API', () => {
         },
         customerRepository: {
           findStatusByTenantAndId: async () => {
+            throw dbError;
+          },
+          list: async () => {
+            throw dbError;
+          },
+          getById: async () => {
+            throw dbError;
+          },
+          create: async () => {
+            throw dbError;
+          },
+          update: async () => {
             throw dbError;
           },
         },

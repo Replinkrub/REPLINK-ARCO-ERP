@@ -53,6 +53,53 @@ describe('postgres repositories', () => {
     expect(status).toBeNull();
   });
 
+  it('lists customers with tenant and representative ownership scope', async () => {
+    const db = new FakeSqlExecutor();
+    const repository = new PostgresCustomerRepository(db);
+
+    await repository.list({ tenantId: 'tenant-1', actorId: 'rep-1', role: 'REPRESENTANTE', page: 1, pageSize: 20, q: 'Cliente' });
+
+    expect(db.calls).toHaveLength(1);
+    expect(db.calls[0]?.text).toContain('FROM customers');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1');
+    expect(db.calls[0]?.text).toContain('owner_id = $2 OR representative_id = $2');
+    expect(db.calls[0]?.text).toContain('ILIKE $3');
+  });
+
+  it('creates customer using expected tenant-scoped columns', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [customerRow({ id: 'customer-db-1' })];
+    const repository = new PostgresCustomerRepository(db);
+
+    const result = await repository.create({
+      id: 'customer-db-1',
+      tenantId: 'tenant-1',
+      legalName: 'Cliente DB',
+      documentType: 'cnpj',
+      documentNumber: '123',
+      status: 'active',
+      ownerId: 'admin-1',
+      representativeId: 'admin-1',
+    });
+
+    expect(result.id).toBe('customer-db-1');
+    expect(db.calls[0]?.text).toContain('INSERT INTO customers');
+    expect(db.calls[0]?.values?.slice(0, 7)).toEqual(['customer-db-1', 'tenant-1', 'Cliente DB', null, 'cnpj', '123', 'active']);
+  });
+
+  it('gets customer using tenant and id visibility scope', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [customerRow({ id: 'customer-db-2' })];
+    const repository = new PostgresCustomerRepository(db);
+
+    const result = await repository.getById({ tenantId: 'tenant-1', actorId: 'admin-1', role: 'ADMIN', customerId: 'customer-db-2' });
+
+    expect(result?.id).toBe('customer-db-2');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1');
+    expect(db.calls[0]?.text).toContain('id = $3');
+    expect(db.calls[0]?.values).toEqual(['tenant-1', 'admin-1', 'customer-db-2']);
+  });
+
   it('enforces quote repository document type', async () => {
     const db = new FakeSqlExecutor();
     const repository = new PostgresQuoteRepository(db);
@@ -165,3 +212,22 @@ describe('postgres repositories', () => {
     expect(db.calls[0]?.text).not.toContain('ON CONFLICT (id) DO UPDATE SET');
   });
 });
+
+function customerRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'customer-db',
+    tenant_id: 'tenant-1',
+    legal_name: 'Cliente DB',
+    trade_name: null,
+    document_type: 'cnpj',
+    document_number: '123',
+    status: 'active',
+    segment: null,
+    notes: null,
+    owner_id: 'admin-1',
+    representative_id: 'admin-1',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}

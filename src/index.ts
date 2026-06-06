@@ -11,6 +11,7 @@ export * from './application/ports/quoteRepository.js';
 export * from './application/ports/orderRepository.js';
 export * from './application/ports/customerRepository.js';
 export * from './application/useCases/createQuote.js';
+export * from './application/useCases/customers.js';
 export * from './application/useCases/updateQuote.js';
 export * from './application/useCases/confirmQuote.js';
 export * from './application/useCases/registerDocumentCommunication.js';
