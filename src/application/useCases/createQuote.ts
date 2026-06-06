@@ -1,6 +1,7 @@
 import { createQuote as createQuoteDocument, type CommercialDocument } from '../../domain/commercialDocument.js';
 import { APPLICATION_ERROR_CODES } from '../errors.js';
 import { applicationFailure, applicationSuccess, type ApplicationResult } from '../result.js';
+import type { CustomerRepository } from '../ports/customerRepository.js';
 import type { QuoteRepository } from '../ports/quoteRepository.js';
 
 export interface CreateQuoteUseCaseInput {
@@ -17,6 +18,7 @@ export interface CreateQuoteUseCaseInput {
 
 export interface CreateQuoteUseCaseDeps {
   quoteRepository: QuoteRepository;
+  customerRepository: CustomerRepository;
 }
 
 export async function createQuoteUseCase(
@@ -28,6 +30,17 @@ export async function createQuoteUseCase(
     return applicationFailure(
       APPLICATION_ERROR_CODES.REQUIRED_CUSTOMER_ID,
       'Cliente é obrigatório para criar orçamento'
+    );
+  }
+
+  const customerStatus = await deps.customerRepository.findStatusByTenantAndId({
+    tenantId: input.tenantId,
+    customerId,
+  });
+  if (customerStatus !== 'active') {
+    return applicationFailure(
+      APPLICATION_ERROR_CODES.CUSTOMER_NOT_AVAILABLE,
+      'Cliente inválido ou indisponível'
     );
   }
 

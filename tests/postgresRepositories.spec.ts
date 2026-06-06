@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PostgresOrderRepository,
+  PostgresCustomerRepository,
   PostgresQuoteRepository,
   createQuote,
   convertQuoteToOrder,
@@ -28,6 +29,30 @@ class FakeSqlExecutor implements SqlExecutor {
 }
 
 describe('postgres repositories', () => {
+  it('looks up customer status scoped by tenant and id', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [{ status: 'active' }];
+    const repository = new PostgresCustomerRepository(db);
+
+    const status = await repository.findStatusByTenantAndId({ tenantId: 'tenant-1', customerId: 'customer-1' });
+
+    expect(status).toBe('active');
+    expect(db.calls).toHaveLength(1);
+    expect(db.calls[0]?.text).toContain('FROM customers');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1');
+    expect(db.calls[0]?.text).toContain('id = $2');
+    expect(db.calls[0]?.values).toEqual(['tenant-1', 'customer-1']);
+  });
+
+  it('returns null when customer is unavailable in tenant scope', async () => {
+    const db = new FakeSqlExecutor();
+    const repository = new PostgresCustomerRepository(db);
+
+    const status = await repository.findStatusByTenantAndId({ tenantId: 'tenant-1', customerId: 'missing' });
+
+    expect(status).toBeNull();
+  });
+
   it('enforces quote repository document type', async () => {
     const db = new FakeSqlExecutor();
     const repository = new PostgresQuoteRepository(db);

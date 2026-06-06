@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   APPLICATION_ERROR_CODES,
+  InMemoryCustomerRepository,
   InMemoryOrderRepository,
   InMemoryQuoteRepository,
   cancelOrderUseCase,
@@ -14,7 +15,7 @@ async function createConfirmedOrderForInvoice() {
   const orderRepository = new InMemoryOrderRepository();
 
   await createQuoteUseCase(
-    { quoteRepository },
+    { quoteRepository, customerRepository: new InMemoryCustomerRepository([{ id: 'customer-1', tenantId: 'tenant-1', status: 'active' }]) },
     {
       id: 'q-invoice-1',
       tenantId: 'tenant-1',

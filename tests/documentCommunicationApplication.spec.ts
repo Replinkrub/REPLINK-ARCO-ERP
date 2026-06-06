@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   APPLICATION_ERROR_CODES,
+  InMemoryCustomerRepository,
   InMemoryOrderRepository,
   InMemoryQuoteRepository,
   confirmQuoteUseCase,
@@ -8,13 +9,17 @@ import {
   registerDocumentCommunicationUseCase,
 } from '../src/index.js';
 
+function customerRepository() {
+  return new InMemoryCustomerRepository([{ id: 'customer-1', tenantId: 'tenant-1', status: 'active' }]);
+}
+
 describe('document communication application flow', () => {
   it('registra comunicação em quote sem alterar status e sem converter para order', async () => {
     const quoteRepository = new InMemoryQuoteRepository();
     const orderRepository = new InMemoryOrderRepository();
 
     await createQuoteUseCase(
-      { quoteRepository },
+      { quoteRepository, customerRepository: customerRepository() },
       {
         id: 'q-comm-quote-1',
         tenantId: 'tenant-1',
@@ -57,7 +62,7 @@ describe('document communication application flow', () => {
     const orderRepository = new InMemoryOrderRepository();
 
     await createQuoteUseCase(
-      { quoteRepository },
+      { quoteRepository, customerRepository: customerRepository() },
       {
         id: 'q-comm-order-1',
         tenantId: 'tenant-1',
@@ -130,7 +135,7 @@ describe('document communication application flow', () => {
     const orderRepository = new InMemoryOrderRepository();
 
     await createQuoteUseCase(
-      { quoteRepository },
+      { quoteRepository, customerRepository: customerRepository() },
       {
         id: 'q-comm-forbidden-1',
         tenantId: 'tenant-1',

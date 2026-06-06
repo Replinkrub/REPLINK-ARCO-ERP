@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import {
   PostgresClient,
+  PostgresCustomerRepository,
   PostgresOrderRepository,
   PostgresQuoteRepository,
   createMinimalHttpApi,
@@ -32,6 +33,12 @@ describe('db smoke (real postgres)', () => {
 
   beforeAll(async () => {
     await pgClient.connect();
+    await pgClient.query(
+      `INSERT INTO tenants (id, name, status)
+       VALUES ($1, $2, 'active')
+       ON CONFLICT (id) DO NOTHING`,
+      [tenantId, `Smoke Tenant ${now}`]
+    );
   });
 
   afterAll(async () => {
@@ -41,9 +48,16 @@ describe('db smoke (real postgres)', () => {
 
   it('persists quote + order through minimal HTTP API flow', async () => {
     process.env.APP_TENANT_ID = tenantId;
+    await pgClient.query(
+      `INSERT INTO customers (id, tenant_id, legal_name, document_type, document_number, status)
+       VALUES ($1, $2, $3, $4, $5, 'active')
+       ON CONFLICT (id) DO NOTHING`,
+      [`customer-smoke-${now}`, tenantId, `Customer Smoke ${now}`, 'cnpj', `DOC-SMOKE-${now}`]
+    );
     const api = createMinimalHttpApi({
       quoteRepository: new PostgresQuoteRepository(db),
       orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
     });
 
     const headers = {
@@ -240,6 +254,66 @@ describe('db smoke (real postgres)', () => {
     );
   });
 
+  it('validates customers tenant-scoped foundation', async () => {
+    const customerId = `customer-core-${now}`;
+    const otherTenantId = `tenant-customer-other-${now}`;
+
+    await pgClient.query('INSERT INTO tenants (id, name, status) VALUES ($1, $2, $3)', [
+      otherTenantId,
+      `Customer Other Tenant ${now}`,
+      'active',
+    ]);
+
+    await pgClient.query(
+      `INSERT INTO customers (id, tenant_id, legal_name, document_type, document_number, status)
+       VALUES ($1, $2, $3, $4, $5, 'active')`,
+      [customerId, tenantId, `Customer Core ${now}`, 'cnpj', `DOC-CUSTOMER-${now}`]
+    );
+
+    await pgClient.query(
+      `INSERT INTO customer_contacts (id, tenant_id, customer_id, name, status)
+       VALUES ($1, $2, $3, $4, 'active')`,
+      [`contact-core-${now}`, tenantId, customerId, `Contact ${now}`]
+    );
+    await pgClient.query(
+      `INSERT INTO customer_addresses (id, tenant_id, customer_id, address_type, street, city, state, status)
+       VALUES ($1, $2, $3, 'main', $4, $5, $6, 'active')`,
+      [`address-core-${now}`, tenantId, customerId, `Street ${now}`, 'Cidade', 'SP']
+    );
+    await pgClient.query(
+      `INSERT INTO customer_commercial_profiles (tenant_id, customer_id, credit_limit)
+       VALUES ($1, $2, $3)`,
+      [tenantId, customerId, 1000]
+    );
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO customer_contacts (id, tenant_id, customer_id, name, status)
+         VALUES ($1, $2, $3, $4, 'active')`,
+        [`contact-cross-${now}`, otherTenantId, customerId, `Cross Contact ${now}`]
+      ),
+      '23503'
+    );
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO customer_addresses (id, tenant_id, customer_id, address_type, street, city, state, status)
+         VALUES ($1, $2, $3, 'invalid', $4, $5, $6, 'active')`,
+        [`address-invalid-${now}`, tenantId, customerId, `Street ${now}`, 'Cidade', 'SP']
+      ),
+      '23514'
+    );
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO customer_commercial_profiles (tenant_id, customer_id, credit_limit)
+         VALUES ($1, $2, $3)`,
+        [tenantId, customerId, 2000]
+      ),
+      '23505'
+    );
+  });
+
   it('validates represented companies nullable foundation', async () => {
     const otherTenantId = `tenant-represented-other-${now}`;
     const representedCompanyId = `represented-smoke-${now}`;
@@ -358,9 +432,16 @@ describe('db smoke (real postgres)', () => {
     );
 
     process.env.APP_TENANT_ID = tenantId;
+    await pgClient.query(
+      `INSERT INTO customers (id, tenant_id, legal_name, document_type, document_number, status)
+       VALUES ($1, $2, $3, $4, $5, 'active')
+       ON CONFLICT (id) DO NOTHING`,
+      [`customer-represented-api-${now}`, tenantId, `Represented API Customer ${now}`, 'cnpj', `DOC-REP-API-${now}`]
+    );
     const api = createMinimalHttpApi({
       quoteRepository: new PostgresQuoteRepository(db),
       orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
     });
     const headers = {
       'x-actor-role': 'ADMIN',

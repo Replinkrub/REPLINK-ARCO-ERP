@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryOrderRepository, InMemoryQuoteRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryQuoteRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -41,12 +41,26 @@ function actorHeaders(overrides: Record<string, string> = {}) {
   };
 }
 
+function customerRepository(customers: Array<{ id: string; tenantId?: string; status?: 'active' | 'inactive' }> = []) {
+  return new InMemoryCustomerRepository(
+    customers.map((customer) => ({
+      id: customer.id,
+      tenantId: customer.tenantId ?? 'tenant-env-1',
+      status: customer.status ?? 'active',
+    }))
+  );
+}
+
 describe('minimal HTTP API', () => {
   it('creates quote and confirms into order using use cases', async () => {
     await withEnvironmentTenant('tenant-env-1', async () => {
       const quoteRepository = new InMemoryQuoteRepository();
       const orderRepository = new InMemoryOrderRepository();
-      const api = createMinimalHttpApi({ quoteRepository, orderRepository });
+      const api = createMinimalHttpApi({
+        quoteRepository,
+        orderRepository,
+        customerRepository: customerRepository([{ id: 'customer-1' }]),
+      });
 
       const createResponse = await api(
         new Request('http://localhost/v0/quotes', {
@@ -87,6 +101,7 @@ describe('minimal HTTP API', () => {
       const api = createMinimalHttpApi({
         quoteRepository: new InMemoryQuoteRepository(),
         orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
       });
 
       const response = await api(new Request('http://localhost/v0/quotes', {
@@ -103,11 +118,41 @@ describe('minimal HTTP API', () => {
     });
   });
 
+  it('rejects missing, inactive, or cross-tenant customers when creating quote', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([
+          { id: 'customer-inactive', status: 'inactive' },
+          { id: 'customer-cross', tenantId: 'tenant-other' },
+        ]),
+      });
+
+      for (const customerId of ['customer-missing', 'customer-inactive', 'customer-cross']) {
+        const response = await api(new Request('http://localhost/v0/quotes', {
+          method: 'POST',
+          headers: actorHeaders(),
+          body: JSON.stringify({ id: `q-http-${customerId}`, customerId, numberSequence: 1 }),
+        }));
+
+        expect(response.status).toBe(422);
+        const error = await response.json() as { code: string; message: string };
+        expect(error.code).toBe('CUSTOMER_NOT_AVAILABLE');
+        expect(error.message).toBe('Cliente inválido ou indisponível');
+      }
+    });
+  });
+
   it('accepts optional representedCompanyId without requiring it', async () => {
     await withEnvironmentTenant('tenant-env-1', async () => {
       const quoteRepository = new InMemoryQuoteRepository();
       const orderRepository = new InMemoryOrderRepository();
-      const api = createMinimalHttpApi({ quoteRepository, orderRepository });
+      const api = createMinimalHttpApi({
+        quoteRepository,
+        orderRepository,
+        customerRepository: customerRepository([{ id: 'customer-1' }]),
+      });
 
       const createResponse = await api(new Request('http://localhost/v0/quotes', {
         method: 'POST',
@@ -142,6 +187,7 @@ describe('minimal HTTP API', () => {
       const api = createMinimalHttpApi({
         quoteRepository: new InMemoryQuoteRepository(),
         orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-1' }]),
       });
 
       const response = await api(new Request('http://localhost/v0/quotes', {
@@ -161,6 +207,7 @@ describe('minimal HTTP API', () => {
       const api = createMinimalHttpApi({
         quoteRepository: new InMemoryQuoteRepository(),
         orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-1' }]),
       });
 
       const response = await api(new Request('http://localhost/v0/quotes', {
@@ -180,6 +227,7 @@ describe('minimal HTTP API', () => {
       const api = createMinimalHttpApi({
         quoteRepository: new InMemoryQuoteRepository(),
         orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-1' }]),
       });
 
       const response = await api(new Request('http://localhost/v0/quotes', {
@@ -204,6 +252,7 @@ describe('minimal HTTP API', () => {
       const api = createMinimalHttpApi({
         quoteRepository: new InMemoryQuoteRepository(),
         orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-1' }]),
       });
 
       const response = await api(new Request('http://localhost/v0/quotes', {
@@ -228,6 +277,7 @@ describe('minimal HTTP API', () => {
       const api = createMinimalHttpApi({
         quoteRepository: new InMemoryQuoteRepository(),
         orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-1' }]),
       });
 
       const response = await api(new Request('http://localhost/v0/quotes', { method: 'POST' }));
@@ -241,6 +291,7 @@ describe('minimal HTTP API', () => {
       expect(() => createMinimalHttpApi({
         quoteRepository: new InMemoryQuoteRepository(),
         orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-1' }]),
       })).toThrow('APP_TENANT_ID is required to resolve runtime tenant.');
     } finally {
       if (ORIGINAL_APP_TENANT_ID !== undefined) process.env.APP_TENANT_ID = ORIGINAL_APP_TENANT_ID;
@@ -263,6 +314,11 @@ describe('minimal HTTP API', () => {
           saveFromQuoteOnce: async () => ({ ok: true }),
           getById: async () => null,
           getBySourceQuoteId: async () => null,
+        },
+        customerRepository: {
+          findStatusByTenantAndId: async () => {
+            throw dbError;
+          },
         },
       });
 
