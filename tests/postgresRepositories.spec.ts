@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   PostgresOrderRepository,
+  PostgresCustomerAddressRepository,
+  PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresQuoteRepository,
   createQuote,
@@ -25,6 +27,10 @@ class FakeSqlExecutor implements SqlExecutor {
       oid: 0,
       fields: [],
     };
+  }
+
+  async withTransaction<T>(fn: (client: SqlExecutor) => Promise<T>): Promise<T> {
+    return fn(this);
   }
 }
 
@@ -98,6 +104,83 @@ describe('postgres repositories', () => {
     expect(db.calls[0]?.text).toContain('tenant_id = $1');
     expect(db.calls[0]?.text).toContain('id = $3');
     expect(db.calls[0]?.values).toEqual(['tenant-1', 'admin-1', 'customer-db-2']);
+  });
+
+  it('creates, lists and updates customer contacts scoped by tenant/customer with primary behavior', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [contactRow({ id: 'contact-db-1', is_primary: true })];
+    const repository = new PostgresCustomerContactRepository(db);
+
+    const created = await repository.create({
+      id: 'contact-db-1',
+      tenantId: 'tenant-1',
+      customerId: 'customer-1',
+      name: 'Contato DB',
+      email: 'db@example.com',
+      isPrimary: true,
+      status: 'active',
+    });
+
+    expect(created.id).toBe('contact-db-1');
+    expect(db.calls[0]?.text).toContain('pg_advisory_xact_lock');
+    expect(db.calls[1]?.text).toContain('UPDATE customer_contacts');
+    expect(db.calls[1]?.text).toContain('tenant_id = $1 AND customer_id = $2');
+    expect(db.calls[2]?.text).toContain('INSERT INTO customer_contacts');
+    expect(db.calls[2]?.values?.slice(0, 4)).toEqual(['contact-db-1', 'tenant-1', 'customer-1', 'Contato DB']);
+
+    db.calls = [];
+    await repository.listByCustomer({ tenantId: 'tenant-1', customerId: 'customer-1' });
+    expect(db.calls[0]?.text).toContain('FROM customer_contacts');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1 AND customer_id = $2');
+
+    db.calls = [];
+    await repository.update({ tenantId: 'tenant-1', customerId: 'customer-1', contactId: 'contact-db-1', patch: { phone: '11999999999' } });
+    expect(db.calls[0]?.text).toContain('WHERE tenant_id = $1 AND customer_id = $2 AND id = $3');
+    expect(db.calls[1]?.text).toContain('pg_advisory_xact_lock');
+    expect(db.calls[2]?.text).toContain('UPDATE customer_contacts');
+    expect(db.calls[2]?.text).toContain('id <> $3');
+    expect(db.calls[3]?.text).toContain('UPDATE customer_contacts SET');
+    expect(db.calls[3]?.values?.[2]).toBe('contact-db-1');
+  });
+
+  it('creates, lists and updates customer addresses scoped by tenant/customer with primary behavior', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [addressRow({ id: 'address-db-1', is_primary: true })];
+    const repository = new PostgresCustomerAddressRepository(db);
+
+    const created = await repository.create({
+      id: 'address-db-1',
+      tenantId: 'tenant-1',
+      customerId: 'customer-1',
+      addressType: 'main',
+      street: 'Rua DB',
+      city: 'São Paulo',
+      state: 'SP',
+      country: 'BR',
+      isPrimary: true,
+      status: 'active',
+    });
+
+    expect(created.id).toBe('address-db-1');
+    expect(db.calls[0]?.text).toContain('pg_advisory_xact_lock');
+    expect(db.calls[1]?.text).toContain('UPDATE customer_addresses');
+    expect(db.calls[1]?.text).toContain('tenant_id = $1 AND customer_id = $2');
+    expect(db.calls[2]?.text).toContain('INSERT INTO customer_addresses');
+    expect(db.calls[2]?.values?.slice(0, 6)).toEqual(['address-db-1', 'tenant-1', 'customer-1', 'main', null, 'Rua DB']);
+
+    db.calls = [];
+    await repository.listByCustomer({ tenantId: 'tenant-1', customerId: 'customer-1' });
+    expect(db.calls[0]?.text).toContain('FROM customer_addresses');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1 AND customer_id = $2');
+
+    db.calls = [];
+    await repository.update({ tenantId: 'tenant-1', customerId: 'customer-1', addressId: 'address-db-1', patch: { number: '100' } });
+    expect(db.calls[0]?.text).toContain('WHERE tenant_id = $1 AND customer_id = $2 AND id = $3');
+    expect(db.calls[1]?.text).toContain('pg_advisory_xact_lock');
+    expect(db.calls[2]?.text).toContain('UPDATE customer_addresses');
+    expect(db.calls[2]?.text).toContain('id <> $3');
+    expect(db.calls[3]?.text).toContain('UPDATE customer_addresses SET');
+    expect(db.calls[3]?.values?.[2]).toBe('address-db-1');
   });
 
   it('enforces quote repository document type', async () => {
@@ -226,6 +309,46 @@ function customerRow(overrides: Partial<Record<string, unknown>> = {}) {
     notes: null,
     owner_id: 'admin-1',
     representative_id: 'admin-1',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function contactRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'contact-db',
+    tenant_id: 'tenant-1',
+    customer_id: 'customer-1',
+    name: 'Contato DB',
+    role_title: null,
+    phone: null,
+    whatsapp: null,
+    email: null,
+    is_primary: false,
+    status: 'active',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function addressRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'address-db',
+    tenant_id: 'tenant-1',
+    customer_id: 'customer-1',
+    address_type: 'main',
+    zipcode: null,
+    street: 'Rua DB',
+    number: null,
+    complement: null,
+    district: null,
+    city: 'São Paulo',
+    state: 'SP',
+    country: 'BR',
+    is_primary: false,
+    status: 'active',
     created_at: new Date('2026-01-01T00:00:00.000Z'),
     updated_at: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,

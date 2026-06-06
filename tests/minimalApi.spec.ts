@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryQuoteRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryQuoteRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -106,6 +106,82 @@ describe('minimal HTTP API', () => {
       const patched = await patchResponse.json() as { legalName: string; status: string };
       expect(patched.legalName).toBe('Cliente API Editado');
       expect(patched.status).toBe('inactive');
+    });
+  });
+
+  it('supports Customer Contacts + Addresses API foundation routes', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-api-1', ownerId: 'admin-1', representativeId: 'admin-1' }]),
+        customerContactRepository: new InMemoryCustomerContactRepository(),
+        customerAddressRepository: new InMemoryCustomerAddressRepository(),
+      });
+
+      const createContact = await api(new Request('http://localhost/v1/customers/customer-api-1/contacts', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'contact-api-1', name: 'Contato API', email: 'contato@example.com' }),
+      }));
+      expect(createContact.status).toBe(201);
+
+      const listContacts = await api(new Request('http://localhost/v1/customers/customer-api-1/contacts', { headers: actorHeaders() }));
+      expect(listContacts.status).toBe(200);
+      const contacts = await listContacts.json() as { items: Array<{ id: string }> };
+      expect(contacts.items[0]?.id).toBe('contact-api-1');
+
+      const patchContact = await api(new Request('http://localhost/v1/customers/customer-api-1/contacts/contact-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ phone: '11999999999' }),
+      }));
+      expect(patchContact.status).toBe(200);
+      const patchedContact = await patchContact.json() as { name: string; phone: string };
+      expect(patchedContact.name).toBe('Contato API');
+      expect(patchedContact.phone).toBe('11999999999');
+
+      const createAddress = await api(new Request('http://localhost/v1/customers/customer-api-1/addresses', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'address-api-1', street: 'Rua API', city: 'São Paulo', state: 'SP' }),
+      }));
+      expect(createAddress.status).toBe(201);
+
+      const listAddresses = await api(new Request('http://localhost/v1/customers/customer-api-1/addresses', { headers: actorHeaders() }));
+      expect(listAddresses.status).toBe(200);
+      const addresses = await listAddresses.json() as { items: Array<{ id: string }> };
+      expect(addresses.items[0]?.id).toBe('address-api-1');
+
+      const patchAddress = await api(new Request('http://localhost/v1/customers/customer-api-1/addresses/address-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ number: '100' }),
+      }));
+      expect(patchAddress.status).toBe(200);
+      const patchedAddress = await patchAddress.json() as { street: string; number: string };
+      expect(patchedAddress.street).toBe('Rua API');
+      expect(patchedAddress.number).toBe('100');
+    });
+  });
+
+  it('protects Customer Contacts + Addresses API with actor and tenant guards', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-api-1', ownerId: 'admin-1', representativeId: 'admin-1' }]),
+        customerContactRepository: new InMemoryCustomerContactRepository(),
+        customerAddressRepository: new InMemoryCustomerAddressRepository(),
+      });
+
+      const missingActor = await api(new Request('http://localhost/v1/customers/customer-api-1/contacts'));
+      expect(missingActor.status).toBe(401);
+
+      const tenantMismatch = await api(new Request('http://localhost/v1/customers/customer-api-1/addresses', {
+        headers: actorHeaders({ 'x-tenant-id': 'tenant-other' }),
+      }));
+      expect(tenantMismatch.status).toBe(403);
     });
   });
 
