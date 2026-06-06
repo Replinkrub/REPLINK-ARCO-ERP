@@ -1,6 +1,6 @@
 # ROADMAP — ARCO-ERP V1 Operacional
 
-> Última atualização: 2026-06-05
+> Última atualização: 2026-06-06
 > Dono operacional: Atlas  
 > Dono da prioridade executiva: Toni  
 > Fonte funcional canônica: `docs/SPEC.md` + `docs/DECISION-FLOW-CANON.md`  
@@ -96,6 +96,9 @@ Correção adotada:
 - Etapa 9 — Registro Operacional de Faturamento inicial / preparação fiscal sem escopo fiscal real.
 - Fechamento técnico P0+P1 — persistência real + API HTTP mínima (PR #25).
 - P1.5 Supabase Runtime Readiness / DB Smoke (PR #28).
+- Gate G PR6 — Customers Foundation (PR #41, merge `47f5130`).
+- Gate H PR7A — Customer API Core (PR #43, merge `6366729`).
+- Gate H PR7B — Customer Contacts + Addresses API (PR #44, merge `abe113c`).
 
 ### Concluído nesta frente documental
 
@@ -489,8 +492,10 @@ Antes de implementar:
 
 ## Gate H — API Implementation Slices
 
-**Tipo:** implementação técnica futura  
+**Tipo:** implementação técnica em slices
 **Dependências:** Gate G
+
+**Status atual:** slice 1 parcialmente integrado até Customer Contacts + Addresses API foundation.
 
 ### Objetivo
 
@@ -498,7 +503,7 @@ Implementar API por fatias funcionais sem quebrar contratos.
 
 ### Slices mínimos
 
-1. clientes/contatos/endereços;
+1. clientes/contatos/endereços — ✅ API foundation integrada até PR7B; ainda não declarar módulo cliente completo;
 2. produtos/tabela de preço;
 3. condições de pagamento/parcelas;
 4. orçamento steps 1–4;
@@ -515,6 +520,18 @@ Implementar API por fatias funcionais sem quebrar contratos.
 - snapshot/revisão quando aplicável;
 - testes automatizados;
 - sem expansão fiscal.
+
+### Estado entregue no slice 1 até PR7B
+
+- Customer API Core (`GET/POST/PATCH /v1/customers`) integrado no PR #43.
+- Customer Contacts + Addresses API integrado no PR #44.
+- Access model: child records herdam acesso do customer pai.
+- Primary behavior: `is_primary=true` desmarca siblings do mesmo `tenantId/customerId`; Postgres usa transação e advisory lock por `tenantId:customerId`.
+- Sem migration nova no PR7B; `customer_contacts` e `customer_addresses` já estavam em `005_customers_core.sql`.
+
+### Próximo passo do Gate H
+
+Planejar o próximo slice técnico com autorização explícita. Não avançar para products/prices/payment terms, frontend ou RBAC runtime sem plano/review próprio.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 
