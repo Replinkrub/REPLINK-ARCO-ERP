@@ -6,6 +6,7 @@ import { createQuoteUseCase } from '../../application/useCases/createQuote.js';
 import { registerDocumentCommunicationUseCase } from '../../application/useCases/registerDocumentCommunication.js';
 import { registerSimpleInvoiceUseCase } from '../../application/useCases/registerSimpleInvoice.js';
 import { updateQuote } from '../../application/useCases/updateQuote.js';
+import type { CustomerRepository } from '../../application/ports/customerRepository.js';
 import type { OrderRepository } from '../../application/ports/orderRepository.js';
 import type { QuoteRepository } from '../../application/ports/quoteRepository.js';
 import type { AccessContext } from '../../domain/ownership.js';
@@ -15,6 +16,7 @@ import { getRequiresRepresentedCompany, requireEnvironmentTenantId } from '../co
 interface ApiDeps {
   quoteRepository: QuoteRepository;
   orderRepository: OrderRepository;
+  customerRepository: CustomerRepository;
 }
 
 export function createMinimalHttpApi(deps: ApiDeps) {
@@ -37,7 +39,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       if (method === 'POST' && url.pathname === '/v0/quotes') {
         const body = await request.json() as Record<string, unknown>;
         const result = await createQuoteUseCase(
-          { quoteRepository: deps.quoteRepository },
+          { quoteRepository: deps.quoteRepository, customerRepository: deps.customerRepository },
           {
             id: String(body.id ?? ''),
             tenantId: actor.actorTenantId,
@@ -56,7 +58,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       const quoteId = url.pathname.split('/')[3] ?? '';
       const body = await request.json() as Record<string, unknown>;
       const result = await updateQuote(
-        { quoteRepository: deps.quoteRepository },
+        { quoteRepository: deps.quoteRepository, customerRepository: deps.customerRepository },
         {
           id: quoteId,
           customerId: body.customerId as string | undefined,
@@ -167,6 +169,7 @@ function mapResult(result: ApplicationResult<CommercialDocument>, successStatus:
   if (
     error.code === APPLICATION_ERROR_CODES.VALIDATION_ERROR
     || error.code === APPLICATION_ERROR_CODES.REQUIRED_CUSTOMER_ID
+    || error.code === APPLICATION_ERROR_CODES.CUSTOMER_NOT_AVAILABLE
     || error.code === APPLICATION_ERROR_CODES.REQUIRED_REPRESENTED_COMPANY
   ) {
     return json(error, 422);

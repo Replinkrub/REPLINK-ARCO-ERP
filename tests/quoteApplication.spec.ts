@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   APPLICATION_ERROR_CODES,
+  InMemoryCustomerRepository,
   InMemoryOrderRepository,
   InMemoryQuoteRepository,
   confirmQuoteUseCase,
@@ -10,6 +11,16 @@ import {
   getRequiresRepresentedCompany,
   updateQuote,
 } from '../src/index.js';
+
+function customerRepository(customers: Array<{ id: string; tenantId?: string; status?: 'active' | 'inactive' }> = []) {
+  return new InMemoryCustomerRepository(
+    customers.map((customer) => ({
+      id: customer.id,
+      tenantId: customer.tenantId ?? 'tenant-1',
+      status: customer.status ?? 'active',
+    }))
+  );
+}
 
 describe('quote application flow', () => {
   it('represented company enforcement config only enables exact true', () => {
@@ -25,7 +36,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     const result = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository() },
       {
         id: 'q-customer-required',
         tenantId: 'tenant-1',
@@ -45,7 +56,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     const result = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-1',
         tenantId: 'tenant-1',
@@ -68,11 +79,68 @@ describe('quote application flow', () => {
     expect(reloaded?.status).toBe('QUOTE_DRAFT');
   });
 
+  it('createQuote rejeita cliente inexistente sem persistir orçamento', async () => {
+    const repository = new InMemoryQuoteRepository();
+
+    const result = await createQuoteUseCase(
+      { quoteRepository: repository, customerRepository: customerRepository() },
+      {
+        id: 'q-missing-customer',
+        tenantId: 'tenant-1',
+        customerId: 'customer-missing',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(APPLICATION_ERROR_CODES.CUSTOMER_NOT_AVAILABLE);
+    }
+    await expect(repository.getById('q-missing-customer')).resolves.toBeNull();
+  });
+
+  it('createQuote rejeita cliente inativo ou de outro tenant', async () => {
+    const repository = new InMemoryQuoteRepository();
+    const customers = customerRepository([
+      { id: 'customer-inactive', status: 'inactive' },
+      { id: 'customer-cross', tenantId: 'tenant-2' },
+    ]);
+
+    const inactive = await createQuoteUseCase(
+      { quoteRepository: repository, customerRepository: customers },
+      {
+        id: 'q-inactive-customer',
+        tenantId: 'tenant-1',
+        customerId: 'customer-inactive',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+    const crossTenant = await createQuoteUseCase(
+      { quoteRepository: repository, customerRepository: customers },
+      {
+        id: 'q-cross-customer',
+        tenantId: 'tenant-1',
+        customerId: 'customer-cross',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    expect(inactive.ok).toBe(false);
+    expect(crossTenant.ok).toBe(false);
+    if (!inactive.ok) expect(inactive.error.code).toBe(APPLICATION_ERROR_CODES.CUSTOMER_NOT_AVAILABLE);
+    if (!crossTenant.ok) expect(crossTenant.error.code).toBe(APPLICATION_ERROR_CODES.CUSTOMER_NOT_AVAILABLE);
+    await expect(repository.getById('q-inactive-customer')).resolves.toBeNull();
+    await expect(repository.getById('q-cross-customer')).resolves.toBeNull();
+  });
+
   it('createQuote preserva representedCompanyId opcional', async () => {
     const repository = new InMemoryQuoteRepository();
 
     const result = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-represented-1',
         tenantId: 'tenant-1',
@@ -96,7 +164,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     const result = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-represented-optional',
         tenantId: 'tenant-1',
@@ -116,7 +184,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     const result = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-represented-required',
         tenantId: 'tenant-1',
@@ -137,7 +205,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     const result = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-represented-blank',
         tenantId: 'tenant-1',
@@ -159,7 +227,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     const result = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-represented-normalized',
         tenantId: 'tenant-1',
@@ -183,7 +251,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-2',
         tenantId: 'tenant-1',
@@ -194,7 +262,7 @@ describe('quote application flow', () => {
     );
 
     const updated = await updateQuote(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }, { id: 'customer-2' }]) },
       {
         id: 'q-2',
         customerId: 'customer-2',
@@ -216,7 +284,7 @@ describe('quote application flow', () => {
     const createdAt = new Date('2026-01-01T00:00:00.000Z');
 
     const created = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }, { id: 'customer-2' }]) },
       {
         id: 'q-updated-at',
         tenantId: 'tenant-1',
@@ -230,7 +298,7 @@ describe('quote application flow', () => {
     if (!created.ok) return;
 
     const result = await updateQuote(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-2' }]) },
       {
         id: 'q-updated-at',
         customerId: 'customer-2',
@@ -252,7 +320,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     const result = await updateQuote(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-2' }]) },
       {
         id: 'missing',
         customerId: 'customer-2',
@@ -263,6 +331,32 @@ describe('quote application flow', () => {
     if (!result.ok) {
       expect(result.error.code).toBe(APPLICATION_ERROR_CODES.DOCUMENT_NOT_FOUND);
     }
+  });
+
+  it('updateQuote rejeita troca para cliente inválido sem alterar orçamento', async () => {
+    const repository = new InMemoryQuoteRepository();
+    await createQuoteUseCase(
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
+      {
+        id: 'q-invalid-customer-update',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        ownerId: 'owner-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const result = await updateQuote(
+      { quoteRepository: repository, customerRepository: customerRepository() },
+      { id: 'q-invalid-customer-update', customerId: 'customer-missing' }
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe(APPLICATION_ERROR_CODES.CUSTOMER_NOT_AVAILABLE);
+    }
+    const reloaded = await repository.getById('q-invalid-customer-update');
+    expect(reloaded?.customerId).toBe('customer-1');
   });
 
   it('updateQuote rejeita documento que não seja quote', async () => {
@@ -283,7 +377,7 @@ describe('quote application flow', () => {
     };
 
     const result = await updateQuote(
-      { quoteRepository: fakeRepository },
+      { quoteRepository: fakeRepository, customerRepository: customerRepository([{ id: 'customer-2' }]) },
       {
         id: 'q-not-quote',
         customerId: 'customer-2',
@@ -317,7 +411,7 @@ describe('quote application flow', () => {
     const repository = new InMemoryQuoteRepository();
 
     const created = await createQuoteUseCase(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-flow' }]) },
       {
         id: 'q-flow',
         tenantId: 'tenant-1',
@@ -330,7 +424,7 @@ describe('quote application flow', () => {
     if (!created.ok) return;
 
     const updated = await updateQuote(
-      { quoteRepository: repository },
+      { quoteRepository: repository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-flow',
         addItems: [{ id: 'i-flow', sku: 'SKU-FLOW', description: 'Flow Item', quantity: 3, unitPrice: 40, discount: 0 }],
@@ -351,7 +445,7 @@ describe('quote application flow', () => {
     const orderRepository = new InMemoryOrderRepository();
 
     await createQuoteUseCase(
-      { quoteRepository },
+      { quoteRepository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-confirm-1',
         tenantId: 'tenant-1',
@@ -397,7 +491,7 @@ describe('quote application flow', () => {
     const orderRepository = new InMemoryOrderRepository();
 
     await createQuoteUseCase(
-      { quoteRepository },
+      { quoteRepository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-race-1',
         tenantId: 'tenant-1',
@@ -433,7 +527,7 @@ describe('quote application flow', () => {
     const orderRepository = new InMemoryOrderRepository();
 
     await createQuoteUseCase(
-      { quoteRepository },
+      { quoteRepository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-forbidden-1',
         tenantId: 'tenant-1',
@@ -463,7 +557,7 @@ describe('quote application flow', () => {
     const orderRepository = new InMemoryOrderRepository();
 
     await createQuoteUseCase(
-      { quoteRepository },
+      { quoteRepository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-forbidden-tenant-1',
         tenantId: 'tenant-1',
@@ -553,7 +647,7 @@ describe('quote application flow', () => {
     const orderRepository = new InMemoryOrderRepository();
 
     await createQuoteUseCase(
-      { quoteRepository },
+      { quoteRepository, customerRepository: customerRepository([{ id: 'customer-1' }]) },
       {
         id: 'q-invalid-seq',
         tenantId: 'tenant-1',
