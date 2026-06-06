@@ -60,10 +60,10 @@ Até PR7B:
 ## 4) Validações registradas nesta implementação
 
 - `npm run typecheck` — PASS.
-- `npm run test` — PASS, 126/126.
+- `npm run test` — PASS, 127/127.
 - `npm run db:migrate` com `.env.local` carregado — PASS, 0 applied / 5 skipped.
 - `npm run test:smoke:db` com `.env.local` carregado — PASS, 6/6.
 
 ## 5) Próximo passo recomendado
 
-Rodar validação final completa, revisar diff por escopo e abrir PR7A. Não iniciar PR7B antes do PR7A ser revisado/mergeado.
+Revisar e mergear PR7A. Não iniciar PR7B antes do PR7A ser revisado/mergeado.
