@@ -3,29 +3,75 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate G integrado até PR5B**
+- Estado: **Gates A–F documentais mergeados; Gate G integrado até PR5B; PR6 em revisão**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `3224458` (merge PR #39)
+- `main` em: `d2a8518` (merge PR #40 — handoff pós-PR5B)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
 - Gate G inicial — ORC→PED canônico + migration runner controlado: ✅ **mergeado**
 - Gate G PR5A — represented companies foundation: ✅ **mergeado**
 - Gate G PR5B — represented company enforcement/config: ✅ **mergeado**
+- Gate G PR6 — customers foundation: 🟡 **PR aberto/revisado, aguardando merge** (#41)
 - PR documental A–F: #30 — merge commit `0962558`
 - PR Gate G inicial: #31 — merge commit `6d7cd19`
 - PR Gate G PR5A: #37 — merge commit `ccb1c82`
 - PR Gate G PR5B: #39 — merge commit `3224458`
+- PR Gate G PR6: #41 — commit `5e81b6e` em revisão
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 112/112 (10 test files)
-- Smoke DB real contra Supabase dev: ✅ PASS
-- Próximo ponto: **planejar próximo slice técnico com autorização explícita**
+- Tests: ✅ PASS — 118/118 (10 test files)
+- Smoke DB real contra Supabase dev: ✅ PASS — 5/5
+- Próximo ponto: **revisar/mergear PR6 antes de planejar qualquer PR7**
 - Regra: não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem plano/review próprio.
+
+## Checkpoint da sessão (2026-06-06 pós-PR6 review)
+
+### PR6 em revisão
+
+- PR #41 — `Gate G PR6: Customers Foundation`
+- Branch: `feat/gate-g-pr6-customers-foundation`
+- Commit técnico: `5e81b6e feat(erp): add customers foundation`
+- Handoff: `docs/SESSION-HANDOFF-GATE-G-POST-PR6.md`
+
+### Estado técnico PR6
+
+- Migration `005_customers_core.sql` adiciona fundação relacional de clientes.
+- Entidades criadas: `customers`, `customer_contacts`, `customer_addresses`, `customer_commercial_profiles`.
+- FKs tenant-safe aplicadas para contatos, endereços e perfil comercial.
+- `CustomerRepository` mínimo criado com adapters in-memory e Postgres.
+- `createQuoteUseCase` exige cliente ativo no mesmo tenant antes de criar ORC.
+- `updateQuote` valida troca de `customerId`.
+- `CUSTOMER_NOT_AVAILABLE` mapeia HTTP `422`.
+
+### Validações registradas PR6
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 118/118 |
+| `npm run db:migrate` | ✅ PASS — 0 applied / 5 skipped |
+| 2ª execução `npm run db:migrate` | ✅ PASS — 0 applied / 5 skipped |
+| `npm run test:smoke:db` | ✅ PASS — 5/5 |
+| `git diff --check` | ✅ PASS |
+
+### Fora de escopo mantido
+
+- Sem PR7 iniciado.
+- Sem CRUD/API pública de clientes.
+- Sem frontend.
+- Sem products/prices/payment terms.
+- Sem RBAC/auth runtime.
+- Sem FK hard de `commercial_documents.customer_id` para `customers`.
+- `erp_app_flow_map.html`: continua untracked e fora do PR.
+
+### Próximo ponto
+
+Revisar e mergear PR #41. Não iniciar PR7 antes do merge/revisão final do PR6.
 
 ## Checkpoint da sessão (2026-06-05 pós-PR5B)
 
