@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryQuoteRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -66,6 +66,68 @@ function customerRepository(customers: Array<{
 }
 
 describe('minimal HTTP API', () => {
+  it('supports Products API foundation routes', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+        productRepository: new InMemoryProductRepository(),
+      });
+
+      const createResponse = await api(new Request('http://localhost/v1/products', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'product-api-1', sku: 'SKU-API-1', name: 'Produto API' }),
+      }));
+      expect(createResponse.status).toBe(201);
+      const created = await createResponse.json() as { id: string; tenantId: string; status: string };
+      expect(created).toMatchObject({ id: 'product-api-1', tenantId: 'tenant-env-1', status: 'active' });
+
+      const listResponse = await api(new Request('http://localhost/v1/products?q=SKU-API', { headers: actorHeaders() }));
+      expect(listResponse.status).toBe(200);
+      const list = await listResponse.json() as { items: Array<{ id: string }>; total: number };
+      expect(list.total).toBe(1);
+      expect(list.items[0]?.id).toBe('product-api-1');
+
+      const getResponse = await api(new Request('http://localhost/v1/products/product-api-1', { headers: actorHeaders() }));
+      expect(getResponse.status).toBe(200);
+
+      const patchResponse = await api(new Request('http://localhost/v1/products/product-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ name: 'Produto API Editado', status: 'inactive' }),
+      }));
+      expect(patchResponse.status).toBe(200);
+      const patched = await patchResponse.json() as { name: string; sku: string; status: string };
+      expect(patched).toMatchObject({ name: 'Produto API Editado', sku: 'SKU-API-1', status: 'inactive' });
+    });
+  });
+
+  it('protects Products API writes by role and tenant headers', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+        productRepository: new InMemoryProductRepository(),
+      });
+
+      const representativeCreate = await api(new Request('http://localhost/v1/products', {
+        method: 'POST',
+        headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }),
+        body: JSON.stringify({ id: 'product-rep-api', sku: 'REP', name: 'Rep' }),
+      }));
+      expect(representativeCreate.status).toBe(403);
+
+      const tenantMismatch = await api(new Request('http://localhost/v1/products', {
+        method: 'GET',
+        headers: actorHeaders({ 'x-tenant-id': 'tenant-other' }),
+      }));
+      expect(tenantMismatch.status).toBe(403);
+    });
+  });
+
   it('supports Customer API Core create/list/get/patch', async () => {
     await withEnvironmentTenant('tenant-env-1', async () => {
       const api = createMinimalHttpApi({

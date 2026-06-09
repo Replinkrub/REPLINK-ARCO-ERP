@@ -6,6 +6,7 @@ import {
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresOrderRepository,
+  PostgresProductRepository,
   PostgresQuoteRepository,
   createMinimalHttpApi,
 } from '../src/index.js';
@@ -314,6 +315,61 @@ describe('db smoke (real postgres)', () => {
       ),
       '23505'
     );
+  });
+
+  it('exercises Products API foundation against real postgres', async () => {
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
+      productRepository: new PostgresProductRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-product-api-${now}`,
+      'x-tenant-id': tenantId,
+      'content-type': 'application/json',
+    };
+    const productId = `product-api-smoke-${now}`;
+    const sku = `SKU-API-SMOKE-${now}`;
+
+    const createResponse = await api(new Request('http://localhost/v1/products', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: productId, sku, name: `Product API Smoke ${now}`, minimum_order_quantity: 1 }),
+    }));
+    expect(createResponse.status).toBe(201);
+
+    const productRow = await pgClient.query(
+      'SELECT id, tenant_id, sku, represented_company_id FROM products WHERE id = $1 LIMIT 1',
+      [productId]
+    );
+    expect(productRow.rowCount).toBe(1);
+    expect(productRow.rows[0]).toMatchObject({ id: productId, tenant_id: tenantId, sku, represented_company_id: null });
+
+    const listResponse = await api(new Request(`http://localhost/v1/products?q=${sku}`, { headers }));
+    expect(listResponse.status).toBe(200);
+    const list = await listResponse.json() as { items: Array<{ id: string }> };
+    expect(list.items.some((item) => item.id === productId)).toBe(true);
+
+    const patchResponse = await api(new Request(`http://localhost/v1/products/${productId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name: `Product API Smoke Updated ${now}`, status: 'inactive' }),
+    }));
+    expect(patchResponse.status).toBe(200);
+    const patched = await patchResponse.json() as { status: string; name: string };
+    expect(patched.status).toBe('inactive');
+
+    const duplicateResponse = await api(new Request('http://localhost/v1/products', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `product-api-smoke-duplicate-${now}`, sku, name: `Product Duplicate ${now}` }),
+    }));
+    expect(duplicateResponse.status).toBe(422);
+    const duplicate = await duplicateResponse.json() as { code: string };
+    expect(duplicate.code).toBe('DUPLICATE_PRODUCT_SKU');
   });
 
   it('exercises Customer API Core against real postgres', async () => {
