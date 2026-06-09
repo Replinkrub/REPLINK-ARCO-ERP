@@ -3,6 +3,7 @@ import type { ApplicationResult } from '../../application/result.js';
 import { createCustomerAddressUseCase, listCustomerAddressesUseCase, updateCustomerAddressUseCase } from '../../application/useCases/customerAddresses.js';
 import { createCustomerContactUseCase, listCustomerContactsUseCase, updateCustomerContactUseCase } from '../../application/useCases/customerContacts.js';
 import { createCustomerUseCase, getCustomerUseCase, listCustomersUseCase, updateCustomerUseCase } from '../../application/useCases/customers.js';
+import { createPriceTableUseCase, getPriceTableUseCase, listPriceTablesUseCase, updatePriceTableUseCase } from '../../application/useCases/priceTables.js';
 import { createProductUseCase, getProductUseCase, listProductsUseCase, updateProductUseCase } from '../../application/useCases/products.js';
 import { adjustOrderUseCase, cancelOrderUseCase } from '../../application/useCases/closeOrder.js';
 import { confirmQuoteUseCase } from '../../application/useCases/confirmQuote.js';
@@ -14,6 +15,7 @@ import type { CustomerRepository } from '../../application/ports/customerReposit
 import type { CustomerContactRepository } from '../../application/ports/customerContactRepository.js';
 import type { CustomerAddressRepository } from '../../application/ports/customerAddressRepository.js';
 import type { ProductRepository } from '../../application/ports/productRepository.js';
+import type { PriceTableRepository } from '../../application/ports/priceTableRepository.js';
 import type { OrderRepository } from '../../application/ports/orderRepository.js';
 import type { QuoteRepository } from '../../application/ports/quoteRepository.js';
 import type { AccessContext } from '../../domain/ownership.js';
@@ -27,6 +29,7 @@ interface ApiDeps {
   customerContactRepository?: CustomerContactRepository;
   customerAddressRepository?: CustomerAddressRepository;
   productRepository?: ProductRepository;
+  priceTableRepository?: PriceTableRepository;
 }
 
 export function createMinimalHttpApi(deps: ApiDeps) {
@@ -45,6 +48,55 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       const actor = actorResult.actor;
 
       const method = request.method.toUpperCase();
+
+      if (method === 'GET' && url.pathname === '/v1/price-tables') {
+        const priceTableRepository = deps.priceTableRepository;
+        if (!priceTableRepository) return dependencyUnavailable('Price table repository dependency unavailable');
+        const result = await listPriceTablesUseCase(
+          { priceTableRepository },
+          {
+            actor,
+            page: Number(url.searchParams.get('page') ?? 1),
+            pageSize: Number(url.searchParams.get('page_size') ?? 20),
+            q: url.searchParams.get('q') ?? undefined,
+          }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'POST' && url.pathname === '/v1/price-tables') {
+        const priceTableRepository = deps.priceTableRepository;
+        if (!priceTableRepository) return dependencyUnavailable('Price table repository dependency unavailable');
+        const body = await request.json() as Record<string, unknown>;
+        const result = await createPriceTableUseCase(
+          { priceTableRepository },
+          { actor, payload: body }
+        );
+        return mapResult(result, 201);
+      }
+
+      if (method === 'GET' && url.pathname.match(/^\/v1\/price-tables\/[^/]+$/)) {
+        const priceTableRepository = deps.priceTableRepository;
+        if (!priceTableRepository) return dependencyUnavailable('Price table repository dependency unavailable');
+        const priceTableId = url.pathname.split('/')[3] ?? '';
+        const result = await getPriceTableUseCase(
+          { priceTableRepository },
+          { actor, priceTableId }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'PATCH' && url.pathname.match(/^\/v1\/price-tables\/[^/]+$/)) {
+        const priceTableRepository = deps.priceTableRepository;
+        if (!priceTableRepository) return dependencyUnavailable('Price table repository dependency unavailable');
+        const priceTableId = url.pathname.split('/')[3] ?? '';
+        const body = await request.json() as Record<string, unknown>;
+        const result = await updatePriceTableUseCase(
+          { priceTableRepository },
+          { actor, priceTableId, payload: body }
+        );
+        return mapResult(result, 200);
+      }
 
       if (method === 'GET' && url.pathname === '/v1/products') {
         const productRepository = deps.productRepository;
@@ -342,6 +394,7 @@ function mapResult(result: ApplicationResult<CommercialDocument | unknown>, succ
   if (error.code === APPLICATION_ERROR_CODES.CUSTOMER_CONTACT_NOT_FOUND) return json(error, 404);
   if (error.code === APPLICATION_ERROR_CODES.CUSTOMER_ADDRESS_NOT_FOUND) return json(error, 404);
   if (error.code === APPLICATION_ERROR_CODES.PRODUCT_NOT_FOUND) return json(error, 404);
+  if (error.code === APPLICATION_ERROR_CODES.PRICE_TABLE_NOT_FOUND) return json(error, 404);
   if (error.code === APPLICATION_ERROR_CODES.FORBIDDEN) return json(error, 403);
   if (error.code === APPLICATION_ERROR_CODES.CONFLICT_ALREADY_CONFIRMED) return json(error, 409);
   if (
@@ -350,6 +403,7 @@ function mapResult(result: ApplicationResult<CommercialDocument | unknown>, succ
     || error.code === APPLICATION_ERROR_CODES.CUSTOMER_NOT_AVAILABLE
     || error.code === APPLICATION_ERROR_CODES.DUPLICATE_CUSTOMER_DOCUMENT
     || error.code === APPLICATION_ERROR_CODES.DUPLICATE_PRODUCT_SKU
+    || error.code === APPLICATION_ERROR_CODES.DUPLICATE_PRICE_TABLE
     || error.code === APPLICATION_ERROR_CODES.REQUIRED_REPRESENTED_COMPANY
   ) {
     return json(error, 422);
