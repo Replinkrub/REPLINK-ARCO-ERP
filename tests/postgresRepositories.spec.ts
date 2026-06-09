@@ -5,6 +5,7 @@ import {
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresQuoteRepository,
+  PostgresProductRepository,
   createQuote,
   convertQuoteToOrder,
   type SqlExecutor,
@@ -104,6 +105,37 @@ describe('postgres repositories', () => {
     expect(db.calls[0]?.text).toContain('tenant_id = $1');
     expect(db.calls[0]?.text).toContain('id = $3');
     expect(db.calls[0]?.values).toEqual(['tenant-1', 'admin-1', 'customer-db-2']);
+  });
+
+  it('creates, lists and updates products scoped by tenant', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [productRow({ id: 'product-db-1' })];
+    const repository = new PostgresProductRepository(db);
+
+    const created = await repository.create({
+      id: 'product-db-1',
+      tenantId: 'tenant-1',
+      representedCompanyId: 'represented-1',
+      sku: 'SKU-DB-1',
+      name: 'Produto DB',
+      status: 'active',
+    });
+
+    expect(created.id).toBe('product-db-1');
+    expect(db.calls[0]?.text).toContain('INSERT INTO products');
+    expect(db.calls[0]?.values?.slice(0, 5)).toEqual(['product-db-1', 'tenant-1', 'represented-1', 'SKU-DB-1', 'Produto DB']);
+
+    db.calls = [];
+    await repository.list({ tenantId: 'tenant-1', actorId: 'rep-1', role: 'REPRESENTANTE', page: 1, pageSize: 20, q: 'Produto' });
+    expect(db.calls[0]?.text).toContain('FROM products');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1');
+    expect(db.calls[0]?.text).toContain('ILIKE $2');
+
+    db.calls = [];
+    await repository.update({ tenantId: 'tenant-1', actorId: 'admin-1', role: 'ADMIN', productId: 'product-db-1', patch: { name: 'Produto DB 2' } });
+    expect(db.calls[0]?.text).toContain('FROM products');
+    expect(db.calls[1]?.text).toContain('UPDATE products SET');
+    expect(db.calls[1]?.text).toContain('WHERE tenant_id = $1 AND id = $2');
   });
 
   it('creates, lists and updates customer contacts scoped by tenant/customer with primary behavior', async () => {
@@ -309,6 +341,33 @@ function customerRow(overrides: Partial<Record<string, unknown>> = {}) {
     notes: null,
     owner_id: 'admin-1',
     representative_id: 'admin-1',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function productRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'product-db',
+    tenant_id: 'tenant-1',
+    represented_company_id: 'represented-1',
+    sku: 'SKU-DB-1',
+    name: 'Produto DB',
+    description: null,
+    commercial_name: null,
+    barcode: null,
+    brand: null,
+    category_id: null,
+    unit_id: null,
+    package_info: null,
+    minimum_order_quantity: null,
+    multiple_order_quantity: null,
+    gross_weight: null,
+    net_weight: null,
+    dimensions: null,
+    availability_status: null,
+    status: 'active',
     created_at: new Date('2026-01-01T00:00:00.000Z'),
     updated_at: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
