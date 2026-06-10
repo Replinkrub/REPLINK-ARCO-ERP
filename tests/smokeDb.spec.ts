@@ -7,6 +7,7 @@ import {
   PostgresCustomerRepository,
   PostgresOrderRepository,
   PostgresPriceTableRepository,
+  PostgresPriceTableItemRepository,
   PostgresProductRepository,
   PostgresQuoteRepository,
   createMinimalHttpApi,
@@ -426,6 +427,74 @@ describe('db smoke (real postgres)', () => {
     expect(duplicateResponse.status).toBe(422);
     const duplicate = await duplicateResponse.json() as { code: string };
     expect(duplicate.code).toBe('DUPLICATE_PRICE_TABLE');
+  });
+
+  it('exercises Price Table Items API against real postgres', async () => {
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
+      productRepository: new PostgresProductRepository(db),
+      priceTableRepository: new PostgresPriceTableRepository(db),
+      priceTableItemRepository: new PostgresPriceTableItemRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-price-table-item-api-${now}`,
+      'x-tenant-id': tenantId,
+      'content-type': 'application/json',
+    };
+    const productId = `product-item-api-smoke-${now}`;
+    const priceTableId = `price-table-item-api-smoke-${now}`;
+    const itemId = `price-table-item-api-smoke-${now}`;
+
+    const productResponse = await api(new Request('http://localhost/v1/products', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: productId, sku: `SKU-ITEM-SMOKE-${now}`, name: `Product Item Smoke ${now}` }),
+    }));
+    expect(productResponse.status).toBe(201);
+
+    const priceTableResponse = await api(new Request('http://localhost/v1/price-tables', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: priceTableId, name: `Price Table Item Smoke ${now}`, valid_from: '2026-01-01', valid_until: '2026-12-31' }),
+    }));
+    expect(priceTableResponse.status).toBe(201);
+
+    const createItemResponse = await api(new Request(`http://localhost/v1/price-tables/${priceTableId}/items`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: itemId, product_id: productId, unit_price: 10.25, valid_from: '2026-01-01', valid_until: '2026-06-30' }),
+    }));
+    expect(createItemResponse.status).toBe(201);
+
+    const itemRow = await pgClient.query(
+      'SELECT id, tenant_id, price_table_id, product_id, unit_price FROM price_table_items WHERE id = $1 LIMIT 1',
+      [itemId]
+    );
+    expect(itemRow.rowCount).toBe(1);
+    expect(itemRow.rows[0]).toMatchObject({ id: itemId, tenant_id: tenantId, price_table_id: priceTableId, product_id: productId });
+
+    const listResponse = await api(new Request(`http://localhost/v1/price-tables/${priceTableId}/items`, { headers }));
+    expect(listResponse.status).toBe(200);
+    const list = await listResponse.json() as { items: Array<{ id: string }> };
+    expect(list.items.some((item) => item.id === itemId)).toBe(true);
+
+    const patchResponse = await api(new Request(`http://localhost/v1/price-tables/${priceTableId}/items/${itemId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ unit_price: 11.5, status: 'inactive' }),
+    }));
+    expect(patchResponse.status).toBe(200);
+
+    const duplicateResponse = await api(new Request(`http://localhost/v1/price-tables/${priceTableId}/items`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `price-table-item-api-smoke-2-${now}`, product_id: productId, unit_price: 12, valid_from: '2026-02-01', valid_until: '2026-03-31' }),
+    }));
+    expect(duplicateResponse.status).toBe(201);
   });
 
   it('exercises Customer API Core against real postgres', async () => {

@@ -5,6 +5,7 @@ import {
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresPriceTableRepository,
+  PostgresPriceTableItemRepository,
   PostgresQuoteRepository,
   PostgresProductRepository,
   createQuote,
@@ -169,6 +170,43 @@ describe('postgres repositories', () => {
     expect(db.calls[0]?.text).toContain('FROM price_tables');
     expect(db.calls[1]?.text).toContain('UPDATE price_tables SET');
     expect(db.calls[1]?.text).toContain('WHERE tenant_id = $1 AND id = $2');
+  });
+
+  it('creates, lists and updates price table items scoped by tenant and table', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [priceTableItemRow({ id: 'price-table-item-db-1' })];
+    const repository = new PostgresPriceTableItemRepository(db);
+
+    const created = await repository.create({
+      id: 'price-table-item-db-1',
+      tenantId: 'tenant-1',
+      priceTableId: 'price-table-db-1',
+      productId: 'product-db-1',
+      unitPrice: 10.25,
+      validFrom: '2026-01-01',
+      status: 'active',
+    });
+
+    expect(created.id).toBe('price-table-item-db-1');
+    expect(db.calls[0]?.text).toContain('INSERT INTO price_table_items');
+    expect(db.calls[0]?.values?.slice(0, 6)).toEqual(['price-table-item-db-1', 'tenant-1', 'price-table-db-1', 'product-db-1', 10.25, '2026-01-01']);
+
+    db.calls = [];
+    await repository.listByPriceTable({ tenantId: 'tenant-1', actorId: 'rep-1', role: 'REPRESENTANTE', priceTableId: 'price-table-db-1', page: 1, pageSize: 20 });
+    expect(db.calls[0]?.text).toContain('FROM price_table_items');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1 AND price_table_id = $2');
+
+    db.calls = [];
+    await repository.update({ tenantId: 'tenant-1', actorId: 'admin-1', role: 'ADMIN', priceTableId: 'price-table-db-1', itemId: 'price-table-item-db-1', patch: { unitPrice: 11 } });
+    expect(db.calls[0]?.text).toContain('FROM price_table_items');
+    expect(db.calls[1]?.text).toContain('UPDATE price_table_items SET');
+
+    db.calls = [];
+    db.resultRows = [{ exists: true }];
+    const overlap = await repository.hasActiveOverlap({ tenantId: 'tenant-1', priceTableId: 'price-table-db-1', productId: 'product-db-1', validFrom: '2026-01-01', validUntil: '2026-12-31' });
+    expect(overlap).toBe(true);
+    expect(db.calls[0]?.text).toContain('SELECT EXISTS');
+    expect(db.calls[0]?.text).toContain('status = \'active\'');
   });
 
   it('creates, lists and updates customer contacts scoped by tenant/customer with primary behavior', async () => {
@@ -414,6 +452,22 @@ function priceTableRow(overrides: Partial<Record<string, unknown>> = {}) {
     represented_company_id: 'represented-1',
     name: 'Tabela DB',
     currency: 'BRL',
+    valid_from: '2026-01-01',
+    valid_until: null,
+    status: 'active',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function priceTableItemRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'price-table-item-db',
+    tenant_id: 'tenant-1',
+    price_table_id: 'price-table-db-1',
+    product_id: 'product-db-1',
+    unit_price: '10.2500',
     valid_from: '2026-01-01',
     valid_until: null,
     status: 'active',
