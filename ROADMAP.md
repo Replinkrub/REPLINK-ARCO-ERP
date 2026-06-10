@@ -1,6 +1,6 @@
 # ROADMAP — ARCO-ERP V1 Operacional
 
-> Última atualização: 2026-06-10
+> Última atualização: 2026-06-11
 > Dono operacional: Atlas  
 > Dono da prioridade executiva: Toni  
 > Fonte funcional canônica: `docs/SPEC.md` + `docs/DECISION-FLOW-CANON.md`  
@@ -102,6 +102,7 @@ Correção adotada:
 - Gate H PR8A — Products Foundation API (PR #46, merge `f0fbbf2`).
 - Gate H PR8B1 — Price Tables Core API (PR #47, merge `7ebe395`).
 - Gate H PR8B2 — Price Table Items API (PR #48, merge `384679b`).
+- Gate H — Customer Default Price Table Link (PR #49, merge `1f81d0a`).
 
 ### Concluído nesta frente documental
 
@@ -498,7 +499,7 @@ Antes de implementar:
 **Tipo:** implementação técnica em slices
 **Dependências:** Gate G
 
-**Status atual:** slice 1 fully integrated; slice 2 integrado até PR8B2 (Products + Price Tables + Price Table Items foundation).
+**Status atual:** slice 1 fully integrated; slice 2 integrado até PR8B2 (Products + Price Tables + Price Table Items + Customer Default Price Table Link foundation).
 
 ### Objetivo
 
@@ -507,7 +508,7 @@ Implementar API por fatias funcionais sem quebrar contratos.
 ### Slices mínimos
 
 1. clientes/contatos/endereços — ✅ API foundation integrada até PR7B; ainda não declarar módulo cliente completo;
-2. produtos/tabela de preço — ✅ Products foundation (PR8A) + Price Tables core (PR8B1) + Price Table Items API (PR8B2);
+2. produtos/tabela de preço — ✅ Products foundation (PR8A) + Price Tables core (PR8B1) + Price Table Items API (PR8B2) + Customer Default Price Table Link (PR #49);
 3. condições de pagamento/parcelas;
 4. orçamento steps 1–4;
 5. confirmação de pedido;
@@ -550,11 +551,17 @@ Implementar API por fatias funcionais sem quebrar contratos.
   - Vigência por `valid_from`/`valid_until`, overlap inclusivo `[valid_from, valid_until]` bloqueado por aplicação/repository.
   - Sem unique simples por tabela/produto; sem EXCLUDE/range constraint neste PR.
   - Representada da tabela e produto precisa bater exatamente, incluindo `NULL === NULL`.
-- Slices PR8A/PR8B1/PR8B2 seguem autorização mínima atual: ADMIN cria/edita, ADMIN + REPRESENTANTE listam/consultam.
+- Customer Default Price Table Link — PR #49 (merge `1f81d0a`):
+  - Migration `009`: `customer_commercial_profiles.default_price_table_id` com FK tenant-safe e índice.
+  - `GET/PATCH /v1/customers/{customerId}/commercial-profile`.
+  - `default_price_table_id = null` limpa vínculo.
+  - Apenas tabela global permitida: `represented_company_id IS NULL`.
+  - ADMIN cria/edita; ADMIN e REPRESENTANTE listam/consultam.
+- Slices PR8A/PR8B1/PR8B2/PR#49 seguem autorização mínima atual: ADMIN cria/edita, ADMIN + REPRESENTANTE listam/consultam.
 
 ### Próximo passo do Gate H
 
-Escolher e planejar o próximo slice técnico com autorização explícita. Não avançar para payment terms, customer default price table, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
+Escolher e planejar o próximo slice técnico com autorização explícita. Não avançar para payment terms, customer default price table por representada, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 

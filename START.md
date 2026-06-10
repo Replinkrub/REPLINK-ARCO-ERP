@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate H integrado até PR8B2**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até Customer Default Price Table Link**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `384679b` (merge PR #48 — Price Table Items API)
+- `main` em: `1f81d0a` (merge PR #49 — Customer Default Price Table Link)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -23,6 +23,7 @@
 - Gate H PR8A — Products Foundation API: ✅ **mergeado**
 - Gate H PR8B1 — Price Tables Core API: ✅ **mergeado**
 - Gate H PR8B2 — Price Table Items API: ✅ **mergeado**
+- Gate H — Customer Default Price Table Link: ✅ **mergeado**
 - PR documental A–F: #30 — merge commit `0962558`
 - PR Gate G inicial: #31 — merge commit `6d7cd19`
 - PR Gate G PR5A: #37 — merge commit `ccb1c82`
@@ -33,11 +34,12 @@
 - PR Gate H PR8A: #46 — merge commit `f0fbbf2`
 - PR Gate H PR8B1: #47 — merge commit `7ebe395`
 - PR Gate H PR8B2: #48 — merge commit `384679b`
+- PR Gate H Customer Default Price Table Link: #49 — merge commit `1f81d0a`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 152/152 (14 test files)
-- Smoke DB real contra Supabase dev: ✅ PASS — 10/10
+- Tests: ✅ PASS — 157/157 (15 test files)
+- Smoke DB real contra Supabase dev: ✅ PASS — 11/11
 - Próximo ponto: **escolher e planejar próximo slice técnico com autorização explícita**
-- Regra: não iniciar payment terms, customer default price table, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
+- Regra: não iniciar payment terms, customer default price table por representada, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
 
 ## Checkpoint da sessão (2026-06-10 pós-PR8B2 merge)
 
@@ -87,7 +89,53 @@
 
 ### Próximo ponto
 
-Escolher e planejar próximo slice com autorização explícita: Payment Terms Foundation, Customer default price table link, ORC/PED item snapshot planning ou outro slice aprovado pelo roadmap.
+Escolher e planejar próximo slice com autorização explícita: Payment Terms Foundation, Customer default price table link por representada, ORC/PED item snapshot planning ou outro slice aprovado pelo roadmap.
+
+## Checkpoint da sessão (2026-06-11 pós-PR #49 merge)
+
+### PR #49 — Customer Default Price Table Link integrado
+
+- PR #49 — `Gate H — Customer Default Price Table Link`
+- PR: https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/49
+- Merge commit: `1f81d0a`
+- Branch: `feat/gate-h-customer-default-price-table-link`
+- Commit técnico: `25e35e1`
+- Handoff: `docs/SESSION-HANDOFF-GATE-H-CUSTOMER-DEFAULT-PRICE-TABLE.md`
+
+### Estado técnico PR #49 — Customer Default Price Table Link
+
+- Migration `009_customer_default_price_table.sql`: `customer_commercial_profiles.default_price_table_id` com FK tenant-safe e índice.
+- `default_price_table_id = null` limpa vínculo.
+- Apenas tabela global permitida: `represented_company_id IS NULL`.
+- Port + use cases + in-memory + Postgres repos.
+- Endpoints: `GET/PATCH /v1/customers/{customerId}/commercial-profile`.
+- Autorização mínima atual: ADMIN cria/edita; ADMIN e REPRESENTANTE listam/consultam.
+
+### Validações registradas PR #49
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 157/157 |
+| `npm run db:migrate` | ✅ PASS |
+| `npm run test:smoke:db` | ✅ PASS — 11/11 |
+| `git diff --check` | ✅ PASS |
+
+### Fora de escopo mantido
+
+- Aplicação automática de preço em ORC/PED não iniciada.
+- Override de preço não iniciado.
+- Payment terms não iniciado.
+- Sem frontend.
+- Sem RBAC runtime completo.
+- Sem estoque, fiscal/NF-e/SEFAZ.
+- Sem comissões, margem/desconto avançado, price tiers/faixas, promoção/campanha.
+- Sem `commercial_status`.
+- `erp_app_flow_map.html`: continua untracked e fora dos PRs.
+
+### Próximo ponto
+
+Escolher e planejar próximo slice com autorização explícita: Payment Terms Foundation, Customer default price table link por representada, ORC/PED item snapshot planning ou outro slice aprovado pelo roadmap.
 
 ## Checkpoint da sessão (2026-06-10 pós-PR8B1 merge)
 
