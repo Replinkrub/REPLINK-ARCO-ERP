@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerCommercialProfileRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -66,6 +66,47 @@ function customerRepository(customers: Array<{
 }
 
 describe('minimal HTTP API', () => {
+  it('supports Customer Commercial Profile default price table routes', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-profile-api-1', ownerId: 'rep-1', representativeId: 'rep-1' }]),
+        customerCommercialProfileRepository: new InMemoryCustomerCommercialProfileRepository(),
+        priceTableRepository: new InMemoryPriceTableRepository([
+          { id: 'price-table-profile-api-1', tenantId: 'tenant-env-1', name: 'Tabela Perfil', validFrom: '2026-01-01' },
+          { id: 'price-table-profile-api-rep', tenantId: 'tenant-env-1', representedCompanyId: 'represented-1', name: 'Tabela Rep', validFrom: '2026-01-01' },
+        ]),
+      });
+
+      const getEmpty = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', { headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }) }));
+      expect(getEmpty.status).toBe(200);
+      await expect(getEmpty.json()).resolves.toMatchObject({ customerId: 'customer-profile-api-1', defaultPriceTableId: null });
+
+      const patchResponse = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ default_price_table_id: 'price-table-profile-api-1' }),
+      }));
+      expect(patchResponse.status).toBe(200);
+      await expect(patchResponse.json()).resolves.toMatchObject({ defaultPriceTableId: 'price-table-profile-api-1' });
+
+      const representedResponse = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ default_price_table_id: 'price-table-profile-api-rep' }),
+      }));
+      expect(representedResponse.status).toBe(422);
+
+      const representativePatch = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', {
+        method: 'PATCH',
+        headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }),
+        body: JSON.stringify({ default_price_table_id: null }),
+      }));
+      expect(representativePatch.status).toBe(403);
+    });
+  });
+
   it('supports Price Tables API core routes', async () => {
     await withEnvironmentTenant('tenant-env-1', async () => {
       const api = createMinimalHttpApi({

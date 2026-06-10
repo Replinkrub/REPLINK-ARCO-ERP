@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PostgresOrderRepository,
   PostgresCustomerAddressRepository,
+  PostgresCustomerCommercialProfileRepository,
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresPriceTableRepository,
@@ -207,6 +208,31 @@ describe('postgres repositories', () => {
     expect(overlap).toBe(true);
     expect(db.calls[0]?.text).toContain('SELECT EXISTS');
     expect(db.calls[0]?.text).toContain('status = \'active\'');
+  });
+
+  it('gets and upserts customer commercial profile default price table', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [customerCommercialProfileRow({ default_price_table_id: 'price-table-db-1' })];
+    const repository = new PostgresCustomerCommercialProfileRepository(db);
+
+    const current = await repository.getByCustomer({ tenantId: 'tenant-1', customerId: 'customer-db-1' });
+    expect(current?.defaultPriceTableId).toBe('price-table-db-1');
+    expect(db.calls[0]?.text).toContain('FROM customer_commercial_profiles');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1 AND customer_id = $2');
+
+    db.calls = [];
+    db.resultRows = [customerCommercialProfileRow({ default_price_table_id: 'price-table-db-2' })];
+    const updated = await repository.upsertDefaultPriceTable({ tenantId: 'tenant-1', customerId: 'customer-db-1', defaultPriceTableId: 'price-table-db-2' });
+    expect(updated.defaultPriceTableId).toBe('price-table-db-2');
+    expect(db.calls[0]?.text).toContain('INSERT INTO customer_commercial_profiles');
+    expect(db.calls[0]?.text).toContain('ON CONFLICT (tenant_id, customer_id) DO UPDATE SET');
+    expect(db.calls[0]?.values?.slice(0, 3)).toEqual(['tenant-1', 'customer-db-1', 'price-table-db-2']);
+
+    db.calls = [];
+    db.resultRows = [customerCommercialProfileRow({ default_price_table_id: null })];
+    const cleared = await repository.upsertDefaultPriceTable({ tenantId: 'tenant-1', customerId: 'customer-db-1', defaultPriceTableId: null });
+    expect(cleared.defaultPriceTableId).toBeUndefined();
+    expect(db.calls[0]?.values?.[2]).toBeNull();
   });
 
   it('creates, lists and updates customer contacts scoped by tenant/customer with primary behavior', async () => {
@@ -471,6 +497,20 @@ function priceTableItemRow(overrides: Partial<Record<string, unknown>> = {}) {
     valid_from: '2026-01-01',
     valid_until: null,
     status: 'active',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function customerCommercialProfileRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    tenant_id: 'tenant-1',
+    customer_id: 'customer-db-1',
+    default_payment_term_id: null,
+    default_price_table_id: null,
+    credit_limit: null,
+    notes: null,
     created_at: new Date('2026-01-01T00:00:00.000Z'),
     updated_at: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,

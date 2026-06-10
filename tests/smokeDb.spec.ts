@@ -3,6 +3,7 @@ import { Client } from 'pg';
 import {
   PostgresClient,
   PostgresCustomerAddressRepository,
+  PostgresCustomerCommercialProfileRepository,
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresOrderRepository,
@@ -427,6 +428,86 @@ describe('db smoke (real postgres)', () => {
     expect(duplicateResponse.status).toBe(422);
     const duplicate = await duplicateResponse.json() as { code: string };
     expect(duplicate.code).toBe('DUPLICATE_PRICE_TABLE');
+  });
+
+  it('exercises Customer Commercial Profile default price table against real postgres', async () => {
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
+      customerCommercialProfileRepository: new PostgresCustomerCommercialProfileRepository(db),
+      priceTableRepository: new PostgresPriceTableRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-customer-profile-api-${now}`,
+      'x-tenant-id': tenantId,
+      'content-type': 'application/json',
+    };
+    const customerId = `customer-profile-api-smoke-${now}`;
+    const priceTableId = `price-table-profile-api-smoke-${now}`;
+    const representedId = `represented-profile-api-smoke-${now}`;
+    const representedPriceTableId = `price-table-profile-represented-api-smoke-${now}`;
+
+    const customerResponse = await api(new Request('http://localhost/v1/customers', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: customerId, legal_name: `Customer Profile Smoke ${now}`, document_type: 'cnpj', document_number: `DOC-PROFILE-${now}` }),
+    }));
+    expect(customerResponse.status).toBe(201);
+
+    const priceTableResponse = await api(new Request('http://localhost/v1/price-tables', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: priceTableId, name: `Price Table Profile Smoke ${now}`, valid_from: '2026-01-01' }),
+    }));
+    expect(priceTableResponse.status).toBe(201);
+
+    const getEmpty = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, { headers }));
+    expect(getEmpty.status).toBe(200);
+    await expect(getEmpty.json()).resolves.toMatchObject({ customerId, defaultPriceTableId: null });
+
+    const setDefault = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ default_price_table_id: priceTableId }),
+    }));
+    expect(setDefault.status).toBe(200);
+
+    const profileRow = await pgClient.query(
+      'SELECT tenant_id, customer_id, default_price_table_id FROM customer_commercial_profiles WHERE tenant_id = $1 AND customer_id = $2 LIMIT 1',
+      [tenantId, customerId]
+    );
+    expect(profileRow.rows[0]).toMatchObject({ tenant_id: tenantId, customer_id: customerId, default_price_table_id: priceTableId });
+
+    const clearDefault = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ default_price_table_id: null }),
+    }));
+    expect(clearDefault.status).toBe(200);
+    await expect(clearDefault.json()).resolves.toMatchObject({ defaultPriceTableId: null });
+
+    await pgClient.query(
+      `INSERT INTO represented_companies (id, tenant_id, name, status)
+       VALUES ($1, $2, $3, 'active')
+       ON CONFLICT (tenant_id, name) DO NOTHING`,
+      [representedId, tenantId, `Represented Profile Smoke ${now}`]
+    );
+    const representedTable = await api(new Request('http://localhost/v1/price-tables', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: representedPriceTableId, represented_company_id: representedId, name: `Price Table Profile Rep Smoke ${now}`, valid_from: '2026-01-01' }),
+    }));
+    expect(representedTable.status).toBe(201);
+
+    const representedDefault = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ default_price_table_id: representedPriceTableId }),
+    }));
+    expect(representedDefault.status).toBe(422);
   });
 
   it('exercises Price Table Items API against real postgres', async () => {
