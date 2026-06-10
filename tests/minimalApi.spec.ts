@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -101,6 +101,45 @@ describe('minimal HTTP API', () => {
       expect(patchResponse.status).toBe(200);
       const patched = await patchResponse.json() as { name: string; status: string };
       expect(patched).toMatchObject({ name: 'Tabela API Editada', status: 'inactive' });
+    });
+  });
+
+  it('supports Price Table Items API routes', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+        priceTableRepository: new InMemoryPriceTableRepository([{ id: 'price-table-api-items', tenantId: 'tenant-env-1', name: 'Tabela Itens', validFrom: '2026-01-01', validUntil: '2026-12-31' }]),
+        productRepository: new InMemoryProductRepository([{ id: 'product-api-items', tenantId: 'tenant-env-1', sku: 'ITEM', name: 'Produto Item' }]),
+        priceTableItemRepository: new InMemoryPriceTableItemRepository(),
+      });
+
+      const createResponse = await api(new Request('http://localhost/v1/price-tables/price-table-api-items/items', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'item-api-1', product_id: 'product-api-items', unit_price: 10.5, valid_from: '2026-01-01', valid_until: '2026-06-30' }),
+      }));
+      expect(createResponse.status).toBe(201);
+      const created = await createResponse.json() as { id: string; unitPrice: number };
+      expect(created).toMatchObject({ id: 'item-api-1', unitPrice: 10.5 });
+
+      const listResponse = await api(new Request('http://localhost/v1/price-tables/price-table-api-items/items', { headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }) }));
+      expect(listResponse.status).toBe(200);
+      const list = await listResponse.json() as { items: Array<{ id: string }>; total: number };
+      expect(list.total).toBe(1);
+
+      const getResponse = await api(new Request('http://localhost/v1/price-tables/price-table-api-items/items/item-api-1', { headers: actorHeaders() }));
+      expect(getResponse.status).toBe(200);
+
+      const patchResponse = await api(new Request('http://localhost/v1/price-tables/price-table-api-items/items/item-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ unit_price: 11.25, status: 'inactive' }),
+      }));
+      expect(patchResponse.status).toBe(200);
+      const patched = await patchResponse.json() as { unitPrice: number; status: string };
+      expect(patched).toMatchObject({ unitPrice: 11.25, status: 'inactive' });
     });
   });
 
