@@ -1,6 +1,6 @@
 # ROADMAP — ARCO-ERP V1 Operacional
 
-> Última atualização: 2026-06-06
+> Última atualização: 2026-06-10
 > Dono operacional: Atlas  
 > Dono da prioridade executiva: Toni  
 > Fonte funcional canônica: `docs/SPEC.md` + `docs/DECISION-FLOW-CANON.md`  
@@ -99,6 +99,8 @@ Correção adotada:
 - Gate G PR6 — Customers Foundation (PR #41, merge `47f5130`).
 - Gate H PR7A — Customer API Core (PR #43, merge `6366729`).
 - Gate H PR7B — Customer Contacts + Addresses API (PR #44, merge `abe113c`).
+- Gate H PR8A — Products Foundation API (PR #46, merge `f0fbbf2`).
+- Gate H PR8B1 — Price Tables Core API (PR #47, merge `7ebe395`).
 
 ### Concluído nesta frente documental
 
@@ -495,7 +497,7 @@ Antes de implementar:
 **Tipo:** implementação técnica em slices
 **Dependências:** Gate G
 
-**Status atual:** slice 1 parcialmente integrado até Customer Contacts + Addresses API foundation.
+**Status atual:** slice 1 fully integrated; slice 2 parcialmente integrado até PR8B1 (Products + Price Tables core sem items).
 
 ### Objetivo
 
@@ -504,7 +506,7 @@ Implementar API por fatias funcionais sem quebrar contratos.
 ### Slices mínimos
 
 1. clientes/contatos/endereços — ✅ API foundation integrada até PR7B; ainda não declarar módulo cliente completo;
-2. produtos/tabela de preço;
+2. produtos/tabela de preço — ✅ Products foundation (PR8A) + Price Tables core (PR8B1); PR8B2 (price table items) pendente;
 3. condições de pagamento/parcelas;
 4. orçamento steps 1–4;
 5. confirmação de pedido;
@@ -521,17 +523,31 @@ Implementar API por fatias funcionais sem quebrar contratos.
 - testes automatizados;
 - sem expansão fiscal.
 
-### Estado entregue no slice 1 até PR7B
+### Estado entregue no slice 1
 
-- Customer API Core (`GET/POST/PATCH /v1/customers`) integrado no PR #43.
-- Customer Contacts + Addresses API integrado no PR #44.
+- Customer API Core (`GET/POST/PATCH /v1/customers`) — PR #43 (merge `6366729`).
+- Customer Contacts + Addresses API — PR #44 (merge `abe113c`).
 - Access model: child records herdam acesso do customer pai.
 - Primary behavior: `is_primary=true` desmarca siblings do mesmo `tenantId/customerId`; Postgres usa transação e advisory lock por `tenantId:customerId`.
-- Sem migration nova no PR7B; `customer_contacts` e `customer_addresses` já estavam em `005_customers_core.sql`.
+
+### Estado entregue no slice 2 (parcial)
+
+- Products Foundation API — PR #46 (merge `f0fbbf2`):
+  - Migration `006`: `products(tenant_id, id, name, description, unit, sku, ncm, cest, origin, status)`.
+  - `GET/POST/PATCH /v1/products` + `GET /v1/products/:productId`.
+  - Partial unique `(tenant_id, sku)` quando `sku IS NOT NULL`.
+- Price Tables Core API — PR #47 (merge `7ebe395`):
+  - Migration `007`: `price_tables(tenant_id, id, represented_company_id, name, currency, valid_from, valid_until, status)`.
+  - `GET/POST/PATCH /v1/price-tables` + `GET /v1/price-tables/:priceTableId`.
+  - `represented_company_id` nullable com FK tenant-safe.
+  - Partial unique `(tenant_id, represented_company_id, name)` / `(tenant_id, name)`.
+  - Overlap check de vigência no use case.
+- Ambos seguem padrão Products: ADMIN (create/update), ADMIN + REPRESENTANTE (list/get).
+- PR8B2 (price table items: vinculo produto + preço por tabela) **não iniciado**.
 
 ### Próximo passo do Gate H
 
-Planejar o próximo slice técnico com autorização explícita. Não avançar para products/prices/payment terms, frontend ou RBAC runtime sem plano/review próprio.
+Planejar PR8B2 (price table items) ou próximo slice técnico com autorização explícita. Não avançar para PR8B2, payment terms, frontend ou RBAC runtime sem autorização.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 

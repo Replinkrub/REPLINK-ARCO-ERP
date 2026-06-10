@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate H integrado até PR7B**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até PR8B1**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `abe113c` (merge PR #44 — Customer Contacts + Addresses API)
+- `main` em: `7ebe395` (merge PR #47 — Price Tables Core API)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -20,6 +20,8 @@
 - Gate G PR6 — customers foundation: ✅ **mergeado**
 - Gate H PR7A — Customer API Core: ✅ **mergeado**
 - Gate H PR7B — Customer Contacts + Addresses API: ✅ **mergeado**
+- Gate H PR8A — Products Foundation API: ✅ **mergeado**
+- Gate H PR8B1 — Price Tables Core API: ✅ **mergeado**
 - PR documental A–F: #30 — merge commit `0962558`
 - PR Gate G inicial: #31 — merge commit `6d7cd19`
 - PR Gate G PR5A: #37 — merge commit `ccb1c82`
@@ -27,11 +29,73 @@
 - PR Gate G PR6: #41 — merge commit `47f5130`
 - PR Gate H PR7A: #43 — merge commit `6366729`
 - PR Gate H PR7B: #44 — merge commit `abe113c`
+- PR Gate H PR8A: #46 — merge commit `f0fbbf2`
+- PR Gate H PR8B1: #47 — merge commit `7ebe395`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 133/133 (11 test files)
-- Smoke DB real contra Supabase dev: ✅ PASS — 7/7
-- Próximo ponto: **planejar próximo slice técnico com autorização explícita**
-- Regra: não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem plano/review próprio.
+- Tests: ✅ PASS — 145/145 (14 test files)
+- Smoke DB real contra Supabase dev: ✅ PASS — 9/9
+- Próximo ponto: **planejar próximo slice técnico (PR8B2 ou próximo) com autorização explícita**
+- Regra: não iniciar PR8B2, payment terms, frontend ou RBAC/auth runtime sem autorização.
+
+## Checkpoint da sessão (2026-06-10 pós-PR8B1 merge)
+
+### PR8A + PR8B1 integrados
+
+- PR #46 — `Gate H PR8A — Products Foundation API`
+- Merge commit: `f0fbbf2`
+- Branch: `feat/gate-h-pr8a-products-foundation`
+- Commit técnico: `6363bba feat(erp): add products foundation api`
+- PR #47 — `Gate H PR8B1 — Price Tables Core API`
+- Merge commit: `7ebe395`
+- Branch: `feat/gate-h-pr8b1-price-tables-core`
+- Commit técnico: `44d01e0 feat(erp): add price tables core api`
+- PR #47 revisado por Toni — APPROVED_WITH_NOTES (sem bloqueios)
+- Handoff: `docs/SESSION-HANDOFF-GATE-H-PR8B1.md`
+
+### Estado técnico PR8A — Products Foundation
+
+- Migration `006_products_foundation.sql`: `products(tenant_id, id, name, description, unit, sku, ncm, cest, origin, status)`.
+- Partial unique `(tenant_id, sku)` quando `sku IS NOT NULL`.
+- `origin` como `integer NOT NULL DEFAULT 0`.
+- Port + use cases + in-memory + Postgres repos.
+- Endpoints: `GET/POST/PATCH /v1/products` + `GET /v1/products/:productId`.
+- Erros: `PRODUCT_NOT_FOUND`, `PRODUCT_WITH_SKU_ALREADY_EXISTS`.
+
+### Estado técnico PR8B1 — Price Tables Core
+
+- Migration `007_price_tables_core.sql`: `price_tables(tenant_id, id, represented_company_id, name, currency, valid_from, valid_until, status)`.
+- `represented_company_id` nullable com FK tenant-safe.
+- `currency` default `'BRL'`.
+- Partial unique `(tenant_id, represented_company_id, name)` / `(tenant_id, name)`.
+- Port + use cases + in-memory + Postgres repos.
+- Endpoints: `GET/POST/PATCH /v1/price-tables` + `GET /v1/price-tables/:priceTableId`.
+- Overlap check de vigência no use case.
+- Erros: `PRICE_TABLE_NOT_FOUND`, `DUPLICATE_PRICE_TABLE`.
+
+### Validações registradas PR8A + PR8B1
+
+| Validação | PR8A | PR8B1 |
+|---|---|---|
+| `npm run typecheck` | ✅ PASS | ✅ PASS |
+| `npm run test` | ✅ PASS — 140/140 | ✅ PASS — 145/145 |
+| `npm run db:migrate` | ✅ PASS — `006` applied | ✅ PASS — `007` applied |
+| `npm run test:smoke:db` | ✅ PASS — 8/8 | ✅ PASS — 9/9 |
+| `git diff --check` | ✅ PASS | ✅ PASS |
+
+### Fora de escopo mantido
+
+- PR8B2 (price table items) não iniciado.
+- Conflito de vigência por produto não implementado.
+- Aplicação de preço em ORC/PED não implementada.
+- Sem payment terms, desconto/margem/override, comissões.
+- Sem estoque, fiscal/NF-e/SEFAZ.
+- Sem RBAC runtime completo, `GESTOR_COMERCIAL`, audit denied real.
+- Sem frontend.
+- `erp_app_flow_map.html`: continua untracked e fora dos PRs.
+
+### Próximo ponto
+
+Planejar PR8B2 (price table items) ou próximo slice técnico com autorização explícita. Não iniciar PR8B2, payment terms, frontend ou RBAC/auth runtime sem autorização.
 
 ## Checkpoint da sessão (2026-06-06 pós-PR7B merge)
 
@@ -325,9 +389,13 @@ Gate H PR7A — Customer API Core: **✅ mergeado em `6366729`**.
 
 Gate H PR7B — Customer Contacts + Addresses API: **✅ mergeado em `abe113c`**.
 
-Próximo ponto: **planejar próximo slice técnico com autorização explícita**.
+Gate H PR8A — Products Foundation API: **✅ mergeado em `f0fbbf2`**.
 
-Regra: não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem plano/review próprio.
+Gate H PR8B1 — Price Tables Core API: **✅ mergeado em `7ebe395`**.
+
+Próximo ponto: **planejar próximo slice técnico (PR8B2 ou próximo) com autorização explícita**.
+
+Regra: não iniciar PR8B2, payment terms, frontend ou RBAC/auth runtime sem autorização.
 
 ## Checkpoint da sessão (2026-06-01)
 
