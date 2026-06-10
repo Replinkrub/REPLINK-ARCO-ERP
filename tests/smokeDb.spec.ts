@@ -6,6 +6,7 @@ import {
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresOrderRepository,
+  PostgresPriceTableRepository,
   PostgresProductRepository,
   PostgresQuoteRepository,
   createMinimalHttpApi,
@@ -370,6 +371,61 @@ describe('db smoke (real postgres)', () => {
     expect(duplicateResponse.status).toBe(422);
     const duplicate = await duplicateResponse.json() as { code: string };
     expect(duplicate.code).toBe('DUPLICATE_PRODUCT_SKU');
+  });
+
+  it('exercises Price Tables API core against real postgres', async () => {
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
+      priceTableRepository: new PostgresPriceTableRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-price-table-api-${now}`,
+      'x-tenant-id': tenantId,
+      'content-type': 'application/json',
+    };
+    const priceTableId = `price-table-api-smoke-${now}`;
+    const priceTableName = `Price Table API Smoke ${now}`;
+
+    const createResponse = await api(new Request('http://localhost/v1/price-tables', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: priceTableId, name: priceTableName, valid_from: '2026-01-01' }),
+    }));
+    expect(createResponse.status).toBe(201);
+
+    const priceTableRow = await pgClient.query(
+      'SELECT id, tenant_id, name, represented_company_id, currency FROM price_tables WHERE id = $1 LIMIT 1',
+      [priceTableId]
+    );
+    expect(priceTableRow.rowCount).toBe(1);
+    expect(priceTableRow.rows[0]).toMatchObject({ id: priceTableId, tenant_id: tenantId, name: priceTableName, represented_company_id: null, currency: 'BRL' });
+
+    const listResponse = await api(new Request(`http://localhost/v1/price-tables?q=${encodeURIComponent(priceTableName)}`, { headers }));
+    expect(listResponse.status).toBe(200);
+    const list = await listResponse.json() as { items: Array<{ id: string }> };
+    expect(list.items.some((item) => item.id === priceTableId)).toBe(true);
+
+    const patchResponse = await api(new Request(`http://localhost/v1/price-tables/${priceTableId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name: `${priceTableName} Updated`, status: 'inactive' }),
+    }));
+    expect(patchResponse.status).toBe(200);
+    const patched = await patchResponse.json() as { status: string; name: string };
+    expect(patched.status).toBe('inactive');
+
+    const duplicateResponse = await api(new Request('http://localhost/v1/price-tables', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `price-table-api-smoke-duplicate-${now}`, name: `${priceTableName} Updated`, valid_from: '2026-01-01' }),
+    }));
+    expect(duplicateResponse.status).toBe(422);
+    const duplicate = await duplicateResponse.json() as { code: string };
+    expect(duplicate.code).toBe('DUPLICATE_PRICE_TABLE');
   });
 
   it('exercises Customer API Core against real postgres', async () => {

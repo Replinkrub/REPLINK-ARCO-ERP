@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -66,6 +66,70 @@ function customerRepository(customers: Array<{
 }
 
 describe('minimal HTTP API', () => {
+  it('supports Price Tables API core routes', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+        priceTableRepository: new InMemoryPriceTableRepository(),
+      });
+
+      const createResponse = await api(new Request('http://localhost/v1/price-tables', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'price-table-api-1', name: 'Tabela API', valid_from: '2026-01-01' }),
+      }));
+      expect(createResponse.status).toBe(201);
+      const created = await createResponse.json() as { id: string; tenantId: string; status: string; currency: string };
+      expect(created).toMatchObject({ id: 'price-table-api-1', tenantId: 'tenant-env-1', status: 'active', currency: 'BRL' });
+
+      const listResponse = await api(new Request('http://localhost/v1/price-tables?q=Tabela', { headers: actorHeaders() }));
+      expect(listResponse.status).toBe(200);
+      const list = await listResponse.json() as { items: Array<{ id: string }>; total: number };
+      expect(list.total).toBe(1);
+      expect(list.items[0]?.id).toBe('price-table-api-1');
+
+      const getResponse = await api(new Request('http://localhost/v1/price-tables/price-table-api-1', { headers: actorHeaders() }));
+      expect(getResponse.status).toBe(200);
+
+      const patchResponse = await api(new Request('http://localhost/v1/price-tables/price-table-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ name: 'Tabela API Editada', status: 'inactive' }),
+      }));
+      expect(patchResponse.status).toBe(200);
+      const patched = await patchResponse.json() as { name: string; status: string };
+      expect(patched).toMatchObject({ name: 'Tabela API Editada', status: 'inactive' });
+    });
+  });
+
+  it('protects Price Tables API writes by role and rejects out-of-scope fields', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+        priceTableRepository: new InMemoryPriceTableRepository(),
+      });
+
+      const representativeCreate = await api(new Request('http://localhost/v1/price-tables', {
+        method: 'POST',
+        headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }),
+        body: JSON.stringify({ id: 'price-table-rep-api', name: 'Rep', valid_from: '2026-01-01' }),
+      }));
+      expect(representativeCreate.status).toBe(403);
+
+      const outOfScope = await api(new Request('http://localhost/v1/price-tables', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'price-table-item-api', name: 'Item fora', valid_from: '2026-01-01', price_table_items: [] }),
+      }));
+      expect(outOfScope.status).toBe(422);
+      await expect(outOfScope.json()).resolves.toMatchObject({ code: 'VALIDATION_ERROR' });
+    });
+  });
+
   it('supports Products API foundation routes', async () => {
     await withEnvironmentTenant('tenant-env-1', async () => {
       const api = createMinimalHttpApi({

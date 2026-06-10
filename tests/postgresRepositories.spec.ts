@@ -4,6 +4,7 @@ import {
   PostgresCustomerAddressRepository,
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
+  PostgresPriceTableRepository,
   PostgresQuoteRepository,
   PostgresProductRepository,
   createQuote,
@@ -135,6 +136,38 @@ describe('postgres repositories', () => {
     await repository.update({ tenantId: 'tenant-1', actorId: 'admin-1', role: 'ADMIN', productId: 'product-db-1', patch: { name: 'Produto DB 2' } });
     expect(db.calls[0]?.text).toContain('FROM products');
     expect(db.calls[1]?.text).toContain('UPDATE products SET');
+    expect(db.calls[1]?.text).toContain('WHERE tenant_id = $1 AND id = $2');
+  });
+
+  it('creates, lists and updates price tables scoped by tenant', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [priceTableRow({ id: 'price-table-db-1' })];
+    const repository = new PostgresPriceTableRepository(db);
+
+    const created = await repository.create({
+      id: 'price-table-db-1',
+      tenantId: 'tenant-1',
+      representedCompanyId: 'represented-1',
+      name: 'Tabela DB',
+      currency: 'BRL',
+      validFrom: '2026-01-01',
+      status: 'active',
+    });
+
+    expect(created.id).toBe('price-table-db-1');
+    expect(db.calls[0]?.text).toContain('INSERT INTO price_tables');
+    expect(db.calls[0]?.values?.slice(0, 6)).toEqual(['price-table-db-1', 'tenant-1', 'represented-1', 'Tabela DB', 'BRL', '2026-01-01']);
+
+    db.calls = [];
+    await repository.list({ tenantId: 'tenant-1', actorId: 'rep-1', role: 'REPRESENTANTE', page: 1, pageSize: 20, q: 'Tabela' });
+    expect(db.calls[0]?.text).toContain('FROM price_tables');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1');
+    expect(db.calls[0]?.text).toContain('ILIKE $2');
+
+    db.calls = [];
+    await repository.update({ tenantId: 'tenant-1', actorId: 'admin-1', role: 'ADMIN', priceTableId: 'price-table-db-1', patch: { name: 'Tabela DB 2' } });
+    expect(db.calls[0]?.text).toContain('FROM price_tables');
+    expect(db.calls[1]?.text).toContain('UPDATE price_tables SET');
     expect(db.calls[1]?.text).toContain('WHERE tenant_id = $1 AND id = $2');
   });
 
@@ -367,6 +400,22 @@ function productRow(overrides: Partial<Record<string, unknown>> = {}) {
     net_weight: null,
     dimensions: null,
     availability_status: null,
+    status: 'active',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function priceTableRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'price-table-db',
+    tenant_id: 'tenant-1',
+    represented_company_id: 'represented-1',
+    name: 'Tabela DB',
+    currency: 'BRL',
+    valid_from: '2026-01-01',
+    valid_until: null,
     status: 'active',
     created_at: new Date('2026-01-01T00:00:00.000Z'),
     updated_at: new Date('2026-01-01T00:00:00.000Z'),
