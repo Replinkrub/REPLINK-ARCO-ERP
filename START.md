@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate H integrado até PR8B1**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até PR8B2**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `7ebe395` (merge PR #47 — Price Tables Core API)
+- `main` em: `384679b` (merge PR #48 — Price Table Items API)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -22,6 +22,7 @@
 - Gate H PR7B — Customer Contacts + Addresses API: ✅ **mergeado**
 - Gate H PR8A — Products Foundation API: ✅ **mergeado**
 - Gate H PR8B1 — Price Tables Core API: ✅ **mergeado**
+- Gate H PR8B2 — Price Table Items API: ✅ **mergeado**
 - PR documental A–F: #30 — merge commit `0962558`
 - PR Gate G inicial: #31 — merge commit `6d7cd19`
 - PR Gate G PR5A: #37 — merge commit `ccb1c82`
@@ -31,11 +32,62 @@
 - PR Gate H PR7B: #44 — merge commit `abe113c`
 - PR Gate H PR8A: #46 — merge commit `f0fbbf2`
 - PR Gate H PR8B1: #47 — merge commit `7ebe395`
+- PR Gate H PR8B2: #48 — merge commit `384679b`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 145/145 (14 test files)
-- Smoke DB real contra Supabase dev: ✅ PASS — 9/9
-- Próximo ponto: **planejar próximo slice técnico (PR8B2 ou próximo) com autorização explícita**
-- Regra: não iniciar PR8B2, payment terms, frontend ou RBAC/auth runtime sem autorização.
+- Tests: ✅ PASS — 152/152 (14 test files)
+- Smoke DB real contra Supabase dev: ✅ PASS — 10/10
+- Próximo ponto: **escolher e planejar próximo slice técnico com autorização explícita**
+- Regra: não iniciar payment terms, customer default price table, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
+
+## Checkpoint da sessão (2026-06-10 pós-PR8B2 merge)
+
+### PR8B2 integrado
+
+- PR #48 — `Gate H PR8B2 — Price Table Items API`
+- PR: https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/48
+- Merge commit: `384679b`
+- Branch: `feat/gate-h-pr8b2-price-table-items`
+- Commit técnico: `7f64d318a146315d801948dd36b9ee24bb254892`
+- Handoff: `docs/SESSION-HANDOFF-GATE-H-PR8B2.md`
+
+### Estado técnico PR8B2 — Price Table Items
+
+- Migration `008_price_table_items.sql`: `price_table_items(tenant_id, price_table_id, product_id, unit_price, valid_from, valid_until, status)`.
+- `unit_price NUMERIC(14,4)` e `unit_price > 0`.
+- Vigência por `valid_from`/`valid_until`.
+- Overlap inclusivo `[valid_from, valid_until]` bloqueado por aplicação/repository.
+- Sem unique simples por tabela/produto; sem EXCLUDE/range constraint.
+- Representada da tabela e produto precisa bater exatamente, incluindo `NULL === NULL`.
+- Port + use cases + in-memory + Postgres repos.
+- Endpoints: `GET/POST /v1/price-tables/{priceTableId}/items` + `GET/PATCH /v1/price-tables/{priceTableId}/items/{itemId}`.
+- Autorização mínima atual: ADMIN cria/edita; ADMIN e REPRESENTANTE listam/consultam.
+
+### Validações registradas PR8B2
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 152/152 |
+| `npm run db:migrate` | ✅ PASS |
+| `npm run test:smoke:db` | ✅ PASS — 10/10 |
+| `git diff --check` | ✅ PASS |
+
+### Fora de escopo mantido
+
+- Aplicação automática de preço em ORC/PED não iniciada.
+- Override de preço não iniciado.
+- `customer_commercial_profiles.default_price_table_id` não tocado.
+- Sem payment terms.
+- Sem frontend.
+- Sem RBAC runtime completo.
+- Sem estoque, fiscal/NF-e/SEFAZ.
+- Sem comissões, margem/desconto avançado, price tiers/faixas, promoção/campanha.
+- Sem `commercial_status`.
+- `erp_app_flow_map.html`: continua untracked e fora dos PRs.
+
+### Próximo ponto
+
+Escolher e planejar próximo slice com autorização explícita: Payment Terms Foundation, Customer default price table link, ORC/PED item snapshot planning ou outro slice aprovado pelo roadmap.
 
 ## Checkpoint da sessão (2026-06-10 pós-PR8B1 merge)
 
@@ -393,9 +445,11 @@ Gate H PR8A — Products Foundation API: **✅ mergeado em `f0fbbf2`**.
 
 Gate H PR8B1 — Price Tables Core API: **✅ mergeado em `7ebe395`**.
 
-Próximo ponto: **planejar próximo slice técnico (PR8B2 ou próximo) com autorização explícita**.
+Gate H PR8B2 — Price Table Items API: **✅ mergeado em `384679b`**.
 
-Regra: não iniciar PR8B2, payment terms, frontend ou RBAC/auth runtime sem autorização.
+Próximo ponto: **escolher e planejar próximo slice técnico com autorização explícita**.
+
+Regra: não iniciar payment terms, customer default price table, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
 
 ## Checkpoint da sessão (2026-06-01)
 

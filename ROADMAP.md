@@ -101,6 +101,7 @@ Correção adotada:
 - Gate H PR7B — Customer Contacts + Addresses API (PR #44, merge `abe113c`).
 - Gate H PR8A — Products Foundation API (PR #46, merge `f0fbbf2`).
 - Gate H PR8B1 — Price Tables Core API (PR #47, merge `7ebe395`).
+- Gate H PR8B2 — Price Table Items API (PR #48, merge `384679b`).
 
 ### Concluído nesta frente documental
 
@@ -497,7 +498,7 @@ Antes de implementar:
 **Tipo:** implementação técnica em slices
 **Dependências:** Gate G
 
-**Status atual:** slice 1 fully integrated; slice 2 parcialmente integrado até PR8B1 (Products + Price Tables core sem items).
+**Status atual:** slice 1 fully integrated; slice 2 integrado até PR8B2 (Products + Price Tables + Price Table Items foundation).
 
 ### Objetivo
 
@@ -506,7 +507,7 @@ Implementar API por fatias funcionais sem quebrar contratos.
 ### Slices mínimos
 
 1. clientes/contatos/endereços — ✅ API foundation integrada até PR7B; ainda não declarar módulo cliente completo;
-2. produtos/tabela de preço — ✅ Products foundation (PR8A) + Price Tables core (PR8B1); PR8B2 (price table items) pendente;
+2. produtos/tabela de preço — ✅ Products foundation (PR8A) + Price Tables core (PR8B1) + Price Table Items API (PR8B2);
 3. condições de pagamento/parcelas;
 4. orçamento steps 1–4;
 5. confirmação de pedido;
@@ -530,7 +531,7 @@ Implementar API por fatias funcionais sem quebrar contratos.
 - Access model: child records herdam acesso do customer pai.
 - Primary behavior: `is_primary=true` desmarca siblings do mesmo `tenantId/customerId`; Postgres usa transação e advisory lock por `tenantId:customerId`.
 
-### Estado entregue no slice 2 (parcial)
+### Estado entregue no slice 2
 
 - Products Foundation API — PR #46 (merge `f0fbbf2`):
   - Migration `006`: `products(tenant_id, id, name, description, unit, sku, ncm, cest, origin, status)`.
@@ -542,12 +543,18 @@ Implementar API por fatias funcionais sem quebrar contratos.
   - `represented_company_id` nullable com FK tenant-safe.
   - Partial unique `(tenant_id, represented_company_id, name)` / `(tenant_id, name)`.
   - Overlap check de vigência no use case.
-- Ambos seguem padrão Products: ADMIN (create/update), ADMIN + REPRESENTANTE (list/get).
-- PR8B2 (price table items: vinculo produto + preço por tabela) **não iniciado**.
+- Price Table Items API — PR #48 (merge `384679b`):
+  - Migration `008`: `price_table_items(tenant_id, price_table_id, product_id, unit_price, valid_from, valid_until, status)`.
+  - `GET/POST /v1/price-tables/:priceTableId/items` + `GET/PATCH /v1/price-tables/:priceTableId/items/:itemId`.
+  - `unit_price NUMERIC(14,4)` com `unit_price > 0`.
+  - Vigência por `valid_from`/`valid_until`, overlap inclusivo `[valid_from, valid_until]` bloqueado por aplicação/repository.
+  - Sem unique simples por tabela/produto; sem EXCLUDE/range constraint neste PR.
+  - Representada da tabela e produto precisa bater exatamente, incluindo `NULL === NULL`.
+- Slices PR8A/PR8B1/PR8B2 seguem autorização mínima atual: ADMIN cria/edita, ADMIN + REPRESENTANTE listam/consultam.
 
 ### Próximo passo do Gate H
 
-Planejar PR8B2 (price table items) ou próximo slice técnico com autorização explícita. Não avançar para PR8B2, payment terms, frontend ou RBAC runtime sem autorização.
+Escolher e planejar o próximo slice técnico com autorização explícita. Não avançar para payment terms, customer default price table, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 
