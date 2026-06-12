@@ -7,6 +7,7 @@ import {
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresOrderRepository,
+  PostgresPaymentTermRepository,
   PostgresPriceTableRepository,
   PostgresPriceTableItemRepository,
   PostgresProductRepository,
@@ -428,6 +429,62 @@ describe('db smoke (real postgres)', () => {
     expect(duplicateResponse.status).toBe(422);
     const duplicate = await duplicateResponse.json() as { code: string };
     expect(duplicate.code).toBe('DUPLICATE_PRICE_TABLE');
+  });
+
+  it('exercises Payment Terms API foundation against real postgres', async () => {
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
+      paymentTermRepository: new PostgresPaymentTermRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-payment-term-api-${now}`,
+      'x-tenant-id': tenantId,
+      'content-type': 'application/json',
+    };
+    const paymentTermId = `payment-term-api-smoke-${now}`;
+    const paymentTermName = `Payment Term API Smoke ${now}`;
+
+    const createResponse = await api(new Request('http://localhost/v1/payment-terms', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: paymentTermId, name: paymentTermName, installments_count: 3, first_due_days: 30, interval_days: 30 }),
+    }));
+    expect(createResponse.status).toBe(201);
+
+    const paymentTermRow = await pgClient.query(
+      'SELECT id, tenant_id, name, installments_count, first_due_days, interval_days FROM payment_terms WHERE tenant_id = $1 AND id = $2 LIMIT 1',
+      [tenantId, paymentTermId]
+    );
+    expect(paymentTermRow.rowCount).toBe(1);
+    expect(paymentTermRow.rows[0]).toMatchObject({ id: paymentTermId, tenant_id: tenantId, name: paymentTermName, installments_count: 3, first_due_days: 30, interval_days: 30 });
+
+    const listResponse = await api(new Request(`http://localhost/v1/payment-terms?q=${encodeURIComponent(paymentTermName)}`, { headers: { ...headers, 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': `rep-payment-term-api-${now}` } }));
+    expect(listResponse.status).toBe(200);
+    const list = await listResponse.json() as { items: Array<{ id: string }> };
+    expect(list.items.some((item) => item.id === paymentTermId)).toBe(true);
+
+    const patchResponse = await api(new Request(`http://localhost/v1/payment-terms/${paymentTermId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name: `${paymentTermName} Updated`, installments_count: 2, status: 'inactive' }),
+    }));
+    expect(patchResponse.status).toBe(200);
+    const patched = await patchResponse.json() as { status: string; name: string; installmentsCount: number };
+    expect(patched.status).toBe('inactive');
+    expect(patched.installmentsCount).toBe(2);
+
+    const duplicateResponse = await api(new Request('http://localhost/v1/payment-terms', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `payment-term-api-smoke-duplicate-${now}`, name: `${paymentTermName} Updated`, installments_count: 1, first_due_days: 0, interval_days: 0 }),
+    }));
+    expect(duplicateResponse.status).toBe(422);
+    const duplicate = await duplicateResponse.json() as { code: string };
+    expect(duplicate.code).toBe('DUPLICATE_PAYMENT_TERM');
   });
 
   it('exercises Customer Commercial Profile default price table against real postgres', async () => {
