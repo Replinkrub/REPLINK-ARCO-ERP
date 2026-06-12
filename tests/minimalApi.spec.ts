@@ -141,11 +141,15 @@ describe('minimal HTTP API', () => {
           { id: 'price-table-profile-api-1', tenantId: 'tenant-env-1', name: 'Tabela Perfil', validFrom: '2026-01-01' },
           { id: 'price-table-profile-api-rep', tenantId: 'tenant-env-1', representedCompanyId: 'represented-1', name: 'Tabela Rep', validFrom: '2026-01-01' },
         ]),
+        paymentTermRepository: new InMemoryPaymentTermRepository([
+          { id: 'payment-term-profile-api-1', tenantId: 'tenant-env-1', name: '30/60', installmentsCount: 2, firstDueDays: 30, intervalDays: 30 },
+          { id: 'payment-term-profile-api-inactive', tenantId: 'tenant-env-1', name: 'Inativa', installmentsCount: 1, firstDueDays: 0, intervalDays: 0, status: 'inactive' },
+        ]),
       });
 
       const getEmpty = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', { headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }) }));
       expect(getEmpty.status).toBe(200);
-      await expect(getEmpty.json()).resolves.toMatchObject({ customerId: 'customer-profile-api-1', defaultPriceTableId: null });
+      await expect(getEmpty.json()).resolves.toMatchObject({ customerId: 'customer-profile-api-1', defaultPriceTableId: null, defaultPaymentTermId: null });
 
       const patchResponse = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', {
         method: 'PATCH',
@@ -154,6 +158,21 @@ describe('minimal HTTP API', () => {
       }));
       expect(patchResponse.status).toBe(200);
       await expect(patchResponse.json()).resolves.toMatchObject({ defaultPriceTableId: 'price-table-profile-api-1' });
+
+      const paymentTermResponse = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ default_payment_term_id: 'payment-term-profile-api-1' }),
+      }));
+      expect(paymentTermResponse.status).toBe(200);
+      await expect(paymentTermResponse.json()).resolves.toMatchObject({ defaultPriceTableId: 'price-table-profile-api-1', defaultPaymentTermId: 'payment-term-profile-api-1' });
+
+      const inactivePaymentTermResponse = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ default_payment_term_id: 'payment-term-profile-api-inactive' }),
+      }));
+      expect(inactivePaymentTermResponse.status).toBe(422);
 
       const representedResponse = await api(new Request('http://localhost/v1/customers/customer-profile-api-1/commercial-profile', {
         method: 'PATCH',

@@ -244,7 +244,7 @@ describe('postgres repositories', () => {
     expect(db.calls[1]?.text).toContain('WHERE tenant_id = $1 AND id = $2');
   });
 
-  it('gets and upserts customer commercial profile default price table', async () => {
+  it('gets and upserts customer commercial profile defaults', async () => {
     const db = new FakeSqlExecutor();
     db.resultRows = [customerCommercialProfileRow({ default_price_table_id: 'price-table-db-1' })];
     const repository = new PostgresCustomerCommercialProfileRepository(db);
@@ -266,6 +266,20 @@ describe('postgres repositories', () => {
     db.resultRows = [customerCommercialProfileRow({ default_price_table_id: null })];
     const cleared = await repository.upsertDefaultPriceTable({ tenantId: 'tenant-1', customerId: 'customer-db-1', defaultPriceTableId: null });
     expect(cleared.defaultPriceTableId).toBeUndefined();
+    expect(db.calls[0]?.values?.[2]).toBeNull();
+
+    db.calls = [];
+    db.resultRows = [customerCommercialProfileRow({ default_payment_term_id: 'payment-term-db-1' })];
+    const termUpdated = await repository.upsertDefaultPaymentTerm({ tenantId: 'tenant-1', customerId: 'customer-db-1', defaultPaymentTermId: 'payment-term-db-1' });
+    expect(termUpdated.defaultPaymentTermId).toBe('payment-term-db-1');
+    expect(db.calls[0]?.text).toContain('INSERT INTO customer_commercial_profiles');
+    expect(db.calls[0]?.text).toContain('default_payment_term_id = EXCLUDED.default_payment_term_id');
+    expect(db.calls[0]?.values?.slice(0, 3)).toEqual(['tenant-1', 'customer-db-1', 'payment-term-db-1']);
+
+    db.calls = [];
+    db.resultRows = [customerCommercialProfileRow({ default_payment_term_id: null })];
+    const termCleared = await repository.upsertDefaultPaymentTerm({ tenantId: 'tenant-1', customerId: 'customer-db-1', defaultPaymentTermId: null });
+    expect(termCleared.defaultPaymentTermId).toBeUndefined();
     expect(db.calls[0]?.values?.[2]).toBeNull();
   });
 

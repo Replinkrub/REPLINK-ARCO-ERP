@@ -121,11 +121,12 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       if (method === 'PATCH' && url.pathname.match(/^\/v1\/customers\/[^/]+\/commercial-profile$/)) {
         const customerCommercialProfileRepository = deps.customerCommercialProfileRepository;
         const priceTableRepository = deps.priceTableRepository;
-        if (!customerCommercialProfileRepository || !priceTableRepository) return dependencyUnavailable('Customer commercial profile dependencies unavailable');
+        const paymentTermRepository = deps.paymentTermRepository;
+        if (!customerCommercialProfileRepository || !priceTableRepository || !paymentTermRepository) return dependencyUnavailable('Customer commercial profile dependencies unavailable');
         const customerId = url.pathname.split('/')[3] ?? '';
         const body = await request.json() as Record<string, unknown>;
         const result = await updateCustomerCommercialProfileUseCase(
-          { customerRepository: deps.customerRepository, customerCommercialProfileRepository, priceTableRepository },
+          { customerRepository: deps.customerRepository, customerCommercialProfileRepository, priceTableRepository, paymentTermRepository },
           { actor, customerId, payload: body }
         );
         return mapResult(result, 200);

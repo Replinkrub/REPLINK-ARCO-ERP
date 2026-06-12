@@ -3,6 +3,7 @@ import type {
   CustomerCommercialProfileGetInput,
   CustomerCommercialProfileRecord,
   CustomerCommercialProfileRepository,
+  CustomerCommercialProfileUpsertDefaultPaymentTermInput,
   CustomerCommercialProfileUpsertDefaultPriceTableInput,
 } from '../../application/ports/customerCommercialProfileRepository.js';
 import type { SqlExecutor } from './postgresClient.js';
@@ -41,6 +42,22 @@ export class PostgresCustomerCommercialProfileRepository implements CustomerComm
         updated_at = EXCLUDED.updated_at
       RETURNING ${selectColumns()}`,
       [input.tenantId, input.customerId, input.defaultPriceTableId, now]
+    );
+    return rowToProfile(result.rows[0]);
+  }
+
+  async upsertDefaultPaymentTerm(input: CustomerCommercialProfileUpsertDefaultPaymentTermInput): Promise<CustomerCommercialProfileRecord> {
+    const now = input.now ?? new Date();
+    const result = await this.db.query<CustomerCommercialProfileRow>(
+      `INSERT INTO customer_commercial_profiles (
+        tenant_id, customer_id, default_payment_term_id, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $4
+      ) ON CONFLICT (tenant_id, customer_id) DO UPDATE SET
+        default_payment_term_id = EXCLUDED.default_payment_term_id,
+        updated_at = EXCLUDED.updated_at
+      RETURNING ${selectColumns()}`,
+      [input.tenantId, input.customerId, input.defaultPaymentTermId, now]
     );
     return rowToProfile(result.rows[0]);
   }
