@@ -4,6 +4,7 @@ import {
   PostgresClient,
   PostgresCustomerAddressRepository,
   PostgresCustomerCommercialProfileRepository,
+  PostgresCustomerRepresentedCommercialProfileRepository,
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresOrderRepository,
@@ -12,6 +13,7 @@ import {
   PostgresPriceTableItemRepository,
   PostgresProductRepository,
   PostgresQuoteRepository,
+  PostgresRepresentedCompanyRepository,
   createMinimalHttpApi,
 } from '../src/index.js';
 
@@ -595,6 +597,148 @@ describe('db smoke (real postgres)', () => {
       body: JSON.stringify({ default_price_table_id: representedPriceTableId }),
     }));
     expect(representedDefault.status).toBe(422);
+  });
+
+  it('exercises Customer Represented Commercial Profile and override model foundation against real postgres', async () => {
+    process.env.APP_TENANT_ID = tenantId;
+    const api = createMinimalHttpApi({
+      quoteRepository: new PostgresQuoteRepository(db),
+      orderRepository: new PostgresOrderRepository(db),
+      customerRepository: new PostgresCustomerRepository(db),
+      representedCompanyRepository: new PostgresRepresentedCompanyRepository(db),
+      customerRepresentedCommercialProfileRepository: new PostgresCustomerRepresentedCommercialProfileRepository(db),
+      priceTableRepository: new PostgresPriceTableRepository(db),
+      paymentTermRepository: new PostgresPaymentTermRepository(db),
+      productRepository: new PostgresProductRepository(db),
+    });
+    const headers = {
+      'x-actor-role': 'ADMIN',
+      'x-actor-id': `admin-rep-profile-api-${now}`,
+      'x-tenant-id': tenantId,
+      'content-type': 'application/json',
+    };
+    const customerId = `customer-rep-profile-api-smoke-${now}`;
+    const representedId = `represented-rep-profile-api-smoke-${now}`;
+    const priceTableId = `price-table-rep-profile-api-smoke-${now}`;
+    const paymentTermId = `payment-term-rep-profile-api-smoke-${now}`;
+    const productId = `product-override-api-smoke-${now}`;
+    const otherRepresentedId = `represented-rep-profile-other-api-smoke-${now}`;
+    const otherPriceTableId = `price-table-rep-profile-other-api-smoke-${now}`;
+    const otherProductId = `product-override-other-api-smoke-${now}`;
+
+    await pgClient.query(
+      `INSERT INTO represented_companies (id, tenant_id, name, status)
+       VALUES ($1, $2, $3, 'active')`,
+      [representedId, tenantId, `Represented Rep Profile Smoke ${now}`]
+    );
+    await pgClient.query(
+      `INSERT INTO represented_companies (id, tenant_id, name, status)
+       VALUES ($1, $2, $3, 'active')`,
+      [otherRepresentedId, tenantId, `Represented Rep Profile Other Smoke ${now}`]
+    );
+
+    const customerResponse = await api(new Request('http://localhost/v1/customers', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: customerId, legal_name: `Customer Rep Profile Smoke ${now}`, document_type: 'cnpj', document_number: `DOC-REP-PROFILE-${now}` }),
+    }));
+    expect(customerResponse.status).toBe(201);
+
+    const priceTableResponse = await api(new Request('http://localhost/v1/price-tables', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: priceTableId, represented_company_id: representedId, name: `Price Table Rep Profile Smoke ${now}`, valid_from: '2026-01-01' }),
+    }));
+    expect(priceTableResponse.status).toBe(201);
+
+    const paymentTermResponse = await api(new Request('http://localhost/v1/payment-terms', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: paymentTermId, name: `Payment Term Rep Profile Smoke ${now}`, installments_count: 2, first_due_days: 30, interval_days: 30 }),
+    }));
+    expect(paymentTermResponse.status).toBe(201);
+
+    const getEmpty = await api(new Request(`http://localhost/v1/customers/${customerId}/represented-commercial-profiles/${representedId}`, { headers }));
+    expect(getEmpty.status).toBe(200);
+    await expect(getEmpty.json()).resolves.toMatchObject({ customerId, representedCompanyId: representedId, defaultPriceTableId: null, defaultPaymentTermId: null });
+
+    const setDefaults = await api(new Request(`http://localhost/v1/customers/${customerId}/represented-commercial-profiles/${representedId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ default_price_table_id: priceTableId, default_payment_term_id: paymentTermId }),
+    }));
+    expect(setDefaults.status).toBe(200);
+
+    const profileRow = await pgClient.query(
+      `SELECT tenant_id, customer_id, represented_company_id, default_price_table_id, default_payment_term_id
+       FROM customer_represented_commercial_profiles
+       WHERE tenant_id = $1 AND customer_id = $2 AND represented_company_id = $3
+       LIMIT 1`,
+      [tenantId, customerId, representedId]
+    );
+    expect(profileRow.rows[0]).toMatchObject({ tenant_id: tenantId, customer_id: customerId, represented_company_id: representedId, default_price_table_id: priceTableId, default_payment_term_id: paymentTermId });
+
+    await pgClient.query(
+      `INSERT INTO price_tables (id, tenant_id, represented_company_id, name, currency, valid_from, status)
+       VALUES ($1, $2, $3, $4, 'BRL', '2026-01-01', 'active')`,
+      [otherPriceTableId, tenantId, otherRepresentedId, `Other Rep Price Table Smoke ${now}`]
+    );
+    await expectPgError(
+      pgClient.query(
+        `UPDATE customer_represented_commercial_profiles
+            SET default_price_table_id = $4
+          WHERE tenant_id = $1 AND customer_id = $2 AND represented_company_id = $3`,
+        [tenantId, customerId, representedId, otherPriceTableId]
+      ),
+      '23514'
+    );
+
+    const productResponse = await api(new Request('http://localhost/v1/products', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: productId, represented_company_id: representedId, sku: `SKU-OVERRIDE-SMOKE-${now}`, name: `Override Product Smoke ${now}` }),
+    }));
+    expect(productResponse.status).toBe(201);
+
+    const otherProductResponse = await api(new Request('http://localhost/v1/products', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: otherProductId, represented_company_id: otherRepresentedId, sku: `SKU-OVERRIDE-OTHER-SMOKE-${now}`, name: `Override Other Product Smoke ${now}` }),
+    }));
+    expect(otherProductResponse.status).toBe(201);
+
+    await pgClient.query(
+      `INSERT INTO customer_product_price_overrides (
+        id, tenant_id, customer_id, represented_company_id, product_id, unit_price, valid_from, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')`,
+      [`override-smoke-${now}`, tenantId, customerId, representedId, productId, 123.45, '2026-01-01']
+    );
+
+    const overrideRow = await pgClient.query(
+      'SELECT tenant_id, customer_id, represented_company_id, product_id, unit_price FROM customer_product_price_overrides WHERE tenant_id = $1 AND id = $2 LIMIT 1',
+      [tenantId, `override-smoke-${now}`]
+    );
+    expect(overrideRow.rows[0]).toMatchObject({ tenant_id: tenantId, customer_id: customerId, represented_company_id: representedId, product_id: productId });
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO customer_product_price_overrides (
+          id, tenant_id, customer_id, represented_company_id, product_id, unit_price, valid_from, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')`,
+        [`override-invalid-price-${now}`, tenantId, customerId, representedId, productId, 0, '2026-01-01']
+      ),
+      '23514'
+    );
+
+    await expectPgError(
+      pgClient.query(
+        `INSERT INTO customer_product_price_overrides (
+          id, tenant_id, customer_id, represented_company_id, product_id, unit_price, valid_from, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')`,
+        [`override-mismatched-product-${now}`, tenantId, customerId, representedId, otherProductId, 10, '2026-01-01']
+      ),
+      '23514'
+    );
   });
 
   it('exercises Price Table Items API against real postgres', async () => {

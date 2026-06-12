@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-06-12T10:59:10.172Z",
+  "taskSlug": "customer-represented-commercial-profile",
+  "executionMode": "full",
+  "workflowProfile": "generic",
+  "branchRecovery": "NOT_RECORDED",
+  "branch": "feat/customer-represented-commercial-profile",
+  "changedFiles": [
+    "src/application/ports/customerRepresentedCommercialProfileRepository.ts",
+    "src/application/ports/representedCompanyRepository.ts",
+    "src/application/useCases/customerRepresentedCommercialProfiles.ts",
+    "src/index.ts",
+    "src/infrastructure/http/minimalApi.ts",
+    "src/infrastructure/postgres/migrations/012_customer_represented_commercial_profile.sql",
+    "src/infrastructure/postgres/migrations/013_customer_represented_commercial_profile_guards.sql",
+    "src/infrastructure/postgres/postgresCustomerRepresentedCommercialProfileRepository.ts",
+    "src/infrastructure/postgres/postgresRepresentedCompanyRepository.ts",
+    "src/infrastructure/repositories/inMemoryCustomerRepresentedCommercialProfileRepository.ts",
+    "src/infrastructure/repositories/inMemoryRepresentedCompanyRepository.ts",
+    "tests/customerRepresentedCommercialProfileApplication.spec.ts",
+    "tests/minimalApi.spec.ts",
+    "tests/postgresRepositories.spec.ts",
+    "tests/smokeDb.spec.ts"
+  ],
+  "status": "COMPLETED",
+  "internalStatus": "PASS",
+  "commands": [
+    {
+      "name": "test",
+      "command": "npm test",
+      "kind": "test",
+      "status": "PASS",
+      "exitCode": 0,
+      "signal": null,
+      "summary": "Command completed successfully.",
+      "output": "> replink-arco-erp@0.1.0 test\n> vitest run --exclude tests/smokeDb.spec.ts\n\n\n RUN  v2.1.9 /home/arco/Empresas/REPLINK/ARCO-ERP\n\n ✓ tests/commercialDocument.spec.ts (34 tests) 16ms\n ✓ tests/postgresRepositories.spec.ts (18 tests) 17ms\n ✓ tests/minimalApi.spec.ts (25 tests) 48ms\n ✓ tests/quoteApplication.spec.ts (24 tests) 15ms\n ✓ tests/customerApplication.spec.ts (5 tests) 9ms\n ✓ tests/priceTableItemApplication.spec.ts (5 tests) 9ms\n ✓ tests/customerCommercialProfileApplication.spec.ts (4 tests) 6ms\n ✓ tests/documentCommunicationApplication.spec.ts (5 tests) 8ms\n ✓ tests/orderClosureApplication.spec.ts (7 tests) 8ms\n ✓ tests/domain.spec.ts (18 tests) 7ms\n ✓ tests/customerRepresentedCommercialProfileApplication.spec.ts (2 tests) 6ms\n ✓ tests/productApplication.spec.ts (3 tests) 6ms\n ✓ tests/priceTableApplication.spec.ts (3 tests) 7ms\n ✓ tests/paymentTermApplication.spec.ts (3 tests) 6ms\n ✓ tests/simpleInvoiceApplication.spec.ts (6 tests) 6ms\n ✓ tests/dbBootstrap.spec.js (2 tests) 9ms\n ✓ tests/dbMigrate.spec.js (4 tests) 7ms\n\n Test Files  17 passed (17)\n      Tests  168 passed (168)\n   Start at  07:59:06\n   Duration  2.08s (transform 518ms, setup 0ms, collect 2.53s, tests 189ms, environment 3ms, prepare 926ms)"
+    },
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "kind": "typecheck",
+      "status": "PASS",
+      "exitCode": 0,
+      "signal": null,
+      "summary": "Command completed successfully.",
+      "output": "> replink-arco-erp@0.1.0 typecheck\n> tsc --noEmit"
+    }
+  ],
+  "checks": {
+    "branchSafety": {
+      "status": "PASS",
+      "branch": "feat/customer-represented-commercial-profile"
+    },
+    "documentation": {
+      "status": "PASS"
+    },
+    "uiEvidence": {
+      "status": "NOT_RUN",
+      "reason": "Non-UI task."
+    },
+    "fullModeEvidence": {
+      "status": "PASS",
+      "reason": "Collector will persist observed full-mode evidence."
+    },
+    "productTruthfulness": {
+      "status": "NOT_RUN",
+      "reason": "Non-UI task."
+    }
+  },
+  "limitations": []
+}

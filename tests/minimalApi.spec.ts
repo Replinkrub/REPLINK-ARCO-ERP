@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerCommercialProfileRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryPaymentTermRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerCommercialProfileRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryCustomerRepresentedCommercialProfileRepository, InMemoryOrderRepository, InMemoryPaymentTermRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository, InMemoryRepresentedCompanyRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -185,6 +185,44 @@ describe('minimal HTTP API', () => {
         method: 'PATCH',
         headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }),
         body: JSON.stringify({ default_price_table_id: null }),
+      }));
+      expect(representativePatch.status).toBe(403);
+    });
+  });
+
+  it('supports Customer Represented Commercial Profile routes', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-rep-profile-api-1', ownerId: 'rep-1', representativeId: 'rep-1' }]),
+        representedCompanyRepository: new InMemoryRepresentedCompanyRepository([{ id: 'represented-api-1', tenantId: 'tenant-env-1', name: 'Representada API' }]),
+        customerRepresentedCommercialProfileRepository: new InMemoryCustomerRepresentedCommercialProfileRepository(),
+        priceTableRepository: new InMemoryPriceTableRepository([
+          { id: 'price-table-rep-profile-api-global', tenantId: 'tenant-env-1', name: 'Tabela Global', validFrom: '2026-01-01' },
+          { id: 'price-table-rep-profile-api-1', tenantId: 'tenant-env-1', representedCompanyId: 'represented-api-1', name: 'Tabela Rep API', validFrom: '2026-01-01' },
+        ]),
+        paymentTermRepository: new InMemoryPaymentTermRepository([
+          { id: 'payment-term-rep-profile-api-1', tenantId: 'tenant-env-1', name: '30/60', installmentsCount: 2, firstDueDays: 30, intervalDays: 30 },
+        ]),
+      });
+
+      const getEmpty = await api(new Request('http://localhost/v1/customers/customer-rep-profile-api-1/represented-commercial-profiles/represented-api-1', { headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }) }));
+      expect(getEmpty.status).toBe(200);
+      await expect(getEmpty.json()).resolves.toMatchObject({ customerId: 'customer-rep-profile-api-1', representedCompanyId: 'represented-api-1', defaultPriceTableId: null, defaultPaymentTermId: null });
+
+      const patchResponse = await api(new Request('http://localhost/v1/customers/customer-rep-profile-api-1/represented-commercial-profiles/represented-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ default_price_table_id: 'price-table-rep-profile-api-1', default_payment_term_id: 'payment-term-rep-profile-api-1' }),
+      }));
+      expect(patchResponse.status).toBe(200);
+      await expect(patchResponse.json()).resolves.toMatchObject({ defaultPriceTableId: 'price-table-rep-profile-api-1', defaultPaymentTermId: 'payment-term-rep-profile-api-1' });
+
+      const representativePatch = await api(new Request('http://localhost/v1/customers/customer-rep-profile-api-1/represented-commercial-profiles/represented-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }),
+        body: JSON.stringify({ default_price_table_id: 'price-table-rep-profile-api-global' }),
       }));
       expect(representativePatch.status).toBe(403);
     });

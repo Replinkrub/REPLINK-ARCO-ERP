@@ -2,6 +2,7 @@ import { APPLICATION_ERROR_CODES } from '../../application/errors.js';
 import type { ApplicationResult } from '../../application/result.js';
 import { createCustomerAddressUseCase, listCustomerAddressesUseCase, updateCustomerAddressUseCase } from '../../application/useCases/customerAddresses.js';
 import { getCustomerCommercialProfileUseCase, updateCustomerCommercialProfileUseCase } from '../../application/useCases/customerCommercialProfiles.js';
+import { getCustomerRepresentedCommercialProfileUseCase, updateCustomerRepresentedCommercialProfileUseCase } from '../../application/useCases/customerRepresentedCommercialProfiles.js';
 import { createCustomerContactUseCase, listCustomerContactsUseCase, updateCustomerContactUseCase } from '../../application/useCases/customerContacts.js';
 import { createCustomerUseCase, getCustomerUseCase, listCustomersUseCase, updateCustomerUseCase } from '../../application/useCases/customers.js';
 import { createPriceTableUseCase, getPriceTableUseCase, listPriceTablesUseCase, updatePriceTableUseCase } from '../../application/useCases/priceTables.js';
@@ -16,12 +17,14 @@ import { registerSimpleInvoiceUseCase } from '../../application/useCases/registe
 import { updateQuote } from '../../application/useCases/updateQuote.js';
 import type { CustomerRepository } from '../../application/ports/customerRepository.js';
 import type { CustomerCommercialProfileRepository } from '../../application/ports/customerCommercialProfileRepository.js';
+import type { CustomerRepresentedCommercialProfileRepository } from '../../application/ports/customerRepresentedCommercialProfileRepository.js';
 import type { CustomerContactRepository } from '../../application/ports/customerContactRepository.js';
 import type { CustomerAddressRepository } from '../../application/ports/customerAddressRepository.js';
 import type { ProductRepository } from '../../application/ports/productRepository.js';
 import type { PriceTableRepository } from '../../application/ports/priceTableRepository.js';
 import type { PriceTableItemRepository } from '../../application/ports/priceTableItemRepository.js';
 import type { PaymentTermRepository } from '../../application/ports/paymentTermRepository.js';
+import type { RepresentedCompanyRepository } from '../../application/ports/representedCompanyRepository.js';
 import type { OrderRepository } from '../../application/ports/orderRepository.js';
 import type { QuoteRepository } from '../../application/ports/quoteRepository.js';
 import type { AccessContext } from '../../domain/ownership.js';
@@ -33,12 +36,14 @@ interface ApiDeps {
   orderRepository: OrderRepository;
   customerRepository: CustomerRepository;
   customerCommercialProfileRepository?: CustomerCommercialProfileRepository;
+  customerRepresentedCommercialProfileRepository?: CustomerRepresentedCommercialProfileRepository;
   customerContactRepository?: CustomerContactRepository;
   customerAddressRepository?: CustomerAddressRepository;
   productRepository?: ProductRepository;
   priceTableRepository?: PriceTableRepository;
   priceTableItemRepository?: PriceTableItemRepository;
   paymentTermRepository?: PaymentTermRepository;
+  representedCompanyRepository?: RepresentedCompanyRepository;
 }
 
 export function createMinimalHttpApi(deps: ApiDeps) {
@@ -57,6 +62,33 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       const actor = actorResult.actor;
 
       const method = request.method.toUpperCase();
+
+      if (method === 'GET' && url.pathname.match(/^\/v1\/customers\/[^/]+\/represented-commercial-profiles\/[^/]+$/)) {
+        const representedCompanyRepository = deps.representedCompanyRepository;
+        const customerRepresentedCommercialProfileRepository = deps.customerRepresentedCommercialProfileRepository;
+        if (!representedCompanyRepository || !customerRepresentedCommercialProfileRepository) return dependencyUnavailable('Customer represented commercial profile dependencies unavailable');
+        const [, , , customerId, , representedCompanyId] = url.pathname.split('/');
+        const result = await getCustomerRepresentedCommercialProfileUseCase(
+          { customerRepository: deps.customerRepository, representedCompanyRepository, customerRepresentedCommercialProfileRepository },
+          { actor, customerId: customerId ?? '', representedCompanyId: representedCompanyId ?? '' }
+        );
+        return mapResult(result, 200);
+      }
+
+      if (method === 'PATCH' && url.pathname.match(/^\/v1\/customers\/[^/]+\/represented-commercial-profiles\/[^/]+$/)) {
+        const representedCompanyRepository = deps.representedCompanyRepository;
+        const customerRepresentedCommercialProfileRepository = deps.customerRepresentedCommercialProfileRepository;
+        const priceTableRepository = deps.priceTableRepository;
+        const paymentTermRepository = deps.paymentTermRepository;
+        if (!representedCompanyRepository || !customerRepresentedCommercialProfileRepository || !priceTableRepository || !paymentTermRepository) return dependencyUnavailable('Customer represented commercial profile dependencies unavailable');
+        const [, , , customerId, , representedCompanyId] = url.pathname.split('/');
+        const body = await request.json() as Record<string, unknown>;
+        const result = await updateCustomerRepresentedCommercialProfileUseCase(
+          { customerRepository: deps.customerRepository, representedCompanyRepository, customerRepresentedCommercialProfileRepository, priceTableRepository, paymentTermRepository },
+          { actor, customerId: customerId ?? '', representedCompanyId: representedCompanyId ?? '', payload: body }
+        );
+        return mapResult(result, 200);
+      }
 
       if (method === 'GET' && url.pathname === '/v1/payment-terms') {
         const paymentTermRepository = deps.paymentTermRepository;
