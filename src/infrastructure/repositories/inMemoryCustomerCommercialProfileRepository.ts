@@ -2,6 +2,7 @@ import type {
   CustomerCommercialProfileGetInput,
   CustomerCommercialProfileRecord,
   CustomerCommercialProfileRepository,
+  CustomerCommercialProfileUpsertDefaultPaymentTermInput,
   CustomerCommercialProfileUpsertDefaultPriceTableInput,
 } from '../../application/ports/customerCommercialProfileRepository.js';
 
@@ -47,6 +48,23 @@ export class InMemoryCustomerCommercialProfileRepository implements CustomerComm
       creditLimit: current?.creditLimit,
       notes: current?.notes,
       defaultPriceTableId: input.defaultPriceTableId ?? undefined,
+      createdAt: current?.createdAt ? new Date(current.createdAt) : now,
+      updatedAt: now,
+    };
+    this.items.set(key(input.tenantId, input.customerId), cloneProfile(next));
+    return cloneProfile(next);
+  }
+
+  async upsertDefaultPaymentTerm(input: CustomerCommercialProfileUpsertDefaultPaymentTermInput): Promise<CustomerCommercialProfileRecord> {
+    const now = input.now ?? new Date();
+    const current = this.items.get(key(input.tenantId, input.customerId));
+    const next: CustomerCommercialProfileRecord = {
+      tenantId: input.tenantId,
+      customerId: input.customerId,
+      defaultPriceTableId: current?.defaultPriceTableId,
+      creditLimit: current?.creditLimit,
+      notes: current?.notes,
+      defaultPaymentTermId: input.defaultPaymentTermId ?? undefined,
       createdAt: current?.createdAt ? new Date(current.createdAt) : now,
       updatedAt: now,
     };

@@ -21,7 +21,15 @@ export interface CustomerCommercialProfileUpsertDefaultPriceTableInput {
   now?: Date;
 }
 
+export interface CustomerCommercialProfileUpsertDefaultPaymentTermInput {
+  tenantId: string;
+  customerId: string;
+  defaultPaymentTermId: string | null;
+  now?: Date;
+}
+
 export interface CustomerCommercialProfileRepository {
   getByCustomer(input: CustomerCommercialProfileGetInput): Promise<CustomerCommercialProfileRecord | null>;
   upsertDefaultPriceTable(input: CustomerCommercialProfileUpsertDefaultPriceTableInput): Promise<CustomerCommercialProfileRecord>;
+  upsertDefaultPaymentTerm(input: CustomerCommercialProfileUpsertDefaultPaymentTermInput): Promise<CustomerCommercialProfileRecord>;
 }

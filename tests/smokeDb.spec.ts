@@ -495,6 +495,7 @@ describe('db smoke (real postgres)', () => {
       customerRepository: new PostgresCustomerRepository(db),
       customerCommercialProfileRepository: new PostgresCustomerCommercialProfileRepository(db),
       priceTableRepository: new PostgresPriceTableRepository(db),
+      paymentTermRepository: new PostgresPaymentTermRepository(db),
     });
     const headers = {
       'x-actor-role': 'ADMIN',
@@ -504,6 +505,7 @@ describe('db smoke (real postgres)', () => {
     };
     const customerId = `customer-profile-api-smoke-${now}`;
     const priceTableId = `price-table-profile-api-smoke-${now}`;
+    const paymentTermId = `payment-term-profile-api-smoke-${now}`;
     const representedId = `represented-profile-api-smoke-${now}`;
     const representedPriceTableId = `price-table-profile-represented-api-smoke-${now}`;
 
@@ -521,9 +523,16 @@ describe('db smoke (real postgres)', () => {
     }));
     expect(priceTableResponse.status).toBe(201);
 
+    const paymentTermResponse = await api(new Request('http://localhost/v1/payment-terms', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: paymentTermId, name: `Payment Term Profile Smoke ${now}`, installments_count: 2, first_due_days: 30, interval_days: 30 }),
+    }));
+    expect(paymentTermResponse.status).toBe(201);
+
     const getEmpty = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, { headers }));
     expect(getEmpty.status).toBe(200);
-    await expect(getEmpty.json()).resolves.toMatchObject({ customerId, defaultPriceTableId: null });
+    await expect(getEmpty.json()).resolves.toMatchObject({ customerId, defaultPriceTableId: null, defaultPaymentTermId: null });
 
     const setDefault = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, {
       method: 'PATCH',
@@ -538,6 +547,19 @@ describe('db smoke (real postgres)', () => {
     );
     expect(profileRow.rows[0]).toMatchObject({ tenant_id: tenantId, customer_id: customerId, default_price_table_id: priceTableId });
 
+    const setDefaultPaymentTerm = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ default_payment_term_id: paymentTermId }),
+    }));
+    expect(setDefaultPaymentTerm.status).toBe(200);
+
+    const profilePaymentTermRow = await pgClient.query(
+      'SELECT tenant_id, customer_id, default_price_table_id, default_payment_term_id FROM customer_commercial_profiles WHERE tenant_id = $1 AND customer_id = $2 LIMIT 1',
+      [tenantId, customerId]
+    );
+    expect(profilePaymentTermRow.rows[0]).toMatchObject({ tenant_id: tenantId, customer_id: customerId, default_price_table_id: priceTableId, default_payment_term_id: paymentTermId });
+
     const clearDefault = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, {
       method: 'PATCH',
       headers,
@@ -545,6 +567,14 @@ describe('db smoke (real postgres)', () => {
     }));
     expect(clearDefault.status).toBe(200);
     await expect(clearDefault.json()).resolves.toMatchObject({ defaultPriceTableId: null });
+
+    const clearDefaultPaymentTerm = await api(new Request(`http://localhost/v1/customers/${customerId}/commercial-profile`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ default_payment_term_id: null }),
+    }));
+    expect(clearDefaultPaymentTerm.status).toBe(200);
+    await expect(clearDefaultPaymentTerm.json()).resolves.toMatchObject({ defaultPaymentTermId: null });
 
     await pgClient.query(
       `INSERT INTO represented_companies (id, tenant_id, name, status)
