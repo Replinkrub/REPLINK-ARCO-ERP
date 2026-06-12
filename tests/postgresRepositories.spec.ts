@@ -4,12 +4,14 @@ import {
   PostgresPaymentTermRepository,
   PostgresCustomerAddressRepository,
   PostgresCustomerCommercialProfileRepository,
+  PostgresCustomerRepresentedCommercialProfileRepository,
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresPriceTableRepository,
   PostgresPriceTableItemRepository,
   PostgresQuoteRepository,
   PostgresProductRepository,
+  PostgresRepresentedCompanyRepository,
   createQuote,
   convertQuoteToOrder,
   type SqlExecutor,
@@ -281,6 +283,41 @@ describe('postgres repositories', () => {
     const termCleared = await repository.upsertDefaultPaymentTerm({ tenantId: 'tenant-1', customerId: 'customer-db-1', defaultPaymentTermId: null });
     expect(termCleared.defaultPaymentTermId).toBeUndefined();
     expect(db.calls[0]?.values?.[2]).toBeNull();
+  });
+
+  it('gets represented company and upserts customer represented commercial profile', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [representedCompanyRow({ id: 'represented-db-1' })];
+    const representedRepository = new PostgresRepresentedCompanyRepository(db);
+
+    const represented = await representedRepository.getById({ tenantId: 'tenant-1', representedCompanyId: 'represented-db-1' });
+    expect(represented?.id).toBe('represented-db-1');
+    expect(db.calls[0]?.text).toContain('FROM represented_companies');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1 AND id = $2');
+
+    db.calls = [];
+    db.resultRows = [customerRepresentedCommercialProfileRow({ represented_company_id: 'represented-db-1' })];
+    const profileRepository = new PostgresCustomerRepresentedCommercialProfileRepository(db);
+
+    const current = await profileRepository.getByCustomerAndRepresented({ tenantId: 'tenant-1', customerId: 'customer-db-1', representedCompanyId: 'represented-db-1' });
+    expect(current?.representedCompanyId).toBe('represented-db-1');
+    expect(db.calls[0]?.text).toContain('FROM customer_represented_commercial_profiles');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1 AND customer_id = $2 AND represented_company_id = $3');
+
+    db.calls = [];
+    db.resultRows = [customerRepresentedCommercialProfileRow({ default_price_table_id: 'price-table-db-1', default_payment_term_id: 'payment-term-db-1' })];
+    const updated = await profileRepository.upsertDefaults({
+      tenantId: 'tenant-1',
+      customerId: 'customer-db-1',
+      representedCompanyId: 'represented-db-1',
+      defaultPriceTableId: 'price-table-db-1',
+      defaultPaymentTermId: 'payment-term-db-1',
+    });
+    expect(updated.defaultPriceTableId).toBe('price-table-db-1');
+    expect(updated.defaultPaymentTermId).toBe('payment-term-db-1');
+    expect(db.calls[0]?.text).toContain('INSERT INTO customer_represented_commercial_profiles');
+    expect(db.calls[0]?.text).toContain('ON CONFLICT (tenant_id, customer_id, represented_company_id) DO UPDATE SET');
+    expect(db.calls[0]?.values?.slice(0, 5)).toEqual(['tenant-1', 'customer-db-1', 'represented-db-1', 'price-table-db-1', 'payment-term-db-1']);
   });
 
   it('creates, lists and updates customer contacts scoped by tenant/customer with primary behavior', async () => {
@@ -575,6 +612,31 @@ function customerCommercialProfileRow(overrides: Partial<Record<string, unknown>
     default_price_table_id: null,
     credit_limit: null,
     notes: null,
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function representedCompanyRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'represented-db',
+    tenant_id: 'tenant-1',
+    name: 'Representada DB',
+    status: 'active',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function customerRepresentedCommercialProfileRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    tenant_id: 'tenant-1',
+    customer_id: 'customer-db-1',
+    represented_company_id: 'represented-db-1',
+    default_price_table_id: null,
+    default_payment_term_id: null,
     created_at: new Date('2026-01-01T00:00:00.000Z'),
     updated_at: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
