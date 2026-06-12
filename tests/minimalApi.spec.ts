@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerCommercialProfileRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerCommercialProfileRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryOrderRepository, InMemoryPaymentTermRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -66,6 +66,70 @@ function customerRepository(customers: Array<{
 }
 
 describe('minimal HTTP API', () => {
+  it('supports Payment Terms API foundation routes', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+        paymentTermRepository: new InMemoryPaymentTermRepository(),
+      });
+
+      const createResponse = await api(new Request('http://localhost/v1/payment-terms', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'payment-term-api-1', name: '30/60/90', installments_count: 3, first_due_days: 30, interval_days: 30 }),
+      }));
+      expect(createResponse.status).toBe(201);
+      const created = await createResponse.json() as { id: string; tenantId: string; status: string; installmentsCount: number };
+      expect(created).toMatchObject({ id: 'payment-term-api-1', tenantId: 'tenant-env-1', status: 'active', installmentsCount: 3 });
+
+      const listResponse = await api(new Request('http://localhost/v1/payment-terms?q=30/60', { headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }) }));
+      expect(listResponse.status).toBe(200);
+      const list = await listResponse.json() as { items: Array<{ id: string }>; total: number };
+      expect(list.total).toBe(1);
+      expect(list.items[0]?.id).toBe('payment-term-api-1');
+
+      const getResponse = await api(new Request('http://localhost/v1/payment-terms/payment-term-api-1', { headers: actorHeaders() }));
+      expect(getResponse.status).toBe(200);
+
+      const patchResponse = await api(new Request('http://localhost/v1/payment-terms/payment-term-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ name: '30/60', installments_count: 2, status: 'inactive' }),
+      }));
+      expect(patchResponse.status).toBe(200);
+      const patched = await patchResponse.json() as { name: string; status: string; installmentsCount: number };
+      expect(patched).toMatchObject({ name: '30/60', status: 'inactive', installmentsCount: 2 });
+    });
+  });
+
+  it('protects Payment Terms API writes by role and rejects out-of-scope fields', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository(),
+        paymentTermRepository: new InMemoryPaymentTermRepository(),
+      });
+
+      const representativeCreate = await api(new Request('http://localhost/v1/payment-terms', {
+        method: 'POST',
+        headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }),
+        body: JSON.stringify({ id: 'payment-term-rep-api', name: 'Rep', installments_count: 1, first_due_days: 0, interval_days: 0 }),
+      }));
+      expect(representativeCreate.status).toBe(403);
+
+      const outOfScope = await api(new Request('http://localhost/v1/payment-terms', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'payment-term-out-api', name: 'Fora', installments_count: 1, first_due_days: 0, interval_days: 0, installments: [] }),
+      }));
+      expect(outOfScope.status).toBe(422);
+      await expect(outOfScope.json()).resolves.toMatchObject({ code: 'VALIDATION_ERROR' });
+    });
+  });
+
   it('supports Customer Commercial Profile default price table routes', async () => {
     await withEnvironmentTenant('tenant-env-1', async () => {
       const api = createMinimalHttpApi({

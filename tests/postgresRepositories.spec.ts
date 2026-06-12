@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PostgresOrderRepository,
+  PostgresPaymentTermRepository,
   PostgresCustomerAddressRepository,
   PostgresCustomerCommercialProfileRepository,
   PostgresCustomerContactRepository,
@@ -208,6 +209,39 @@ describe('postgres repositories', () => {
     expect(overlap).toBe(true);
     expect(db.calls[0]?.text).toContain('SELECT EXISTS');
     expect(db.calls[0]?.text).toContain('status = \'active\'');
+  });
+
+  it('creates, lists and updates payment terms scoped by tenant', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [paymentTermRow({ id: 'payment-term-db-1' })];
+    const repository = new PostgresPaymentTermRepository(db);
+
+    const created = await repository.create({
+      id: 'payment-term-db-1',
+      tenantId: 'tenant-1',
+      name: '30/60/90',
+      description: 'Três parcelas',
+      installmentsCount: 3,
+      firstDueDays: 30,
+      intervalDays: 30,
+      status: 'active',
+    });
+
+    expect(created.id).toBe('payment-term-db-1');
+    expect(db.calls[0]?.text).toContain('INSERT INTO payment_terms');
+    expect(db.calls[0]?.values?.slice(0, 7)).toEqual(['payment-term-db-1', 'tenant-1', '30/60/90', 'Três parcelas', 3, 30, 30]);
+
+    db.calls = [];
+    await repository.list({ tenantId: 'tenant-1', actorId: 'rep-1', role: 'REPRESENTANTE', page: 1, pageSize: 20, q: '30/60' });
+    expect(db.calls[0]?.text).toContain('FROM payment_terms');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1');
+    expect(db.calls[0]?.text).toContain('ILIKE $2');
+
+    db.calls = [];
+    await repository.update({ tenantId: 'tenant-1', actorId: 'admin-1', role: 'ADMIN', paymentTermId: 'payment-term-db-1', patch: { name: '30/60', installmentsCount: 2 } });
+    expect(db.calls[0]?.text).toContain('FROM payment_terms');
+    expect(db.calls[1]?.text).toContain('UPDATE payment_terms SET');
+    expect(db.calls[1]?.text).toContain('WHERE tenant_id = $1 AND id = $2');
   });
 
   it('gets and upserts customer commercial profile default price table', async () => {
@@ -496,6 +530,22 @@ function priceTableItemRow(overrides: Partial<Record<string, unknown>> = {}) {
     unit_price: '10.2500',
     valid_from: '2026-01-01',
     valid_until: null,
+    status: 'active',
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function paymentTermRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'payment-term-db',
+    tenant_id: 'tenant-1',
+    name: '30/60/90',
+    description: 'Três parcelas',
+    installments_count: 3,
+    first_due_days: 30,
+    interval_days: 30,
     status: 'active',
     created_at: new Date('2026-01-01T00:00:00.000Z'),
     updated_at: new Date('2026-01-01T00:00:00.000Z'),
