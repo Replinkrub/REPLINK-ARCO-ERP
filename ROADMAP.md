@@ -1,6 +1,6 @@
 # ROADMAP — ARCO-ERP V1 Operacional
 
-> Última atualização: 2026-06-11
+> Última atualização: 2026-06-12
 > Dono operacional: Atlas  
 > Dono da prioridade executiva: Toni  
 > Fonte funcional canônica: `docs/SPEC.md` + `docs/DECISION-FLOW-CANON.md`  
@@ -103,6 +103,9 @@ Correção adotada:
 - Gate H PR8B1 — Price Tables Core API (PR #47, merge `7ebe395`).
 - Gate H PR8B2 — Price Table Items API (PR #48, merge `384679b`).
 - Gate H — Customer Default Price Table Link (PR #49, merge `1f81d0a`).
+- Payment Terms Foundation (PR #50, merge `d956fc5`).
+- Customer Default Payment Terms Link (PR #51, merge `7fc788d`).
+- Customer Represented Commercial Profile (PR #52, merge `2fb945a`).
 
 ### Concluído nesta frente documental
 
@@ -391,9 +394,9 @@ Planejar migrations e testes antes de tocar no banco.
 
 ## Gate G — Backend/Data Foundation Implementation
 
-**Tipo:** implementação técnica em andamento
+**Tipo:** implementação técnica concluída
 **Dependências:** Gate F
-**Status:** iniciado — integrado até PR5B / merge commit `3224458`
+**Status:** ✅ concluído — todos os PRs mergeados (até PR5B / merge commit `3224458`)
 
 ### Objetivo
 
@@ -477,12 +480,12 @@ Fora de PR5B:
 
 ### Próximo slice recomendado
 
-**Planejar próximo slice técnico com autorização explícita**.
+Gate G concluído. Continuar avanço no **Gate H — API Implementation Slices**.
 
-Antes de implementar:
+Para o próximo slice (Gate H slice 4+):
 
 - começar com plano/review de escopo;
-- não iniciar products/prices/payment terms, frontend ou RBAC/auth runtime sem escopo próprio;
+- não iniciar ORC/PED item snapshot, override CRUD/API/motor de preço, frontend ou RBAC/auth runtime sem escopo próprio;
 - preservar o fluxo Sagrado/null quando enforcement estiver desabilitado.
 
 ### Critério de saída
@@ -499,7 +502,7 @@ Antes de implementar:
 **Tipo:** implementação técnica em slices
 **Dependências:** Gate G
 
-**Status atual:** slice 1 fully integrated; slice 2 integrado até PR8B2 (Products + Price Tables + Price Table Items + Customer Default Price Table Link foundation).
+**Status atual:** slice 1 fully integrated; slice 2 fully integrated (Products + Price Tables + Price Table Items + Customer Default Price Table Link); slice 3 integrado (Payment Terms Foundation + Customer Default Payment Terms Link + Customer Represented Commercial Profile).
 
 ### Objetivo
 
@@ -509,7 +512,7 @@ Implementar API por fatias funcionais sem quebrar contratos.
 
 1. clientes/contatos/endereços — ✅ API foundation integrada até PR7B; ainda não declarar módulo cliente completo;
 2. produtos/tabela de preço — ✅ Products foundation (PR8A) + Price Tables core (PR8B1) + Price Table Items API (PR8B2) + Customer Default Price Table Link (PR #49);
-3. condições de pagamento/parcelas;
+3. condições de pagamento/parcelas — ✅ Payment Terms Foundation (PR #50) + Customer Default Payment Terms Link (PR #51) + Customer Represented Commercial Profile (PR #52);
 4. orçamento steps 1–4;
 5. confirmação de pedido;
 6. comunicação/output events;
@@ -559,9 +562,28 @@ Implementar API por fatias funcionais sem quebrar contratos.
   - ADMIN cria/edita; ADMIN e REPRESENTANTE listam/consultam.
 - Slices PR8A/PR8B1/PR8B2/PR#49 seguem autorização mínima atual: ADMIN cria/edita, ADMIN + REPRESENTANTE listam/consultam.
 
+### Estado entregue no slice 3
+
+- **Payment Terms Foundation** — PR #50 (merge `d956fc5`):
+  - Migration `010`: `payment_terms(tenant_id, id, name, description, due_days, discount_percentage, discount_days, installment_count, installment_interval_days, is_active)`.
+  - `GET/POST/PATCH /v1/payment-terms` + `GET /v1/payment-terms/:paymentTermId`.
+  - Port + use cases + in-memory + Postgres repos.
+  - Erros: `PAYMENT_TERM_NOT_FOUND`.
+  - Tests: 163/163 à época.
+- **Customer Default Payment Terms Link** — PR #51 (merge `7fc788d`):
+  - Migration `011`: `customer_commercial_profiles.default_payment_term_id` com FK tenant-safe e índice.
+  - `GET/PATCH /v1/customers/{customerId}/commercial-profile` estendido com `defaultPaymentTermId`.
+  - `defaultPaymentTermId = null` limpa vínculo.
+- **Customer Represented Commercial Profile** — PR #52 (merge `2fb945a`):
+  - Migration `012`: `customer_represented_commercial_profiles(tenant_id, id, customer_id, represented_company_id, default_price_table_id, default_payment_term_id)`.
+  - Migration `013`: triggers de guarda para representada-mismatch.
+  - `GET/PATCH /v1/customers/{customerId}/represented-commercial-profiles/{profileId}`.
+  - Foundation de `customer_product_price_overrides` existe como base de dados/modelo — ainda não há CRUD, API, motor de preço ou ORC/PED snapshot para overrides.
+  - Tests: 168/168, smoke: 13/13.
+
 ### Próximo passo do Gate H
 
-Escolher e planejar o próximo slice técnico com autorização explícita. Não avançar para payment terms, customer default price table por representada, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
+Escolher e planejar o próximo slice técnico com autorização explícita. Não avançar para ORC/PED item snapshot, override CRUD/API/motor de preço, frontend ou RBAC runtime sem plano/review/autorização.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 
@@ -683,4 +705,4 @@ Implementação técnica só pode iniciar quando, no mínimo, estes gates estive
 
 Frontend só pode iniciar quando Gate E também estiver `PASS`.
 
-Gates A–F estão em PASS e Gate G foi integrado até PR5B. Próximos slices técnicos continuam exigindo escopo explícito, branch fora de `main`, validação local e smoke DB quando `DATABASE_URL` existir.
+Gates A–F estão em PASS, Gate G foi concluído e Gate H está em andamento (slices 1–3 integrados). Próximos slices técnicos continuam exigindo escopo explícito, branch fora de `main`, validação local e smoke DB quando `DATABASE_URL` existir.

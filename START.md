@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate H integrado até Customer Default Price Table Link**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até Customer Represented Commercial Profile**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `1f81d0a` (merge PR #49 — Customer Default Price Table Link)
+- `main` em: `2fb945a` (merge PR #52 — Customer Represented Commercial Profile)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -35,11 +35,80 @@
 - PR Gate H PR8B1: #47 — merge commit `7ebe395`
 - PR Gate H PR8B2: #48 — merge commit `384679b`
 - PR Gate H Customer Default Price Table Link: #49 — merge commit `1f81d0a`
+- PR Payment Terms Foundation: #50 — merge commit `d956fc5`
+- PR Customer Default Payment Terms Link: #51 — merge commit `7fc788d`
+- PR Customer Represented Commercial Profile: #52 — merge commit `2fb945a`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 157/157 (15 test files)
-- Smoke DB real contra Supabase dev: ✅ PASS — 11/11
+- Tests: ✅ PASS — 168/168 (16 test files)
+- Smoke DB real contra Supabase dev: ✅ PASS — 13/13
 - Próximo ponto: **escolher e planejar próximo slice técnico com autorização explícita**
-- Regra: não iniciar payment terms, customer default price table por representada, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
+- Regra: não iniciar ORC/PED item snapshot, frontend, RBAC runtime, override CRUD/API/motor de preço sem plano/review/autorização.
+- Foundation de `customer_product_price_overrides` existe apenas como base de dados/modelo — ainda não há CRUD, API, motor de preço ou ORC/PED snapshot para overrides.
+
+## Checkpoint da sessão (2026-06-12 pós-PR #52 merge)
+
+### PR #52 — Customer Represented Commercial Profile integrado
+
+- PR #52 — `Customer Represented Commercial Profile`
+- PR: https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/52
+- Merge commit: `2fb945a`
+- Branch: `feat/customer-represented-commercial-profile`
+- Commit técnico: `d0c444b`
+
+### Estado técnico PR #52 — Customer Represented Commercial Profile
+
+- Migration `012_customer_represented_commercial_profile.sql`: `customer_represented_commercial_profiles(tenant_id, id, customer_id, represented_company_id, default_price_table_id, default_payment_term_id)`. FK composta tenant-safe com `represented_company_id`, `default_price_table_id`, `default_payment_term_id`.
+- Partial unique `(tenant_id, customer_id, represented_company_id)`.
+- `default_price_table_id` com `represented_company_id IS NULL` (apenas tabela global permitida).
+- Migration `013_customer_represented_commercial_profile_guards.sql`: triggers de guarda para evitar representada-mismatch entre perfil, tabela de preço e condição de pagamento.
+- Port + use cases + in-memory + Postgres repos (incluindo `representedCompanyRepository`).
+- Endpoints: `GET/PATCH /v1/customers/{customerId}/represented-commercial-profiles/{profileId}`.
+- Autorização mínima atual: ADMIN cria/edita; ADMIN e REPRESENTANTE consultam.
+- Foundation de `customer_product_price_overrides` existe como base de dados/modelo — ainda não há CRUD, API, motor de preço ou ORC/PED snapshot para overrides.
+
+### Slices anteriores também concluídos neste ciclo
+
+**Payment Terms Foundation** (PR #50, merge `d956fc5`):
+
+- Migration `010_payment_terms.sql`: `payment_terms(tenant_id, id, name, description, due_days, discount_percentage, discount_days, installment_count, installment_interval_days, is_active)`.
+- Port + use cases + in-memory + Postgres repos.
+- Endpoints: `GET/POST/PATCH /v1/payment-terms` + `GET /v1/payment-terms/:paymentTermId`.
+- Erros: `PAYMENT_TERM_NOT_FOUND`.
+- Tests: 163/163 à época.
+
+**Customer Default Payment Terms Link** (PR #51, merge `7fc788d`):
+
+- Migration `011_customer_default_payment_term.sql`: `customer_commercial_profiles.default_payment_term_id` com FK tenant-safe e índice.
+- `GET/PATCH /v1/customers/{customerId}/commercial-profile` estendido com `defaultPaymentTermId`.
+- Port + use cases + in-memory + Postgres repos.
+- `defaultPaymentTermId = null` limpa vínculo.
+
+### Validações registradas PR #52
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 168/168 |
+| `npm run db:migrate` | ✅ PASS (010–013 applied) |
+| `npm run test:smoke:db` | ✅ PASS — 13/13 |
+| `git diff --check` | ✅ PASS |
+| QA review (Sage) | ✅ PASS |
+
+### Fora de escopo mantido
+
+- Aplicação automática de preço em ORC/PED não iniciada.
+- CRUD/API/motor de preço para `customer_product_price_overrides` não iniciado — existe apenas como base de dados/modelo.
+- ORC/PED snapshot não iniciado.
+- Sem frontend.
+- Sem RBAC runtime completo.
+- Sem estoque, fiscal/NF-e/SEFAZ.
+- Sem comissões, margem/desconto avançado, price tiers/faixas, promoção/campanha.
+- Sem `commercial_status`.
+- `erp_app_flow_map.html`: continua untracked e fora dos PRs.
+
+### Próximo ponto
+
+Escolher e planejar próximo slice com autorização explícita: ORC/PED item snapshot com price table + payment terms, override CRUD/API, frontend ou RBAC runtime.
 
 ## Checkpoint da sessão (2026-06-10 pós-PR8B2 merge)
 
@@ -495,9 +564,19 @@ Gate H PR8B1 — Price Tables Core API: **✅ mergeado em `7ebe395`**.
 
 Gate H PR8B2 — Price Table Items API: **✅ mergeado em `384679b`**.
 
+Gate H — Customer Default Price Table Link (PR #49): **✅ mergeado em `1f81d0a`**.
+
+Payment Terms Foundation (PR #50): **✅ mergeado em `d956fc5`**.
+
+Customer Default Payment Terms Link (PR #51): **✅ mergeado em `7fc788d`**.
+
+Customer Represented Commercial Profile (PR #52): **✅ mergeado em `2fb945a`**.
+
 Próximo ponto: **escolher e planejar próximo slice técnico com autorização explícita**.
 
-Regra: não iniciar payment terms, customer default price table, ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
+Regra: não iniciar ORC/PED item snapshot, frontend, RBAC runtime, override CRUD/API/motor de preço sem plano/review/autorização.
+
+Foundation de `customer_product_price_overrides` existe apenas como base de dados/modelo — ainda não há CRUD, API, motor de preço ou ORC/PED snapshot para overrides.
 
 ## Checkpoint da sessão (2026-06-01)
 
