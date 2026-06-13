@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate H integrado até Quote Item Snapshot Foundation**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até Order Confirmation Snapshot Carryover**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `79aeef3` (merge PR #55 — Quote Item Snapshot Foundation)
+- `main` em: `ca9201f` (merge PR #57 — Order Confirmation Snapshot Carryover)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -40,12 +40,57 @@
 - PR Customer Represented Commercial Profile: #52 — merge commit `2fb945a`
 - PR Customer Product Price Overrides + Price Resolution Core: #53 — merge commit `8b039cb`
 - PR Quote Item Snapshot Foundation: #55 — merge commit `79aeef3`
+- PR Order Confirmation Snapshot Carryover: #57 — merge commit `ca9201f`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 177/177 (18 test files)
+- Tests: ✅ PASS — 179/179 (18 test files)
 - Smoke DB real contra Supabase dev: ✅ PASS — 13/13
-- Próximo ponto: **planejar Order Confirmation Snapshot Carryover com autorização explícita**
-- Regra: não iniciar ORC→PED carryover, frontend ou RBAC runtime sem plano/review/autorização.
-- Itens de orçamento em `QUOTE_DRAFT` agora salvam snapshot comercial mínimo usando Price Resolution Core; carryover ORC→PED ainda não iniciado.
+- Próximo ponto: **planejar próximo slice técnico do Gate H com autorização explícita**.
+- Regra: não iniciar frontend, RBAC runtime ou novo slice de backend sem plano/review/autorização.
+- Itens de orçamento em `QUOTE_DRAFT` salvam snapshot comercial mínimo usando Price Resolution Core; confirmação ORC→PED agora copia esse snapshot sem repricing.
+
+## Checkpoint da sessão (2026-06-13 pós-PR #57 merge)
+
+### PR #57 — Order Confirmation Snapshot Carryover integrado
+
+- PR #57 — `Order Confirmation Snapshot Carryover`
+- PR: https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/57
+- Merge commit: `ca9201f`
+- Branch: `feat/order-confirmation-snapshot-carryover`
+- Commit técnico: `e1389f6`
+- Handoff: `docs/SESSION-HANDOFF-GATE-H-PR57.md`
+
+### Estado técnico PR #57 — Carryover de snapshot na confirmação
+
+- `sourceQuoteSnapshot.items` preserva campos comerciais do item: `productId`, `representedCompanyId`, `quantity`, `unitPrice`, `lineTotal`, `total`, `priceSource`, `priceSourceId`, `priceTableId` quando aplicável e `priceResolvedAt`.
+- `convertQuoteToOrder` bloqueia confirmação se algum item não tiver snapshot comercial mínimo (`MISSING_ITEM_SNAPSHOT`).
+- Pedido confirmado copia o snapshot do orçamento sem repricing.
+- `resolvePriceUseCase` não é chamado na confirmação ORC→PED.
+- `saveFromQuoteOnce`/idempotência preservada.
+
+### Validações registradas PR #57
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 179/179 |
+| `npm run db:migrate` com `.env.local` | ✅ PASS — 0 applied, 14 skipped |
+| `npm run test:smoke:db` com `.env.local` | ✅ PASS — 13/13 |
+| `git diff --check` | ✅ PASS |
+| Finalizer `npx ai-workflow collect-evidence --mode=standard --task=order-confirmation-snapshot-carryover` | ✅ COMPLETED |
+
+### Fora de escopo mantido
+
+- Sem frontend.
+- Sem RBAC runtime completo.
+- Sem estoque, fiscal/NF-e/SEFAZ.
+- Sem promoções, faixas de preço, margem, comissão ou desconto avançado.
+- Sem payment term por item.
+- Sem edição visual de tabela.
+- `erp_app_flow_map.html`: continua fora dos PRs.
+
+### Próximo ponto
+
+Planejar o próximo slice técnico do Gate H com autorização explícita, sem iniciar novo trabalho nesta atualização documental.
 
 ## Checkpoint da sessão (2026-06-13 pós-PR #55 merge)
 
