@@ -107,6 +107,7 @@ Correção adotada:
 - Customer Default Payment Terms Link (PR #51, merge `7fc788d`).
 - Customer Represented Commercial Profile (PR #52, merge `2fb945a`).
 - Customer Product Price Overrides + Price Resolution Core (PR #53, merge `8b039cb`).
+- Quote Item Snapshot Foundation (PR #55, merge `79aeef3`).
 
 ### Concluído nesta frente documental
 
@@ -592,9 +593,19 @@ Implementar API por fatias funcionais sem quebrar contratos.
   - Erro explícito: `PRICE_NOT_RESOLVABLE` quando não há preço resolvível.
   - Tests: 173/173, smoke: 13/13.
 
+### Estado entregue no quote item snapshot foundation
+
+- **Quote Item Snapshot Foundation** — PR #55 (merge `79aeef3`):
+  - Add/update de item em `QUOTE_DRAFT` usa `resolvePriceUseCase` quando há `productId`.
+  - Snapshot mínimo persistido no item: produto, representada, quantidade, preço unitário, total de linha, origem do preço, ID da origem, tabela quando aplicável e data de resolução.
+  - `PRICE_NOT_RESOLVABLE` bloqueia persistência do item e preserva totais.
+  - Update de quantidade em item já snapshotado não recalcula preço.
+  - Payment term não é duplicado por item.
+  - Tests: 177/177, smoke: 13/13.
+
 ### Próximo passo do Gate H
 
-Planejar o próximo slice técnico com autorização explícita: **ORC/PED item snapshot usando Price Resolution Core**. Não avançar para implementação de ORC/PED snapshot, frontend ou RBAC runtime sem plano/review/autorização.
+Planejar o próximo slice técnico com autorização explícita: **Order Confirmation Snapshot Carryover**. Não avançar para implementação de ORC→PED carryover, frontend ou RBAC runtime sem plano/review/autorização.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 

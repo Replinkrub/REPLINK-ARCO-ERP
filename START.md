@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate H integrado até Customer Product Price Overrides + Price Resolution Core**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até Quote Item Snapshot Foundation**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `8b039cb` (merge PR #53 — Customer Product Price Overrides + Price Resolution Core)
+- `main` em: `79aeef3` (merge PR #55 — Quote Item Snapshot Foundation)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -39,12 +39,59 @@
 - PR Customer Default Payment Terms Link: #51 — merge commit `7fc788d`
 - PR Customer Represented Commercial Profile: #52 — merge commit `2fb945a`
 - PR Customer Product Price Overrides + Price Resolution Core: #53 — merge commit `8b039cb`
+- PR Quote Item Snapshot Foundation: #55 — merge commit `79aeef3`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 173/173 (18 test files)
+- Tests: ✅ PASS — 177/177 (18 test files)
 - Smoke DB real contra Supabase dev: ✅ PASS — 13/13
-- Próximo ponto: **planejar ORC/PED item snapshot usando Price Resolution Core com autorização explícita**
-- Regra: não iniciar ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
-- `customer_product_price_overrides` agora possui CRUD/API/core e resolução mínima de preço; ORC/PED snapshot ainda não iniciado.
+- Próximo ponto: **planejar Order Confirmation Snapshot Carryover com autorização explícita**
+- Regra: não iniciar ORC→PED carryover, frontend ou RBAC runtime sem plano/review/autorização.
+- Itens de orçamento em `QUOTE_DRAFT` agora salvam snapshot comercial mínimo usando Price Resolution Core; carryover ORC→PED ainda não iniciado.
+
+## Checkpoint da sessão (2026-06-13 pós-PR #55 merge)
+
+### PR #55 — Quote Item Snapshot Foundation integrado
+
+- PR #55 — `Quote Item Snapshot Foundation`
+- PR: https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/55
+- Merge commit: `79aeef3`
+- Branch: `feat/quote-item-snapshot-foundation`
+- Commit técnico: `cadf40a`
+- Handoff: `docs/SESSION-HANDOFF-GATE-H-PR55.md`
+
+### Estado técnico PR #55 — Snapshot de item em orçamento
+
+- `updateQuote` resolve preço ao adicionar/alterar item com `productId` em `QUOTE_DRAFT`.
+- Usa `resolvePriceUseCase` com actor, customerId do orçamento, representedCompanyId do orçamento, productId e `pricedAt`/onDate.
+- Persiste snapshot mínimo no item: `productId`, `representedCompanyId`, `quantity`, `unitPrice`, `lineTotal`, `priceSource`, `priceSourceId`, `priceTableId` quando aplicável e `priceResolvedAt`.
+- Recalcula totais do orçamento após add/update de item.
+- `PRICE_NOT_RESOLVABLE` bloqueia persistência do item e preserva totais existentes.
+- Item já snapshotado não sofre repricing em update de quantidade.
+- Payment term não foi duplicado por item.
+
+### Validações registradas PR #55
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 177/177 |
+| `npm run db:migrate` com `.env.local` | ✅ PASS — 0 applied, 14 skipped |
+| `npm run test:smoke:db` com `.env.local` | ✅ PASS — 13/13 |
+| `git diff --check` | ✅ PASS |
+| Finalizer `npx ai-workflow collect-evidence --mode=standard --task=quote-item-snapshot-foundation` | ✅ COMPLETED |
+
+### Fora de escopo mantido
+
+- ORC→PED confirmation/carryover não iniciado.
+- Sem frontend.
+- Sem RBAC runtime completo.
+- Sem estoque, fiscal/NF-e/SEFAZ.
+- Sem promoções, faixas de preço, margem, comissão ou desconto avançado.
+- Sem edição visual de tabela.
+- `erp_app_flow_map.html`: continua fora dos PRs.
+
+### Próximo ponto
+
+Planejar próximo slice técnico: **Order Confirmation Snapshot Carryover**, garantindo que a confirmação ORC→PED copie o snapshot salvo e não recalcule preço.
 
 ## Checkpoint da sessão (2026-06-13 pós-PR #53 merge)
 
