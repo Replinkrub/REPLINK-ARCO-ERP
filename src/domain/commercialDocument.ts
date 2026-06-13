@@ -37,11 +37,18 @@ export interface CommercialDocumentTotals {
 
 export interface CommercialDocumentSourceItemSnapshot {
   id?: string;
+  productId?: string;
+  representedCompanyId?: string;
   description: string;
   quantity: number;
   unitPrice: number;
   discount?: number;
+  lineTotal?: number;
   total: number;
+  priceSource?: 'CUSTOMER_PRODUCT_OVERRIDE' | 'PRICE_TABLE_ITEM';
+  priceSourceId?: string;
+  priceTableId?: string;
+  priceResolvedAt?: string;
 }
 
 export interface CommercialDocumentSourceTotalsSnapshot {
@@ -262,6 +269,21 @@ export function convertQuoteToOrder(
     });
   }
 
+  const snapshotValidation = validateQuoteItemsSnapshot(quote);
+  if (!snapshotValidation.ok) {
+    return failure({
+      code: DOMAIN_ERROR_CODES.MISSING_ITEM_SNAPSHOT,
+      message: 'Todos os itens do orçamento devem possuir snapshot comercial mínimo antes da confirmação',
+      at: now,
+      operation: 'CONFIRM_ORDER',
+      tenantId: quote.tenantId,
+      documentId: quote.id,
+      currentStatus: quote.status,
+      details: snapshotValidation.details,
+      withDeniedEvent: true,
+    });
+  }
+
   const orderNumber = generateCommercialDocumentNumber({ type: 'order', sequence: orderSequence });
   const sourceQuoteSnapshot = buildSourceQuoteSnapshot(quote, now);
   return success({
@@ -296,11 +318,18 @@ function buildSourceQuoteSnapshot(quote: CommercialDocument, convertedAt: Date):
     converted_at: new Date(convertedAt),
     items: quote.items.map((item) => ({
       ...(item.id ? { id: item.id } : {}),
+      ...(item.productId ? { productId: item.productId } : {}),
+      ...(item.representedCompanyId ? { representedCompanyId: item.representedCompanyId } : {}),
       description: item.description,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       ...(item.discount !== undefined ? { discount: item.discount } : {}),
+      ...(item.lineTotal !== undefined ? { lineTotal: item.lineTotal } : {}),
       total: item.total,
+      ...(item.priceSource ? { priceSource: item.priceSource } : {}),
+      ...(item.priceSourceId ? { priceSourceId: item.priceSourceId } : {}),
+      ...(item.priceTableId ? { priceTableId: item.priceTableId } : {}),
+      ...(item.priceResolvedAt ? { priceResolvedAt: item.priceResolvedAt } : {}),
     })),
     totals: {
       subtotal: quote.totals.subtotal,
@@ -325,6 +354,36 @@ function buildSourceQuoteSnapshot(quote: CommercialDocument, convertedAt: Date):
   }
 
   return snapshot;
+}
+
+function validateQuoteItemsSnapshot(quote: CommercialDocument): { ok: true } | { ok: false; details: Record<string, unknown> } {
+  const invalidItems = quote.items
+    .map((item, index) => ({ item, index, missingFields: getMissingSnapshotFields(item) }))
+    .filter(({ missingFields }) => missingFields.length > 0)
+    .map(({ item, index, missingFields }) => ({ itemId: item.id, index, missingFields }));
+
+  if (invalidItems.length > 0) {
+    return { ok: false, details: { invalidItems } };
+  }
+
+  return { ok: true };
+}
+
+function getMissingSnapshotFields(item: CommercialDocumentItem): string[] {
+  const missing: string[] = [];
+
+  if (!item.productId) missing.push('productId');
+  if (!item.representedCompanyId) missing.push('representedCompanyId');
+  if (!Number.isFinite(item.quantity) || item.quantity <= 0) missing.push('quantity');
+  if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) missing.push('unitPrice');
+  if (!Number.isFinite(item.total)) missing.push('total');
+  if (!Number.isFinite(item.lineTotal)) missing.push('lineTotal');
+  if (!item.priceSource) missing.push('priceSource');
+  if (!item.priceSourceId) missing.push('priceSourceId');
+  if (item.priceSource === 'PRICE_TABLE_ITEM' && !item.priceTableId) missing.push('priceTableId');
+  if (!item.priceResolvedAt) missing.push('priceResolvedAt');
+
+  return missing;
 }
 
 function pickOptionalNumber(source: Record<string, unknown>, key: 'tax' | 'freight' | 'fees'): Partial<Record<'tax' | 'freight' | 'fees', number>> {

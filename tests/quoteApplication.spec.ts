@@ -373,6 +373,74 @@ describe('quote application flow', () => {
     expect(quantityOnly.data.totals.total).toBe(240);
   });
 
+  it('confirmQuote carries over saved item snapshot without repricing', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+    const repositories = quoteItemSnapshotDeps(quoteRepository);
+
+    await createQuoteUseCase(
+      { quoteRepository, customerRepository: repositories.customerRepository },
+      {
+        id: 'q-confirm-snapshot-carryover',
+        tenantId: 'tenant-1',
+        representedCompanyId: 'represented-1',
+        customerId: 'customer-1',
+        ownerId: 'admin-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const updated = await updateQuote(
+      repositories,
+      {
+        id: 'q-confirm-snapshot-carryover',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        pricedAt: '2026-06-01',
+        addItems: [{ id: 'item-carryover', productId: 'product-1', sku: 'P1', description: 'Produto 1', quantity: 2, unitPrice: 999 }],
+      }
+    );
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+
+    repositories.customerProductPriceOverrideRepository = new InMemoryCustomerProductPriceOverrideRepository([
+      { id: 'override-1', tenantId: 'tenant-1', customerId: 'customer-1', representedCompanyId: 'represented-1', productId: 'product-1', unitPrice: 70, validFrom: '2026-01-01' },
+    ]);
+
+    const confirmed = await confirmQuoteUseCase(
+      { quoteRepository, orderRepository },
+      {
+        quoteId: 'q-confirm-snapshot-carryover',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        orderSequence: 101,
+      }
+    );
+
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+    expect(confirmed.data.items[0]).toMatchObject({
+      productId: 'product-1',
+      representedCompanyId: 'represented-1',
+      quantity: 2,
+      unitPrice: 80,
+      total: 160,
+      lineTotal: 160,
+      priceSource: 'CUSTOMER_PRODUCT_OVERRIDE',
+      priceSourceId: 'override-1',
+      priceResolvedAt: '2026-06-01',
+    });
+    expect(confirmed.data.sourceQuoteSnapshot?.items[0]).toMatchObject({
+      productId: 'product-1',
+      representedCompanyId: 'represented-1',
+      quantity: 2,
+      unitPrice: 80,
+      total: 160,
+      lineTotal: 160,
+      priceSource: 'CUSTOMER_PRODUCT_OVERRIDE',
+      priceSourceId: 'override-1',
+      priceResolvedAt: '2026-06-01',
+    });
+  });
+
   it('updateQuote falls back to price table item and does not persist when price is not resolvable', async () => {
     const quoteRepository = new InMemoryQuoteRepository();
     const repositories = quoteItemSnapshotDeps(quoteRepository, { overrides: [] });
