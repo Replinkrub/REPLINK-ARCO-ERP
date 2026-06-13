@@ -53,6 +53,18 @@ export class InMemoryPriceTableItemRepository implements PriceTableItemRepositor
     return item && isVisible(item, input) ? clonePriceTableItem(item) : null;
   }
 
+  async findActiveByPriceTableAndProduct(input: PriceTableItemVisibilityScope & { priceTableId: string; productId: string; onDate: string }): Promise<PriceTableItemRecord | null> {
+    const item = [...this.items.values()]
+      .filter((candidate) => isVisible(candidate, input)
+        && candidate.priceTableId === input.priceTableId
+        && candidate.productId === input.productId
+        && candidate.status === 'active'
+        && candidate.validFrom <= input.onDate
+        && (candidate.validUntil === undefined || candidate.validUntil >= input.onDate))
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
+    return item ? clonePriceTableItem(item) : null;
+  }
+
   async create(input: PriceTableItemCreateInput): Promise<PriceTableItemRecord> {
     const now = input.now ?? new Date();
     const item: PriceTableItemRecord = { ...input, createdAt: now, updatedAt: now };

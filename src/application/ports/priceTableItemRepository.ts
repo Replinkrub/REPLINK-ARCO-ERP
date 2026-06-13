@@ -63,6 +63,7 @@ export interface PriceTableItemOverlapInput {
 export interface PriceTableItemRepository {
   listByPriceTable(input: PriceTableItemListInput): Promise<PriceTableItemListResult>;
   getById(input: PriceTableItemVisibilityScope & { priceTableId: string; itemId: string }): Promise<PriceTableItemRecord | null>;
+  findActiveByPriceTableAndProduct(input: PriceTableItemVisibilityScope & { priceTableId: string; productId: string; onDate: string }): Promise<PriceTableItemRecord | null>;
   create(input: PriceTableItemCreateInput): Promise<PriceTableItemRecord>;
   update(input: PriceTableItemUpdateInput): Promise<PriceTableItemRecord | null>;
   hasActiveOverlap(input: PriceTableItemOverlapInput): Promise<boolean>;

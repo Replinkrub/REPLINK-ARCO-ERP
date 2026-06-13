@@ -5,6 +5,7 @@ import {
   PostgresCustomerAddressRepository,
   PostgresCustomerCommercialProfileRepository,
   PostgresCustomerRepresentedCommercialProfileRepository,
+  PostgresCustomerProductPriceOverrideRepository,
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresPriceTableRepository,
@@ -318,6 +319,52 @@ describe('postgres repositories', () => {
     expect(db.calls[0]?.text).toContain('INSERT INTO customer_represented_commercial_profiles');
     expect(db.calls[0]?.text).toContain('ON CONFLICT (tenant_id, customer_id, represented_company_id) DO UPDATE SET');
     expect(db.calls[0]?.values?.slice(0, 5)).toEqual(['tenant-1', 'customer-db-1', 'represented-db-1', 'price-table-db-1', 'payment-term-db-1']);
+  });
+
+  it('creates, lists, updates and resolves customer product price overrides scoped by tenant/customer/represented/product', async () => {
+    const db = new FakeSqlExecutor();
+    db.resultRows = [customerProductPriceOverrideRow({ id: 'override-db-1' })];
+    const repository = new PostgresCustomerProductPriceOverrideRepository(db);
+
+    const created = await repository.create({
+      id: 'override-db-1',
+      tenantId: 'tenant-1',
+      customerId: 'customer-db-1',
+      representedCompanyId: 'represented-db-1',
+      productId: 'product-db-1',
+      unitPrice: 88.25,
+      validFrom: '2026-01-01',
+      status: 'active',
+    });
+
+    expect(created.id).toBe('override-db-1');
+    expect(db.calls[0]?.text).toContain('INSERT INTO customer_product_price_overrides');
+    expect(db.calls[0]?.values?.slice(0, 7)).toEqual(['override-db-1', 'tenant-1', 'customer-db-1', 'represented-db-1', 'product-db-1', 88.25, '2026-01-01']);
+
+    db.calls = [];
+    await repository.list({ tenantId: 'tenant-1', actorId: 'rep-1', role: 'REPRESENTANTE', customerId: 'customer-db-1', representedCompanyId: 'represented-db-1', page: 1, pageSize: 20 });
+    expect(db.calls[0]?.text).toContain('FROM customer_product_price_overrides');
+    expect(db.calls[0]?.text).toContain('tenant_id = $1 AND customer_id = $2 AND represented_company_id = $3');
+
+    db.calls = [];
+    await repository.update({ tenantId: 'tenant-1', actorId: 'admin-1', role: 'ADMIN', customerId: 'customer-db-1', representedCompanyId: 'represented-db-1', overrideId: 'override-db-1', patch: { unitPrice: 87, status: 'inactive' } });
+    expect(db.calls[0]?.text).toContain('FROM customer_product_price_overrides');
+    expect(db.calls[1]?.text).toContain('UPDATE customer_product_price_overrides SET');
+    expect(db.calls[1]?.text).toContain('WHERE tenant_id = $1 AND customer_id = $2 AND represented_company_id = $3 AND id = $4');
+
+    db.calls = [];
+    db.resultRows = [customerProductPriceOverrideRow({ id: 'override-db-1', unit_price: '88.2500' })];
+    const active = await repository.findActive({ tenantId: 'tenant-1', customerId: 'customer-db-1', representedCompanyId: 'represented-db-1', productId: 'product-db-1', onDate: '2026-06-01' });
+    expect(active?.unitPrice).toBe(88.25);
+    expect(db.calls[0]?.text).toContain('status = \'active\'');
+    expect(db.calls[0]?.text).toContain('valid_from <= $5::date');
+
+    db.calls = [];
+    db.resultRows = [{ exists: true }];
+    const duplicate = await repository.hasActiveForScope({ tenantId: 'tenant-1', customerId: 'customer-db-1', representedCompanyId: 'represented-db-1', productId: 'product-db-1' });
+    expect(duplicate).toBe(true);
+    expect(db.calls[0]?.text).toContain('SELECT EXISTS');
+    expect(db.calls[0]?.text).toContain('status = \'active\'');
   });
 
   it('creates, lists and updates customer contacts scoped by tenant/customer with primary behavior', async () => {
@@ -637,6 +684,23 @@ function customerRepresentedCommercialProfileRow(overrides: Partial<Record<strin
     represented_company_id: 'represented-db-1',
     default_price_table_id: null,
     default_payment_term_id: null,
+    created_at: new Date('2026-01-01T00:00:00.000Z'),
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function customerProductPriceOverrideRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'override-db',
+    tenant_id: 'tenant-1',
+    customer_id: 'customer-db-1',
+    represented_company_id: 'represented-db-1',
+    product_id: 'product-db-1',
+    unit_price: '88.2500',
+    valid_from: '2026-01-01',
+    valid_until: null,
+    status: 'active',
     created_at: new Date('2026-01-01T00:00:00.000Z'),
     updated_at: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,

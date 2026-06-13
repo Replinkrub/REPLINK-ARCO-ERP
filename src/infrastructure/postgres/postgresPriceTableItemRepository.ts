@@ -49,6 +49,22 @@ export class PostgresPriceTableItemRepository implements PriceTableItemRepositor
     return result.rows[0] ? rowToPriceTableItem(result.rows[0]) : null;
   }
 
+  async findActiveByPriceTableAndProduct(input: PriceTableItemVisibilityScope & { priceTableId: string; productId: string; onDate: string }): Promise<PriceTableItemRecord | null> {
+    const result = await this.db.query<PriceTableItemRow>(
+      `SELECT ${selectColumns()} FROM price_table_items
+       WHERE tenant_id = $1
+         AND price_table_id = $2
+         AND product_id = $3
+         AND status = 'active'
+         AND valid_from <= $4::date
+         AND COALESCE(valid_until, DATE '9999-12-31') >= $4::date
+       ORDER BY updated_at DESC, id ASC
+       LIMIT 1`,
+      [input.tenantId, input.priceTableId, input.productId, input.onDate]
+    );
+    return result.rows[0] ? rowToPriceTableItem(result.rows[0]) : null;
+  }
+
   async create(input: PriceTableItemCreateInput): Promise<PriceTableItemRecord> {
     const now = input.now ?? new Date();
     const result = await this.db.query<PriceTableItemRow>(
