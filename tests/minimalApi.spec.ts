@@ -923,4 +923,41 @@ describe('minimal HTTP API', () => {
       await expect(patchResponse.json()).resolves.toMatchObject({ unitPrice: 79, status: 'inactive' });
     });
   });
+
+  it('snapshots quote item price through quote PATCH API', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-quote-item-api-1', ownerId: 'rep-1', representativeId: 'rep-1' }]),
+        representedCompanyRepository: new InMemoryRepresentedCompanyRepository([{ id: 'represented-quote-item-api-1', tenantId: 'tenant-env-1', name: 'Representada Quote Item API' }]),
+        productRepository: new InMemoryProductRepository([{ id: 'product-quote-item-api-1', tenantId: 'tenant-env-1', representedCompanyId: 'represented-quote-item-api-1', sku: 'P-QI-1', name: 'Produto Quote Item API' }]),
+        priceTableRepository: new InMemoryPriceTableRepository([{ id: 'price-table-quote-item-api-1', tenantId: 'tenant-env-1', representedCompanyId: 'represented-quote-item-api-1', name: 'Tabela Quote Item API', validFrom: '2026-01-01' }]),
+        priceTableItemRepository: new InMemoryPriceTableItemRepository([{ id: 'price-table-item-quote-item-api-1', tenantId: 'tenant-env-1', priceTableId: 'price-table-quote-item-api-1', productId: 'product-quote-item-api-1', unitPrice: 100, validFrom: '2026-01-01' }]),
+        customerRepresentedCommercialProfileRepository: new InMemoryCustomerRepresentedCommercialProfileRepository([{ tenantId: 'tenant-env-1', customerId: 'customer-quote-item-api-1', representedCompanyId: 'represented-quote-item-api-1', defaultPriceTableId: 'price-table-quote-item-api-1' }]),
+        customerProductPriceOverrideRepository: new InMemoryCustomerProductPriceOverrideRepository([{ id: 'override-quote-item-api-1', tenantId: 'tenant-env-1', customerId: 'customer-quote-item-api-1', representedCompanyId: 'represented-quote-item-api-1', productId: 'product-quote-item-api-1', unitPrice: 82, validFrom: '2026-01-01' }]),
+      });
+
+      const createResponse = await api(new Request('http://localhost/v0/quotes', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'quote-item-api-1', representedCompanyId: 'represented-quote-item-api-1', customerId: 'customer-quote-item-api-1', ownerId: 'admin-1', representativeId: 'rep-1', numberSequence: 91 }),
+      }));
+      expect(createResponse.status).toBe(201);
+
+      const updateResponse = await api(new Request('http://localhost/v0/quotes/quote-item-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({
+          priced_at: '2026-06-01',
+          addItems: [{ id: 'quote-item-api-line-1', productId: 'product-quote-item-api-1', sku: 'P-QI-1', description: 'Produto Quote Item API', quantity: 2, unitPrice: 999 }],
+        }),
+      }));
+
+      expect(updateResponse.status).toBe(200);
+      const updated = await updateResponse.json() as { items: Array<Record<string, unknown>>; totals: { total: number } };
+      expect(updated.items[0]).toMatchObject({ productId: 'product-quote-item-api-1', representedCompanyId: 'represented-quote-item-api-1', unitPrice: 82, lineTotal: 164, priceSource: 'CUSTOMER_PRODUCT_OVERRIDE', priceSourceId: 'override-quote-item-api-1', priceResolvedAt: '2026-06-01' });
+      expect(updated.totals.total).toBe(164);
+    });
+  });
 });

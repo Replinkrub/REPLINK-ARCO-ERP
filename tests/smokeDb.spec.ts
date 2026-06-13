@@ -732,6 +732,33 @@ describe('db smoke (real postgres)', () => {
     expect(overrideResolution.status).toBe(200);
     await expect(overrideResolution.json()).resolves.toMatchObject({ source: 'CUSTOMER_PRODUCT_OVERRIDE', unitPrice: 123.45, sourceId: `override-smoke-${now}` });
 
+    const quoteIdForItemSnapshot = `quote-item-snapshot-smoke-${now}`;
+    const createQuoteForItem = await api(new Request('http://localhost/v0/quotes', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: quoteIdForItemSnapshot, representedCompanyId: representedId, customerId, ownerId: `owner-item-snapshot-${now}`, representativeId: `rep-item-snapshot-${now}`, numberSequence: baseSequence + 30 }),
+    }));
+    expect(createQuoteForItem.status).toBe(201);
+
+    const addQuoteItem = await api(new Request(`http://localhost/v0/quotes/${quoteIdForItemSnapshot}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        priced_at: '2026-06-01',
+        addItems: [{ id: `quote-item-snapshot-line-${now}`, productId, sku: `SKU-OVERRIDE-SMOKE-${now}`, description: `Override Product Smoke ${now}`, quantity: 2, unitPrice: 999 }],
+      }),
+    }));
+    expect(addQuoteItem.status).toBe(200);
+    await expect(addQuoteItem.json()).resolves.toMatchObject({ totals: { total: 246.9 } });
+
+    const quoteItemSnapshotRow = await pgClient.query(
+      `SELECT items, totals FROM commercial_documents WHERE tenant_id = $1 AND id = $2 AND document_type = 'quote' LIMIT 1`,
+      [tenantId, quoteIdForItemSnapshot]
+    );
+    expect(quoteItemSnapshotRow.rowCount).toBe(1);
+    expect(quoteItemSnapshotRow.rows[0]?.items[0]).toMatchObject({ productId, representedCompanyId: representedId, unitPrice: 123.45, lineTotal: 246.9, priceSource: 'CUSTOMER_PRODUCT_OVERRIDE', priceSourceId: `override-smoke-${now}`, priceResolvedAt: '2026-06-01' });
+    expect(Number(quoteItemSnapshotRow.rows[0]?.totals.total)).toBe(246.9);
+
     const overrideRow = await pgClient.query(
       'SELECT tenant_id, customer_id, represented_company_id, product_id, unit_price FROM customer_product_price_overrides WHERE tenant_id = $1 AND id = $2 LIMIT 1',
       [tenantId, `override-smoke-${now}`]
