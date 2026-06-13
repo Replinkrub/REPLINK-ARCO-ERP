@@ -28,6 +28,9 @@ export interface PersistedCommercialDocumentRow {
   source_quote_revision: string | null;
   converted_at: Date | null;
   source_quote_snapshot: unknown;
+  payment_term_id: string | null;
+  payment_term_snapshot: unknown;
+  payment_schedule: unknown;
   canceled_at: Date | null;
   cancel_reason: string | null;
   cancel_note: string | null;
@@ -59,6 +62,9 @@ export function serializeDocument(document: CommercialDocument): PersistedCommer
     source_quote_revision: document.source_quote_revision != null ? String(document.source_quote_revision) : null,
     converted_at: document.converted_at ?? null,
     source_quote_snapshot: document.sourceQuoteSnapshot ?? null,
+    payment_term_id: document.paymentTermId ?? null,
+    payment_term_snapshot: document.paymentTermSnapshot ?? null,
+    payment_schedule: document.paymentSchedule ?? [],
     canceled_at: document.canceledAt ?? null,
     cancel_reason: document.cancelReason ?? null,
     cancel_note: document.cancelNote ?? null,
@@ -97,6 +103,9 @@ export function deserializeDocument(row: PersistedCommercialDocumentRow): Commer
           converted_at: new Date(sourceSnapshot.converted_at),
         }
       : undefined,
+    paymentTermId: row.payment_term_id ?? undefined,
+    paymentTermSnapshot: row.payment_term_snapshot ? structuredClone(row.payment_term_snapshot as CommercialDocument['paymentTermSnapshot']) : undefined,
+    paymentSchedule: row.payment_schedule ? structuredClone(row.payment_schedule as CommercialDocument['paymentSchedule']) : undefined,
     canceledAt: row.canceled_at ? new Date(row.canceled_at) : undefined,
     cancelReason: row.cancel_reason as CommercialDocument['cancelReason'],
     cancelNote: row.cancel_note ?? undefined,
