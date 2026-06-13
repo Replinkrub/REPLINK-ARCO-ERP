@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate H integrado até Customer Represented Commercial Profile**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até Customer Product Price Overrides + Price Resolution Core**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `2fb945a` (merge PR #52 — Customer Represented Commercial Profile)
+- `main` em: `8b039cb` (merge PR #53 — Customer Product Price Overrides + Price Resolution Core)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -38,12 +38,60 @@
 - PR Payment Terms Foundation: #50 — merge commit `d956fc5`
 - PR Customer Default Payment Terms Link: #51 — merge commit `7fc788d`
 - PR Customer Represented Commercial Profile: #52 — merge commit `2fb945a`
+- PR Customer Product Price Overrides + Price Resolution Core: #53 — merge commit `8b039cb`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 168/168 (16 test files)
+- Tests: ✅ PASS — 173/173 (18 test files)
 - Smoke DB real contra Supabase dev: ✅ PASS — 13/13
-- Próximo ponto: **escolher e planejar próximo slice técnico com autorização explícita**
-- Regra: não iniciar ORC/PED item snapshot, frontend, RBAC runtime, override CRUD/API/motor de preço sem plano/review/autorização.
-- Foundation de `customer_product_price_overrides` existe apenas como base de dados/modelo — ainda não há CRUD, API, motor de preço ou ORC/PED snapshot para overrides.
+- Próximo ponto: **planejar ORC/PED item snapshot usando Price Resolution Core com autorização explícita**
+- Regra: não iniciar ORC/PED item snapshot, frontend ou RBAC runtime sem plano/review/autorização.
+- `customer_product_price_overrides` agora possui CRUD/API/core e resolução mínima de preço; ORC/PED snapshot ainda não iniciado.
+
+## Checkpoint da sessão (2026-06-13 pós-PR #53 merge)
+
+### PR #53 — Customer Product Price Overrides + Price Resolution Core integrado
+
+- PR #53 — `Customer Product Price Overrides + Price Resolution Core`
+- PR: https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/53
+- Merge commit: `8b039cb`
+- Branch: `feat/customer-product-price-overrides-resolution`
+- Commit técnico: `9183f48`
+- Handoff: `docs/SESSION-HANDOFF-GATE-H-PR53.md`
+
+### Estado técnico PR #53 — Overrides + resolução de preço
+
+- Port + use cases + in-memory + Postgres repos para `customer_product_price_overrides`.
+- Endpoints: CRUD básico via `/v1/customers/{customerId}/represented-commercial-profiles/{representedCompanyId}/product-price-overrides`.
+- Endpoint de resolução: `GET /v1/customers/{customerId}/represented-commercial-profiles/{representedCompanyId}/products/{productId}/resolved-price`.
+- Migration `014_customer_product_price_overrides_active_unique.sql`: unique parcial para no máximo 1 override ativo por `(tenant_id, customer_id, represented_company_id, product_id)`.
+- Regra implementada: override ativo vence; sem override ativo, fallback para item ativo da tabela base/default do cliente + representada.
+- Origem retornada: `CUSTOMER_PRODUCT_OVERRIDE` ou `PRICE_TABLE_ITEM`.
+- Erro explícito: `PRICE_NOT_RESOLVABLE` quando não há preço resolvível.
+- Autorização mínima atual: ADMIN cria/edita; ADMIN e REPRESENTANTE consultam/resolvem preço conforme acesso ao cliente.
+
+### Validações registradas PR #53
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 173/173 |
+| `npm run db:migrate` com `.env.local` | ✅ PASS — 0 applied, 14 skipped na execução pós-merge |
+| `npm run test:smoke:db` com `.env.local` | ✅ PASS — 13/13 |
+| `git diff --check` | ✅ PASS |
+| Finalizer `npx ai-workflow collect-evidence --mode=standard --task=customer-product-price-overrides-resolution` | ✅ COMPLETED |
+
+### Fora de escopo mantido
+
+- ORC/PED snapshot não iniciado.
+- Sem frontend.
+- Sem RBAC runtime completo.
+- Sem estoque, fiscal/NF-e/SEFAZ.
+- Sem promoções, faixas de preço, margem, comissão ou desconto avançado.
+- Sem edição visual de tabela.
+- `erp_app_flow_map.html`: continua fora dos PRs.
+
+### Próximo ponto
+
+Planejar próximo slice técnico: **ORC/PED item snapshot usando Price Resolution Core**, sem iniciar implementação antes de plano/review/autorização.
 
 ## Checkpoint da sessão (2026-06-12 pós-PR #52 merge)
 
