@@ -475,11 +475,16 @@ describe('commercialDocument core', () => {
     const base = createQuote({ id: 'doc-immut', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
     const withItem = addItem(base, {
       id: 'i1',
+      productId: 'product-1',
+      representedCompanyId: 'represented-1',
       sku: 'SKU-1',
       description: 'Item base',
       quantity: 2,
       unitPrice: 100,
       discount: 10,
+      priceSource: 'CUSTOMER_PRODUCT_OVERRIDE',
+      priceSourceId: 'override-1',
+      priceResolvedAt: '2026-06-01',
     });
     if (!withItem.ok) return;
 
@@ -489,11 +494,17 @@ describe('commercialDocument core', () => {
     const originalSnapshot = converted.document.sourceQuoteSnapshot;
     expect(originalSnapshot?.items[0]).toMatchObject({
       id: 'i1',
+      productId: 'product-1',
+      representedCompanyId: 'represented-1',
       description: 'Item base',
       quantity: 2,
       unitPrice: 100,
       discount: 10,
+      lineTotal: 190,
       total: 190,
+      priceSource: 'CUSTOMER_PRODUCT_OVERRIDE',
+      priceSourceId: 'override-1',
+      priceResolvedAt: '2026-06-01',
     });
 
     const mutatedQuote = updateItem(withItem.document, 'i1', { quantity: 10, discount: 0 });
@@ -502,6 +513,29 @@ describe('commercialDocument core', () => {
     expect(mutatedQuote.document.items[0]?.total).toBe(1000);
     expect(converted.document.sourceQuoteSnapshot).toEqual(originalSnapshot);
     expect(converted.document.sourceQuoteSnapshot?.items[0]?.total).toBe(190);
+  });
+
+  it('conversão quote→order bloqueia item sem snapshot comercial mínimo', () => {
+    const base = createQuote({ id: 'doc-missing-snapshot', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const withItem = addItem(base, {
+      id: 'i-missing',
+      sku: 'SKU-MISSING',
+      description: 'Item sem snapshot',
+      quantity: 1,
+      unitPrice: 50,
+    });
+    if (!withItem.ok) return;
+
+    const converted = convertQuoteToOrder(withItem.document, 89);
+
+    expect(converted.ok).toBe(false);
+    if (!converted.ok) {
+      expect(converted.error.code).toBe(DOMAIN_ERROR_CODES.MISSING_ITEM_SNAPSHOT);
+      expect(converted.error.details).toMatchObject({
+        invalidItems: [{ itemId: 'i-missing', missingFields: expect.arrayContaining(['productId', 'representedCompanyId', 'priceSource', 'priceSourceId', 'priceResolvedAt']) }],
+      });
+      expect(converted.events[0]?.type).toBe('OPERATION_DENIED');
+    }
   });
 
   it('dupla conversão bloqueia com DOCUMENT_ALREADY_CONFIRMED sem duplicar pedido/evento', () => {
