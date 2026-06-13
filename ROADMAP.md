@@ -106,6 +106,7 @@ Correção adotada:
 - Payment Terms Foundation (PR #50, merge `d956fc5`).
 - Customer Default Payment Terms Link (PR #51, merge `7fc788d`).
 - Customer Represented Commercial Profile (PR #52, merge `2fb945a`).
+- Customer Product Price Overrides + Price Resolution Core (PR #53, merge `8b039cb`).
 
 ### Concluído nesta frente documental
 
@@ -502,7 +503,7 @@ Para o próximo slice (Gate H slice 4+):
 **Tipo:** implementação técnica em slices
 **Dependências:** Gate G
 
-**Status atual:** slice 1 fully integrated; slice 2 fully integrated (Products + Price Tables + Price Table Items + Customer Default Price Table Link); slice 3 integrado (Payment Terms Foundation + Customer Default Payment Terms Link + Customer Represented Commercial Profile).
+**Status atual:** slice 1 fully integrated; slice 2 fully integrated (Products + Price Tables + Price Table Items + Customer Default Price Table Link); slice 3 integrado (Payment Terms Foundation + Customer Default Payment Terms Link + Customer Represented Commercial Profile); price overrides + price resolution core integrado (PR #53).
 
 ### Objetivo
 
@@ -578,12 +579,22 @@ Implementar API por fatias funcionais sem quebrar contratos.
   - Migration `012`: `customer_represented_commercial_profiles(tenant_id, id, customer_id, represented_company_id, default_price_table_id, default_payment_term_id)`.
   - Migration `013`: triggers de guarda para representada-mismatch.
   - `GET/PATCH /v1/customers/{customerId}/represented-commercial-profiles/{profileId}`.
-  - Foundation de `customer_product_price_overrides` existe como base de dados/modelo — ainda não há CRUD, API, motor de preço ou ORC/PED snapshot para overrides.
   - Tests: 168/168, smoke: 13/13.
+
+### Estado entregue no price overrides/resolution core
+
+- **Customer Product Price Overrides + Price Resolution Core** — PR #53 (merge `8b039cb`):
+  - Migration `014`: unique parcial para no máximo 1 override ativo por `(tenant_id, customer_id, represented_company_id, product_id)`.
+  - CRUD/API básico para `customer_product_price_overrides`.
+  - `GET /v1/customers/{customerId}/represented-commercial-profiles/{representedCompanyId}/products/{productId}/resolved-price`.
+  - Regra implementada: override ativo vence; sem override ativo, fallback para item ativo da tabela base/default do cliente + representada.
+  - Origem retornada: `CUSTOMER_PRODUCT_OVERRIDE` ou `PRICE_TABLE_ITEM`.
+  - Erro explícito: `PRICE_NOT_RESOLVABLE` quando não há preço resolvível.
+  - Tests: 173/173, smoke: 13/13.
 
 ### Próximo passo do Gate H
 
-Escolher e planejar o próximo slice técnico com autorização explícita. Não avançar para ORC/PED item snapshot, override CRUD/API/motor de preço, frontend ou RBAC runtime sem plano/review/autorização.
+Planejar o próximo slice técnico com autorização explícita: **ORC/PED item snapshot usando Price Resolution Core**. Não avançar para implementação de ORC/PED snapshot, frontend ou RBAC runtime sem plano/review/autorização.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 
