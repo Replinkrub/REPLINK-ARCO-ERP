@@ -544,6 +544,7 @@ export function createMinimalHttpApi(deps: ApiDeps) {
           customerRepresentedCommercialProfileRepository: deps.customerRepresentedCommercialProfileRepository,
           priceTableRepository: deps.priceTableRepository,
           priceTableItemRepository: deps.priceTableItemRepository,
+          paymentTermRepository: deps.paymentTermRepository,
         },
         {
           id: quoteId,
@@ -553,6 +554,8 @@ export function createMinimalHttpApi(deps: ApiDeps) {
           updateItems: body.updateItems as never,
           removeItemIds: body.removeItemIds as string[] | undefined,
           pricedAt: typeof body.pricedAt === 'string' ? body.pricedAt : typeof body.priced_at === 'string' ? body.priced_at : undefined,
+          paymentTermId: typeof body.paymentTermId === 'string' ? body.paymentTermId : typeof body.payment_term_id === 'string' ? body.payment_term_id : body.paymentTermId === null || body.payment_term_id === null ? null : undefined,
+          paymentScheduledAt: typeof body.paymentScheduledAt === 'string' ? body.paymentScheduledAt : typeof body.payment_scheduled_at === 'string' ? body.payment_scheduled_at : undefined,
         }
       );
       return mapResult(result, 200);

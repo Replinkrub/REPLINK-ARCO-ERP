@@ -759,6 +759,44 @@ describe('db smoke (real postgres)', () => {
     expect(quoteItemSnapshotRow.rows[0]?.items[0]).toMatchObject({ productId, representedCompanyId: representedId, unitPrice: 123.45, lineTotal: 246.9, priceSource: 'CUSTOMER_PRODUCT_OVERRIDE', priceSourceId: `override-smoke-${now}`, priceResolvedAt: '2026-06-01' });
     expect(Number(quoteItemSnapshotRow.rows[0]?.totals.total)).toBe(246.9);
 
+    const quotePaymentSnapshot = await api(new Request(`http://localhost/v0/quotes/${quoteIdForItemSnapshot}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ payment_term_id: paymentTermId, payment_scheduled_at: '2026-06-01' }),
+    }));
+    expect(quotePaymentSnapshot.status).toBe(200);
+    await expect(quotePaymentSnapshot.json()).resolves.toMatchObject({
+      paymentTermId,
+      paymentTermSnapshot: { id: paymentTermId, installmentsCount: 2, firstDueDays: 30, intervalDays: 30, snapshottedAt: '2026-06-01' },
+      paymentSchedule: [
+        { installmentNumber: 1, dueDate: '2026-07-01', amount: 123.45 },
+        { installmentNumber: 2, dueDate: '2026-07-31', amount: 123.45 },
+      ],
+    });
+
+    const confirmPaymentSnapshot = await api(new Request(`http://localhost/v0/quotes/${quoteIdForItemSnapshot}/confirm`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ orderSequence: baseSequence + 31 }),
+    }));
+    expect(confirmPaymentSnapshot.status).toBe(200);
+    await expect(confirmPaymentSnapshot.json()).resolves.toMatchObject({
+      documentType: 'order',
+      paymentTermId,
+      paymentTermSnapshot: { id: paymentTermId, installmentsCount: 2 },
+      sourceQuoteSnapshot: { paymentTermSnapshot: { id: paymentTermId, installmentsCount: 2 } },
+    });
+
+    const orderPaymentSnapshotRow = await pgClient.query(
+      `SELECT payment_term_id, payment_term_snapshot, payment_schedule, source_quote_snapshot FROM commercial_documents WHERE tenant_id = $1 AND source_quote_id = $2 AND document_type = 'order' LIMIT 1`,
+      [tenantId, quoteIdForItemSnapshot]
+    );
+    expect(orderPaymentSnapshotRow.rowCount).toBe(1);
+    expect(orderPaymentSnapshotRow.rows[0]).toMatchObject({ payment_term_id: paymentTermId });
+    expect(orderPaymentSnapshotRow.rows[0]?.payment_term_snapshot).toMatchObject({ id: paymentTermId, installmentsCount: 2 });
+    expect(orderPaymentSnapshotRow.rows[0]?.payment_schedule).toHaveLength(2);
+    expect(orderPaymentSnapshotRow.rows[0]?.source_quote_snapshot.paymentTermSnapshot).toMatchObject({ id: paymentTermId, installmentsCount: 2 });
+
     const overrideRow = await pgClient.query(
       'SELECT tenant_id, customer_id, represented_company_id, product_id, unit_price FROM customer_product_price_overrides WHERE tenant_id = $1 AND id = $2 LIMIT 1',
       [tenantId, `override-smoke-${now}`]

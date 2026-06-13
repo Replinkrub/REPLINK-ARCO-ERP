@@ -62,7 +62,10 @@ export class PostgresOrderRepository implements OrderRepository {
         cancel_note = EXCLUDED.cancel_note,
         lifecycle_events = EXCLUDED.lifecycle_events,
         output_events = EXCLUDED.output_events,
-        order_revisions = EXCLUDED.order_revisions`
+        order_revisions = EXCLUDED.order_revisions,
+        payment_term_id = EXCLUDED.payment_term_id,
+        payment_term_snapshot = EXCLUDED.payment_term_snapshot,
+        payment_schedule = EXCLUDED.payment_schedule`
       : '';
 
     await this.db.query(
@@ -70,12 +73,14 @@ export class PostgresOrderRepository implements OrderRepository {
         id, document_type, number, tenant_id, represented_company_id, customer_id, owner_id, representative_id, status,
         items, totals, created_at, updated_at, confirmed_at, invoiced_at, invoice_manual_reference,
         source_quote_id, source_quote_number, source_quote_revision, converted_at, source_quote_snapshot,
-        canceled_at, cancel_reason, cancel_note, lifecycle_events, output_events, order_revisions
+        canceled_at, cancel_reason, cancel_note, lifecycle_events, output_events, order_revisions,
+        payment_term_id, payment_term_snapshot, payment_schedule
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9,
         $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16,
         $17, $18, $19, $20, $21::jsonb,
-        $22, $23, $24, $25::jsonb, $26::jsonb, $27::jsonb
+        $22, $23, $24, $25::jsonb, $26::jsonb, $27::jsonb,
+        $28, $29::jsonb, $30::jsonb
       )${conflictClause}`,
       [
         row.id, row.document_type, row.number, row.tenant_id, row.represented_company_id, row.customer_id, row.owner_id, row.representative_id, row.status,
@@ -83,6 +88,7 @@ export class PostgresOrderRepository implements OrderRepository {
         row.invoice_manual_reference, row.source_quote_id, row.source_quote_number, row.source_quote_revision, row.converted_at,
         JSON.stringify(row.source_quote_snapshot), row.canceled_at, row.cancel_reason, row.cancel_note,
         JSON.stringify(row.lifecycle_events), JSON.stringify(row.output_events), JSON.stringify(row.order_revisions),
+        row.payment_term_id, JSON.stringify(row.payment_term_snapshot), JSON.stringify(row.payment_schedule),
       ]
     );
   }

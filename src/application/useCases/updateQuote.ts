@@ -14,6 +14,7 @@ import type { CustomerRepresentedCommercialProfileRepository } from '../ports/cu
 import type { CustomerRepository } from '../ports/customerRepository.js';
 import type { PriceTableItemRepository } from '../ports/priceTableItemRepository.js';
 import type { PriceTableRepository } from '../ports/priceTableRepository.js';
+import type { PaymentTermRepository } from '../ports/paymentTermRepository.js';
 import type { ProductRepository } from '../ports/productRepository.js';
 import type { QuoteRepository } from '../ports/quoteRepository.js';
 import type { RepresentedCompanyRepository } from '../ports/representedCompanyRepository.js';
@@ -32,6 +33,8 @@ export interface UpdateQuoteUseCaseInput {
   updateItems?: UpdateQuoteItemPatch[];
   removeItemIds?: string[];
   pricedAt?: string;
+  paymentTermId?: string | null;
+  paymentScheduledAt?: string;
 }
 
 export interface UpdateQuoteUseCaseDeps {
@@ -43,6 +46,7 @@ export interface UpdateQuoteUseCaseDeps {
   customerRepresentedCommercialProfileRepository?: CustomerRepresentedCommercialProfileRepository;
   priceTableRepository?: PriceTableRepository;
   priceTableItemRepository?: PriceTableItemRepository;
+  paymentTermRepository?: PaymentTermRepository;
 }
 
 export async function updateQuote(
@@ -88,6 +92,12 @@ export async function updateQuote(
     }
   }
 
+  if (input.paymentTermId !== undefined) {
+    const paymentSnapshot = await resolvePaymentTermSnapshot(deps, nextDocument, input);
+    if (!paymentSnapshot.ok) return paymentSnapshot;
+    nextDocument = { ...nextDocument, ...paymentSnapshot.patch, updatedAt: new Date() };
+  }
+
   for (const item of input.addItems ?? []) {
     const resolvedItem = await resolveQuoteItemSnapshot(deps, nextDocument, input, item);
     if (!resolvedItem.ok) return resolvedItem;
@@ -125,6 +135,70 @@ export async function updateQuote(
 
   await deps.quoteRepository.save(nextDocument);
   return applicationSuccess(nextDocument);
+}
+
+async function resolvePaymentTermSnapshot(
+  deps: UpdateQuoteUseCaseDeps,
+  quote: CommercialDocument,
+  input: UpdateQuoteUseCaseInput
+): Promise<{ ok: true; patch: Pick<CommercialDocument, 'paymentTermId' | 'paymentTermSnapshot' | 'paymentSchedule'> } | ApplicationFailureResult> {
+  if (input.paymentTermId === null) {
+    return { ok: true, patch: { paymentTermId: undefined, paymentTermSnapshot: undefined, paymentSchedule: undefined } };
+  }
+
+  const paymentTermId = input.paymentTermId?.trim();
+  if (!paymentTermId) return applicationFailure(APPLICATION_ERROR_CODES.VALIDATION_ERROR, 'paymentTermId deve ser informado', { field: 'paymentTermId' });
+  if (!input.actor) return applicationFailure(APPLICATION_ERROR_CODES.VALIDATION_ERROR, 'Ator é obrigatório para resolver condição de pagamento', { field: 'actor' });
+  if (input.actor.role !== 'ADMIN' && input.actor.role !== 'REPRESENTANTE') return applicationFailure(APPLICATION_ERROR_CODES.FORBIDDEN, 'Ação não permitida');
+  if (!deps.paymentTermRepository) return applicationFailure(APPLICATION_ERROR_CODES.VALIDATION_ERROR, 'Dependência de condição de pagamento indisponível', { field: 'payment_term' });
+
+  const paymentTerm = await deps.paymentTermRepository.getById({
+    tenantId: quote.tenantId,
+    actorId: input.actor.actorId,
+    role: input.actor.role,
+    paymentTermId,
+  });
+  if (!paymentTerm) return applicationFailure(APPLICATION_ERROR_CODES.PAYMENT_TERM_NOT_FOUND, 'Condição de pagamento não encontrada', { paymentTermId });
+  if (paymentTerm.status !== 'active') return applicationFailure(APPLICATION_ERROR_CODES.VALIDATION_ERROR, 'Condição de pagamento deve estar ativa', { field: 'paymentTermId' });
+
+  const scheduledAt = normalizePaymentScheduledAt(input.paymentScheduledAt);
+  return {
+    ok: true,
+    patch: {
+      paymentTermId,
+      paymentTermSnapshot: {
+        id: paymentTerm.id,
+        name: paymentTerm.name,
+        ...(paymentTerm.description ? { description: paymentTerm.description } : {}),
+        installmentsCount: paymentTerm.installmentsCount,
+        firstDueDays: paymentTerm.firstDueDays,
+        intervalDays: paymentTerm.intervalDays,
+        snapshottedAt: scheduledAt,
+      },
+      paymentSchedule: buildPaymentSchedule(quote.totals.total, paymentTerm.installmentsCount, paymentTerm.firstDueDays, paymentTerm.intervalDays, scheduledAt),
+    },
+  };
+}
+
+function buildPaymentSchedule(total: number, installmentsCount: number, firstDueDays: number, intervalDays: number, scheduledAt: string): CommercialDocument['paymentSchedule'] {
+  const totalCents = Math.round(total * 100);
+  const baseAmount = Math.floor(totalCents / installmentsCount);
+  const remainder = totalCents - baseAmount * installmentsCount;
+  return Array.from({ length: installmentsCount }, (_, index) => ({
+    installmentNumber: index + 1,
+    dueDate: addDays(scheduledAt, firstDueDays + index * intervalDays),
+    amount: (baseAmount + (index < remainder ? 1 : 0)) / 100,
+  }));
+}
+
+function addDays(dateString: string, days: number): string {
+  const date = new Date(`${dateString}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizePaymentScheduledAt(paymentScheduledAt: string | undefined): string {
+  return paymentScheduledAt ?? new Date().toISOString().slice(0, 10);
 }
 
 async function resolveQuoteItemSnapshot(

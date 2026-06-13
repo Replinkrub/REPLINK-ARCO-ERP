@@ -5,6 +5,7 @@ import {
   InMemoryCustomerRepository,
   InMemoryCustomerRepresentedCommercialProfileRepository,
   InMemoryOrderRepository,
+  InMemoryPaymentTermRepository,
   InMemoryPriceTableItemRepository,
   InMemoryPriceTableRepository,
   InMemoryProductRepository,
@@ -52,6 +53,9 @@ function quoteItemSnapshotDeps(quoteRepository: InMemoryQuoteRepository, options
     ]),
     customerProductPriceOverrideRepository: new InMemoryCustomerProductPriceOverrideRepository(options.overrides ?? [
       { id: 'override-1', tenantId: 'tenant-1', customerId: 'customer-1', representedCompanyId: 'represented-1', productId: 'product-1', unitPrice: 80, validFrom: '2026-01-01' },
+    ]),
+    paymentTermRepository: new InMemoryPaymentTermRepository([
+      { id: 'payment-term-1', tenantId: 'tenant-1', name: '30/60/90', installmentsCount: 3, firstDueDays: 30, intervalDays: 30 },
     ]),
   };
 }
@@ -439,6 +443,72 @@ describe('quote application flow', () => {
       priceSourceId: 'override-1',
       priceResolvedAt: '2026-06-01',
     });
+  });
+
+  it('updateQuote snapshots payment terms and confirmQuote carries schedule without recalculation', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const orderRepository = new InMemoryOrderRepository();
+    const repositories = quoteItemSnapshotDeps(quoteRepository);
+
+    await createQuoteUseCase(
+      { quoteRepository, customerRepository: repositories.customerRepository },
+      {
+        id: 'q-payment-snapshot-carryover',
+        tenantId: 'tenant-1',
+        representedCompanyId: 'represented-1',
+        customerId: 'customer-1',
+        ownerId: 'admin-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const withItem = await updateQuote(
+      repositories,
+      {
+        id: 'q-payment-snapshot-carryover',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        pricedAt: '2026-06-01',
+        addItems: [{ id: 'item-payment-carryover', productId: 'product-1', sku: 'P1', description: 'Produto 1', quantity: 2, unitPrice: 999 }],
+      }
+    );
+    expect(withItem.ok).toBe(true);
+
+    const withPayment = await updateQuote(
+      repositories,
+      {
+        id: 'q-payment-snapshot-carryover',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        paymentTermId: 'payment-term-1',
+        paymentScheduledAt: '2026-06-01',
+      }
+    );
+    expect(withPayment.ok).toBe(true);
+    if (!withPayment.ok) return;
+    expect(withPayment.data.paymentTermSnapshot).toMatchObject({ id: 'payment-term-1', name: '30/60/90', installmentsCount: 3, firstDueDays: 30, intervalDays: 30, snapshottedAt: '2026-06-01' });
+    expect(withPayment.data.paymentSchedule).toEqual([
+      { installmentNumber: 1, dueDate: '2026-07-01', amount: 53.34 },
+      { installmentNumber: 2, dueDate: '2026-07-31', amount: 53.33 },
+      { installmentNumber: 3, dueDate: '2026-08-30', amount: 53.33 },
+    ]);
+
+    repositories.paymentTermRepository = new InMemoryPaymentTermRepository([
+      { id: 'payment-term-1', tenantId: 'tenant-1', name: 'Alterado', installmentsCount: 1, firstDueDays: 0, intervalDays: 0 },
+    ]);
+
+    const confirmed = await confirmQuoteUseCase(
+      { quoteRepository, orderRepository },
+      {
+        quoteId: 'q-payment-snapshot-carryover',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        orderSequence: 102,
+      }
+    );
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+    expect(confirmed.data.paymentTermSnapshot).toMatchObject({ id: 'payment-term-1', name: '30/60/90', installmentsCount: 3 });
+    expect(confirmed.data.paymentSchedule).toEqual(withPayment.data.paymentSchedule);
+    expect(confirmed.data.sourceQuoteSnapshot?.paymentTermSnapshot).toMatchObject({ id: 'payment-term-1', name: '30/60/90', installmentsCount: 3 });
+    expect(confirmed.data.sourceQuoteSnapshot?.paymentSchedule).toEqual(withPayment.data.paymentSchedule);
   });
 
   it('updateQuote falls back to price table item and does not persist when price is not resolvable', async () => {

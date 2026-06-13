@@ -538,6 +538,18 @@ describe('commercialDocument core', () => {
     }
   });
 
+  it('conversão quote→order bloqueia condição de pagamento sem snapshot/vencimentos', () => {
+    const quote = createQuote({ id: 'doc-missing-payment-snapshot', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
+    const converted = convertQuoteToOrder({ ...quote, paymentTermId: 'payment-term-1' }, 89);
+
+    expect(converted.ok).toBe(false);
+    if (!converted.ok) {
+      expect(converted.error.code).toBe(DOMAIN_ERROR_CODES.MISSING_PAYMENT_SNAPSHOT);
+      expect(converted.error.details).toMatchObject({ missingFields: expect.arrayContaining(['paymentTermSnapshot', 'paymentSchedule']) });
+      expect(converted.events[0]?.type).toBe('OPERATION_DENIED');
+    }
+  });
+
   it('dupla conversão bloqueia com DOCUMENT_ALREADY_CONFIRMED sem duplicar pedido/evento', () => {
     const quote = createQuote({ id: 'doc-double', tenantId: 'tenant-1', ownerId: 'owner-1', representativeId: 'rep-1' });
     const first = convertQuoteToOrder(quote, 90);

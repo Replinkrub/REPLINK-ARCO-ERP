@@ -60,6 +60,22 @@ export interface CommercialDocumentSourceTotalsSnapshot {
   total: number;
 }
 
+export interface CommercialDocumentPaymentTermSnapshot {
+  id: string;
+  name: string;
+  description?: string;
+  installmentsCount: number;
+  firstDueDays: number;
+  intervalDays: number;
+  snapshottedAt: string;
+}
+
+export interface CommercialDocumentPaymentScheduleInstallment {
+  installmentNumber: number;
+  dueDate: string;
+  amount: number;
+}
+
 export interface CommercialDocumentSourceQuoteSnapshot {
   source_quote_id: string;
   source_quote_number: string;
@@ -71,6 +87,8 @@ export interface CommercialDocumentSourceQuoteSnapshot {
   converted_at: Date;
   items: CommercialDocumentSourceItemSnapshot[];
   totals: CommercialDocumentSourceTotalsSnapshot;
+  paymentTermSnapshot?: CommercialDocumentPaymentTermSnapshot;
+  paymentSchedule?: CommercialDocumentPaymentScheduleInstallment[];
 }
 
 export interface CommercialDocument {
@@ -85,6 +103,9 @@ export interface CommercialDocument {
   status: CommercialStatus;
   items: CommercialDocumentItem[];
   totals: CommercialDocumentTotals;
+  paymentTermId?: string;
+  paymentTermSnapshot?: CommercialDocumentPaymentTermSnapshot;
+  paymentSchedule?: CommercialDocumentPaymentScheduleInstallment[];
   createdAt: Date;
   updatedAt: Date;
   confirmedAt?: Date;
@@ -284,6 +305,21 @@ export function convertQuoteToOrder(
     });
   }
 
+  const paymentSnapshotValidation = validatePaymentSnapshot(quote);
+  if (!paymentSnapshotValidation.ok) {
+    return failure({
+      code: DOMAIN_ERROR_CODES.MISSING_PAYMENT_SNAPSHOT,
+      message: 'Condição de pagamento deve possuir snapshot e vencimentos antes da confirmação',
+      at: now,
+      operation: 'CONFIRM_ORDER',
+      tenantId: quote.tenantId,
+      documentId: quote.id,
+      currentStatus: quote.status,
+      details: paymentSnapshotValidation.details,
+      withDeniedEvent: true,
+    });
+  }
+
   const orderNumber = generateCommercialDocumentNumber({ type: 'order', sequence: orderSequence });
   const sourceQuoteSnapshot = buildSourceQuoteSnapshot(quote, now);
   return success({
@@ -339,6 +375,8 @@ function buildSourceQuoteSnapshot(quote: CommercialDocument, convertedAt: Date):
       ...pickOptionalNumber(rawTotals, 'fees'),
       total: quote.totals.total,
     },
+    ...(quote.paymentTermSnapshot ? { paymentTermSnapshot: { ...quote.paymentTermSnapshot } } : {}),
+    ...(quote.paymentSchedule ? { paymentSchedule: quote.paymentSchedule.map((installment) => ({ ...installment })) } : {}),
   };
 
   if ('source_quote_revision' in rawQuote && (typeof rawQuote.source_quote_revision === 'string' || typeof rawQuote.source_quote_revision === 'number')) {
@@ -354,6 +392,35 @@ function buildSourceQuoteSnapshot(quote: CommercialDocument, convertedAt: Date):
   }
 
   return snapshot;
+}
+
+function validatePaymentSnapshot(quote: CommercialDocument): { ok: true } | { ok: false; details: Record<string, unknown> } {
+  if (!quote.paymentTermId && !quote.paymentTermSnapshot && (!quote.paymentSchedule || quote.paymentSchedule.length === 0)) return { ok: true };
+
+  const missingFields: string[] = [];
+  if (!quote.paymentTermId) missingFields.push('paymentTermId');
+  if (!quote.paymentTermSnapshot) missingFields.push('paymentTermSnapshot');
+  if (!quote.paymentSchedule || quote.paymentSchedule.length === 0) missingFields.push('paymentSchedule');
+
+  if (quote.paymentTermSnapshot) {
+    if (quote.paymentTermSnapshot.id !== quote.paymentTermId) missingFields.push('paymentTermSnapshot.id');
+    if (!quote.paymentTermSnapshot.name) missingFields.push('paymentTermSnapshot.name');
+    if (!Number.isInteger(quote.paymentTermSnapshot.installmentsCount) || quote.paymentTermSnapshot.installmentsCount < 1) missingFields.push('paymentTermSnapshot.installmentsCount');
+    if (!Number.isInteger(quote.paymentTermSnapshot.firstDueDays) || quote.paymentTermSnapshot.firstDueDays < 0) missingFields.push('paymentTermSnapshot.firstDueDays');
+    if (!Number.isInteger(quote.paymentTermSnapshot.intervalDays) || quote.paymentTermSnapshot.intervalDays < 0) missingFields.push('paymentTermSnapshot.intervalDays');
+    if (!quote.paymentTermSnapshot.snapshottedAt) missingFields.push('paymentTermSnapshot.snapshottedAt');
+  }
+
+  if (quote.paymentSchedule) {
+    quote.paymentSchedule.forEach((installment, index) => {
+      if (!Number.isInteger(installment.installmentNumber) || installment.installmentNumber !== index + 1) missingFields.push(`paymentSchedule.${index}.installmentNumber`);
+      if (!installment.dueDate) missingFields.push(`paymentSchedule.${index}.dueDate`);
+      if (!Number.isFinite(installment.amount) || installment.amount < 0) missingFields.push(`paymentSchedule.${index}.amount`);
+    });
+  }
+
+  if (missingFields.length > 0) return { ok: false, details: { missingFields } };
+  return { ok: true };
 }
 
 function validateQuoteItemsSnapshot(quote: CommercialDocument): { ok: true } | { ok: false; details: Record<string, unknown> } {

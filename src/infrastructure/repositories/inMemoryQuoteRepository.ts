@@ -34,6 +34,8 @@ function cloneQuoteDocument(quote: CommercialDocument): CommercialDocument {
     canceledAt: quote.canceledAt ? new Date(quote.canceledAt) : undefined,
     items: quote.items.map((item) => ({ ...item })),
     totals: { ...quote.totals },
+    paymentTermSnapshot: quote.paymentTermSnapshot ? { ...quote.paymentTermSnapshot } : undefined,
+    paymentSchedule: quote.paymentSchedule ? quote.paymentSchedule.map((installment) => ({ ...installment })) : undefined,
     lifecycleEvents: quote.lifecycleEvents.map(cloneLifecycleEvent),
     outputEvents: quote.outputEvents.map(cloneOutputEvent),
     orderRevisions: quote.orderRevisions.map(cloneOrderRevision),
@@ -43,6 +45,8 @@ function cloneQuoteDocument(quote: CommercialDocument): CommercialDocument {
           converted_at: new Date(quote.sourceQuoteSnapshot.converted_at),
           items: quote.sourceQuoteSnapshot.items.map((item) => ({ ...item })),
           totals: { ...quote.sourceQuoteSnapshot.totals },
+          paymentTermSnapshot: quote.sourceQuoteSnapshot.paymentTermSnapshot ? { ...quote.sourceQuoteSnapshot.paymentTermSnapshot } : undefined,
+          paymentSchedule: quote.sourceQuoteSnapshot.paymentSchedule ? quote.sourceQuoteSnapshot.paymentSchedule.map((installment) => ({ ...installment })) : undefined,
         }
       : undefined,
   };
