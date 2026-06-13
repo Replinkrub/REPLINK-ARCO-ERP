@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerCommercialProfileRepository, InMemoryCustomerContactRepository, InMemoryCustomerRepository, InMemoryCustomerRepresentedCommercialProfileRepository, InMemoryOrderRepository, InMemoryPaymentTermRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository, InMemoryRepresentedCompanyRepository } from '../src/index.js';
+import { createMinimalHttpApi, InMemoryCustomerAddressRepository, InMemoryCustomerCommercialProfileRepository, InMemoryCustomerContactRepository, InMemoryCustomerProductPriceOverrideRepository, InMemoryCustomerRepository, InMemoryCustomerRepresentedCommercialProfileRepository, InMemoryOrderRepository, InMemoryPaymentTermRepository, InMemoryPriceTableItemRepository, InMemoryPriceTableRepository, InMemoryProductRepository, InMemoryQuoteRepository, InMemoryRepresentedCompanyRepository } from '../src/index.js';
 
 const ORIGINAL_APP_TENANT_ID = process.env.APP_TENANT_ID;
 const ORIGINAL_APP_REQUIRES_REPRESENTED_COMPANY = process.env.APP_REQUIRES_REPRESENTED_COMPANY;
@@ -873,6 +873,54 @@ describe('minimal HTTP API', () => {
         code: 'SERVICE_UNAVAILABLE',
         message: 'Database dependency unavailable',
       });
+    });
+  });
+
+  it('supports customer product price override routes and resolved price route', async () => {
+    await withEnvironmentTenant('tenant-env-1', async () => {
+      const overrideRepository = new InMemoryCustomerProductPriceOverrideRepository();
+      const api = createMinimalHttpApi({
+        quoteRepository: new InMemoryQuoteRepository(),
+        orderRepository: new InMemoryOrderRepository(),
+        customerRepository: customerRepository([{ id: 'customer-price-api-1', ownerId: 'rep-1', representativeId: 'rep-1' }]),
+        representedCompanyRepository: new InMemoryRepresentedCompanyRepository([{ id: 'represented-price-api-1', tenantId: 'tenant-env-1', name: 'Representada Price API' }]),
+        productRepository: new InMemoryProductRepository([{ id: 'product-price-api-1', tenantId: 'tenant-env-1', representedCompanyId: 'represented-price-api-1', sku: 'P-API-1', name: 'Produto API' }]),
+        priceTableRepository: new InMemoryPriceTableRepository([{ id: 'price-table-api-1', tenantId: 'tenant-env-1', representedCompanyId: 'represented-price-api-1', name: 'Tabela API', validFrom: '2026-01-01' }]),
+        priceTableItemRepository: new InMemoryPriceTableItemRepository([{ id: 'price-table-item-api-1', tenantId: 'tenant-env-1', priceTableId: 'price-table-api-1', productId: 'product-price-api-1', unitPrice: 100, validFrom: '2026-01-01' }]),
+        customerRepresentedCommercialProfileRepository: new InMemoryCustomerRepresentedCommercialProfileRepository([{ tenantId: 'tenant-env-1', customerId: 'customer-price-api-1', representedCompanyId: 'represented-price-api-1', defaultPriceTableId: 'price-table-api-1' }]),
+        customerProductPriceOverrideRepository: overrideRepository,
+      });
+
+      const fallback = await api(new Request('http://localhost/v1/customers/customer-price-api-1/represented-commercial-profiles/represented-price-api-1/products/product-price-api-1/resolved-price?on_date=2026-06-01', { headers: actorHeaders() }));
+      expect(fallback.status).toBe(200);
+      await expect(fallback.json()).resolves.toMatchObject({ unitPrice: 100, source: 'PRICE_TABLE_ITEM' });
+
+      const createResponse = await api(new Request('http://localhost/v1/customers/customer-price-api-1/represented-commercial-profiles/represented-price-api-1/product-price-overrides', {
+        method: 'POST',
+        headers: actorHeaders(),
+        body: JSON.stringify({ id: 'override-api-1', product_id: 'product-price-api-1', unit_price: 80, valid_from: '2026-01-01' }),
+      }));
+      expect(createResponse.status).toBe(201);
+      await expect(createResponse.json()).resolves.toMatchObject({ id: 'override-api-1', unitPrice: 80, status: 'active' });
+
+      const resolvedOverride = await api(new Request('http://localhost/v1/customers/customer-price-api-1/represented-commercial-profiles/represented-price-api-1/products/product-price-api-1/resolved-price?on_date=2026-06-01', { headers: actorHeaders({ 'x-actor-role': 'REPRESENTANTE', 'x-actor-id': 'rep-1' }) }));
+      expect(resolvedOverride.status).toBe(200);
+      await expect(resolvedOverride.json()).resolves.toMatchObject({ unitPrice: 80, source: 'CUSTOMER_PRODUCT_OVERRIDE', sourceId: 'override-api-1' });
+
+      const listResponse = await api(new Request('http://localhost/v1/customers/customer-price-api-1/represented-commercial-profiles/represented-price-api-1/product-price-overrides', { headers: actorHeaders() }));
+      expect(listResponse.status).toBe(200);
+      await expect(listResponse.json()).resolves.toMatchObject({ total: 1 });
+
+      const getResponse = await api(new Request('http://localhost/v1/customers/customer-price-api-1/represented-commercial-profiles/represented-price-api-1/product-price-overrides/override-api-1', { headers: actorHeaders() }));
+      expect(getResponse.status).toBe(200);
+
+      const patchResponse = await api(new Request('http://localhost/v1/customers/customer-price-api-1/represented-commercial-profiles/represented-price-api-1/product-price-overrides/override-api-1', {
+        method: 'PATCH',
+        headers: actorHeaders(),
+        body: JSON.stringify({ unit_price: 79, status: 'inactive' }),
+      }));
+      expect(patchResponse.status).toBe(200);
+      await expect(patchResponse.json()).resolves.toMatchObject({ unitPrice: 79, status: 'inactive' });
     });
   });
 });

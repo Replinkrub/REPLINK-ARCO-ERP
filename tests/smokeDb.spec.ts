@@ -5,6 +5,7 @@ import {
   PostgresCustomerAddressRepository,
   PostgresCustomerCommercialProfileRepository,
   PostgresCustomerRepresentedCommercialProfileRepository,
+  PostgresCustomerProductPriceOverrideRepository,
   PostgresCustomerContactRepository,
   PostgresCustomerRepository,
   PostgresOrderRepository,
@@ -607,7 +608,9 @@ describe('db smoke (real postgres)', () => {
       customerRepository: new PostgresCustomerRepository(db),
       representedCompanyRepository: new PostgresRepresentedCompanyRepository(db),
       customerRepresentedCommercialProfileRepository: new PostgresCustomerRepresentedCommercialProfileRepository(db),
+      customerProductPriceOverrideRepository: new PostgresCustomerProductPriceOverrideRepository(db),
       priceTableRepository: new PostgresPriceTableRepository(db),
+      priceTableItemRepository: new PostgresPriceTableItemRepository(db),
       paymentTermRepository: new PostgresPaymentTermRepository(db),
       productRepository: new PostgresProductRepository(db),
     });
@@ -700,6 +703,17 @@ describe('db smoke (real postgres)', () => {
     }));
     expect(productResponse.status).toBe(201);
 
+    const priceTableItemResponse = await api(new Request(`http://localhost/v1/price-tables/${priceTableId}/items`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `price-table-item-override-smoke-${now}`, product_id: productId, unit_price: 150, valid_from: '2026-01-01' }),
+    }));
+    expect(priceTableItemResponse.status).toBe(201);
+
+    const fallbackResolution = await api(new Request(`http://localhost/v1/customers/${customerId}/represented-commercial-profiles/${representedId}/products/${productId}/resolved-price?on_date=2026-06-01`, { headers }));
+    expect(fallbackResolution.status).toBe(200);
+    await expect(fallbackResolution.json()).resolves.toMatchObject({ source: 'PRICE_TABLE_ITEM', unitPrice: 150 });
+
     const otherProductResponse = await api(new Request('http://localhost/v1/products', {
       method: 'POST',
       headers,
@@ -707,18 +721,29 @@ describe('db smoke (real postgres)', () => {
     }));
     expect(otherProductResponse.status).toBe(201);
 
-    await pgClient.query(
-      `INSERT INTO customer_product_price_overrides (
-        id, tenant_id, customer_id, represented_company_id, product_id, unit_price, valid_from, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')`,
-      [`override-smoke-${now}`, tenantId, customerId, representedId, productId, 123.45, '2026-01-01']
-    );
+    const overrideCreate = await api(new Request(`http://localhost/v1/customers/${customerId}/represented-commercial-profiles/${representedId}/product-price-overrides`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `override-smoke-${now}`, product_id: productId, unit_price: 123.45, valid_from: '2026-01-01' }),
+    }));
+    expect(overrideCreate.status).toBe(201);
+
+    const overrideResolution = await api(new Request(`http://localhost/v1/customers/${customerId}/represented-commercial-profiles/${representedId}/products/${productId}/resolved-price?on_date=2026-06-01`, { headers }));
+    expect(overrideResolution.status).toBe(200);
+    await expect(overrideResolution.json()).resolves.toMatchObject({ source: 'CUSTOMER_PRODUCT_OVERRIDE', unitPrice: 123.45, sourceId: `override-smoke-${now}` });
 
     const overrideRow = await pgClient.query(
       'SELECT tenant_id, customer_id, represented_company_id, product_id, unit_price FROM customer_product_price_overrides WHERE tenant_id = $1 AND id = $2 LIMIT 1',
       [tenantId, `override-smoke-${now}`]
     );
     expect(overrideRow.rows[0]).toMatchObject({ tenant_id: tenantId, customer_id: customerId, represented_company_id: representedId, product_id: productId });
+
+    const duplicateOverride = await api(new Request(`http://localhost/v1/customers/${customerId}/represented-commercial-profiles/${representedId}/product-price-overrides`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: `override-duplicate-smoke-${now}`, product_id: productId, unit_price: 120, valid_from: '2026-01-01' }),
+    }));
+    expect(duplicateOverride.status).toBe(409);
 
     await expectPgError(
       pgClient.query(
