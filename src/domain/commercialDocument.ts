@@ -13,12 +13,19 @@ import { domainError, failure, success, type DomainEvent, type DomainResult } fr
 
 export interface CommercialDocumentItem {
   id: string;
+  productId?: string;
+  representedCompanyId?: string;
   sku: string;
   description: string;
   quantity: number;
   unitPrice: number;
   discount: number;
   total: number;
+  lineTotal?: number;
+  priceSource?: 'CUSTOMER_PRODUCT_OVERRIDE' | 'PRICE_TABLE_ITEM';
+  priceSourceId?: string;
+  priceTableId?: string;
+  priceResolvedAt?: string;
 }
 
 export interface CommercialDocumentTotals {
@@ -327,11 +334,17 @@ function pickOptionalNumber(source: Record<string, unknown>, key: 'tax' | 'freig
 
 export interface AddItemInput {
   id: string;
+  productId?: string;
+  representedCompanyId?: string;
   sku: string;
   description: string;
   quantity: number;
   unitPrice: number;
   discount?: number;
+  priceSource?: 'CUSTOMER_PRODUCT_OVERRIDE' | 'PRICE_TABLE_ITEM';
+  priceSourceId?: string;
+  priceTableId?: string;
+  priceResolvedAt?: string;
 }
 
 export function addItem(document: CommercialDocument, item: AddItemInput): OperationResult {
@@ -361,9 +374,17 @@ export function removeItem(document: CommercialDocument, itemId: string): Operat
 }
 
 export interface UpdateItemInput {
+  productId?: string;
+  representedCompanyId?: string;
+  sku?: string;
+  description?: string;
   quantity?: number;
   unitPrice?: number;
   discount?: number;
+  priceSource?: 'CUSTOMER_PRODUCT_OVERRIDE' | 'PRICE_TABLE_ITEM';
+  priceSourceId?: string;
+  priceTableId?: string;
+  priceResolvedAt?: string;
 }
 
 export function updateItem(document: CommercialDocument, itemId: string, patch: UpdateItemInput): OperationResult {
@@ -379,7 +400,7 @@ export function updateItem(document: CommercialDocument, itemId: string, patch: 
     const unitPrice = patch.unitPrice ?? item.unitPrice;
     const discount = patch.discount ?? item.discount;
 
-    const built = buildItem({ ...item, quantity, unitPrice, discount });
+    const built = buildItem({ ...item, ...patch, quantity, unitPrice, discount });
     if (!built.ok) return built;
     return built.document;
   });
@@ -594,12 +615,19 @@ function buildItem(item: AddItemInput): DomainResult<CommercialDocumentItem> {
 
   return success({
     id: item.id,
+    ...(item.productId ? { productId: item.productId } : {}),
+    ...(item.representedCompanyId ? { representedCompanyId: item.representedCompanyId } : {}),
     sku: item.sku,
     description: item.description,
     quantity: item.quantity,
     unitPrice: item.unitPrice,
     discount,
     total: subtotal - discount,
+    lineTotal: subtotal - discount,
+    ...(item.priceSource ? { priceSource: item.priceSource } : {}),
+    ...(item.priceSourceId ? { priceSourceId: item.priceSourceId } : {}),
+    ...(item.priceTableId ? { priceTableId: item.priceTableId } : {}),
+    ...(item.priceResolvedAt ? { priceResolvedAt: item.priceResolvedAt } : {}),
   });
 }
 

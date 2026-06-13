@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   APPLICATION_ERROR_CODES,
+  InMemoryCustomerProductPriceOverrideRepository,
   InMemoryCustomerRepository,
+  InMemoryCustomerRepresentedCommercialProfileRepository,
   InMemoryOrderRepository,
+  InMemoryPriceTableItemRepository,
+  InMemoryPriceTableRepository,
+  InMemoryProductRepository,
   InMemoryQuoteRepository,
+  InMemoryRepresentedCompanyRepository,
   confirmQuoteUseCase,
   convertQuoteToOrder,
   createQuote,
@@ -20,6 +26,34 @@ function customerRepository(customers: Array<{ id: string; tenantId?: string; st
       status: customer.status ?? 'active',
     }))
   );
+}
+
+function quoteItemSnapshotDeps(quoteRepository: InMemoryQuoteRepository, options: { overrides?: ConstructorParameters<typeof InMemoryCustomerProductPriceOverrideRepository>[0] } = {}) {
+  return {
+    quoteRepository,
+    customerRepository: new InMemoryCustomerRepository([
+      { id: 'customer-1', tenantId: 'tenant-1', status: 'active', legalName: 'Cliente 1', documentType: 'cnpj', documentNumber: 'C1', ownerId: 'rep-1', representativeId: 'rep-1' },
+    ]),
+    representedCompanyRepository: new InMemoryRepresentedCompanyRepository([
+      { id: 'represented-1', tenantId: 'tenant-1', name: 'Representada 1' },
+    ]),
+    productRepository: new InMemoryProductRepository([
+      { id: 'product-1', tenantId: 'tenant-1', representedCompanyId: 'represented-1', sku: 'P1', name: 'Produto 1' },
+      { id: 'product-without-price', tenantId: 'tenant-1', representedCompanyId: 'represented-1', sku: 'P2', name: 'Produto sem preço' },
+    ]),
+    priceTableRepository: new InMemoryPriceTableRepository([
+      { id: 'price-table-1', tenantId: 'tenant-1', representedCompanyId: 'represented-1', name: 'Tabela 1', validFrom: '2026-01-01' },
+    ]),
+    priceTableItemRepository: new InMemoryPriceTableItemRepository([
+      { id: 'price-table-item-1', tenantId: 'tenant-1', priceTableId: 'price-table-1', productId: 'product-1', unitPrice: 100, validFrom: '2026-01-01' },
+    ]),
+    customerRepresentedCommercialProfileRepository: new InMemoryCustomerRepresentedCommercialProfileRepository([
+      { tenantId: 'tenant-1', customerId: 'customer-1', representedCompanyId: 'represented-1', defaultPriceTableId: 'price-table-1' },
+    ]),
+    customerProductPriceOverrideRepository: new InMemoryCustomerProductPriceOverrideRepository(options.overrides ?? [
+      { id: 'override-1', tenantId: 'tenant-1', customerId: 'customer-1', representedCompanyId: 'represented-1', productId: 'product-1', unitPrice: 80, validFrom: '2026-01-01' },
+    ]),
+  };
 }
 
 describe('quote application flow', () => {
@@ -277,6 +311,112 @@ describe('quote application flow', () => {
     expect(updated.data.status).toBe('QUOTE_DRAFT');
     expect(updated.data.customerId).toBe('customer-2');
     expect(updated.data.totals.total).toBe(190);
+  });
+
+  it('updateQuote snapshots quote item price from resolution and preserves it after price changes', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const repositories = quoteItemSnapshotDeps(quoteRepository);
+
+    await createQuoteUseCase(
+      { quoteRepository, customerRepository: repositories.customerRepository },
+      {
+        id: 'q-item-snapshot-1',
+        tenantId: 'tenant-1',
+        representedCompanyId: 'represented-1',
+        customerId: 'customer-1',
+        ownerId: 'admin-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const updated = await updateQuote(
+      repositories,
+      {
+        id: 'q-item-snapshot-1',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        pricedAt: '2026-06-01',
+        addItems: [{ id: 'item-1', productId: 'product-1', sku: 'P1', description: 'Produto 1', quantity: 2, unitPrice: 999 }],
+      }
+    );
+
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.data.items[0]).toMatchObject({
+      productId: 'product-1',
+      representedCompanyId: 'represented-1',
+      quantity: 2,
+      unitPrice: 80,
+      total: 160,
+      lineTotal: 160,
+      priceSource: 'CUSTOMER_PRODUCT_OVERRIDE',
+      priceSourceId: 'override-1',
+      priceResolvedAt: '2026-06-01',
+    });
+    expect(updated.data.totals.total).toBe(160);
+
+    repositories.customerProductPriceOverrideRepository = new InMemoryCustomerProductPriceOverrideRepository([
+      { id: 'override-1', tenantId: 'tenant-1', customerId: 'customer-1', representedCompanyId: 'represented-1', productId: 'product-1', unitPrice: 70, validFrom: '2026-01-01' },
+    ]);
+
+    const quantityOnly = await updateQuote(
+      repositories,
+      {
+        id: 'q-item-snapshot-1',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        updateItems: [{ itemId: 'item-1', patch: { quantity: 3 } }],
+      }
+    );
+
+    expect(quantityOnly.ok).toBe(true);
+    if (!quantityOnly.ok) return;
+    expect(quantityOnly.data.items[0]).toMatchObject({ unitPrice: 80, quantity: 3, total: 240, priceSourceId: 'override-1' });
+    expect(quantityOnly.data.totals.total).toBe(240);
+  });
+
+  it('updateQuote falls back to price table item and does not persist when price is not resolvable', async () => {
+    const quoteRepository = new InMemoryQuoteRepository();
+    const repositories = quoteItemSnapshotDeps(quoteRepository, { overrides: [] });
+
+    await createQuoteUseCase(
+      { quoteRepository, customerRepository: repositories.customerRepository },
+      {
+        id: 'q-item-snapshot-fallback',
+        tenantId: 'tenant-1',
+        representedCompanyId: 'represented-1',
+        customerId: 'customer-1',
+        ownerId: 'admin-1',
+        representativeId: 'rep-1',
+      }
+    );
+
+    const fallback = await updateQuote(
+      repositories,
+      {
+        id: 'q-item-snapshot-fallback',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        pricedAt: '2026-06-01',
+        addItems: [{ id: 'item-fallback', productId: 'product-1', sku: 'P1', description: 'Produto 1', quantity: 1, unitPrice: 999 }],
+      }
+    );
+    expect(fallback.ok).toBe(true);
+    if (!fallback.ok) return;
+    expect(fallback.data.items[0]).toMatchObject({ unitPrice: 100, priceSource: 'PRICE_TABLE_ITEM', priceSourceId: 'price-table-item-1', priceTableId: 'price-table-1' });
+
+    const before = await quoteRepository.getById('q-item-snapshot-fallback');
+    const unresolved = await updateQuote(
+      repositories,
+      {
+        id: 'q-item-snapshot-fallback',
+        actor: { role: 'ADMIN', actorId: 'admin-1', actorTenantId: 'tenant-1' },
+        pricedAt: '2026-06-01',
+        addItems: [{ id: 'item-unresolved', productId: 'product-without-price', sku: 'P2', description: 'Produto sem preço', quantity: 1, unitPrice: 999 }],
+      }
+    );
+    expect(unresolved.ok).toBe(false);
+    if (!unresolved.ok) expect(unresolved.error.code).toBe(APPLICATION_ERROR_CODES.PRICE_NOT_RESOLVABLE);
+    const after = await quoteRepository.getById('q-item-snapshot-fallback');
+    expect(after?.items).toEqual(before?.items);
+    expect(after?.totals).toEqual(before?.totals);
   });
 
   it('updateQuote updates updatedAt when only customerId changes', async () => {

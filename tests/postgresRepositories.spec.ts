@@ -505,6 +505,44 @@ describe('postgres repositories', () => {
     expect(db.calls[0]?.values?.[4]).toBe('represented-1');
   });
 
+  it('persists quote item commercial snapshot in items json', async () => {
+    const db = new FakeSqlExecutor();
+    const repository = new PostgresQuoteRepository(db);
+    const quote = createQuote({
+      id: 'q-db-item-snapshot',
+      tenantId: 'tenant-1',
+      representedCompanyId: 'represented-1',
+      customerId: 'customer-1',
+      ownerId: 'owner-1',
+      representativeId: 'rep-1',
+      numberSequence: 13,
+    });
+    quote.items = [{
+      id: 'item-snapshot-db-1',
+      productId: 'product-db-1',
+      representedCompanyId: 'represented-1',
+      sku: 'SKU-1',
+      description: 'Produto DB',
+      quantity: 2,
+      unitPrice: 88,
+      discount: 0,
+      total: 176,
+      lineTotal: 176,
+      priceSource: 'CUSTOMER_PRODUCT_OVERRIDE',
+      priceSourceId: 'override-db-1',
+      priceResolvedAt: '2026-06-01',
+    }];
+    quote.totals = { itemsCount: 1, subtotal: 176, discountTotal: 0, total: 176 };
+
+    await repository.save(quote);
+
+    const itemsJson = db.calls[0]?.values?.[9];
+    expect(typeof itemsJson).toBe('string');
+    expect(itemsJson as string).toContain('CUSTOMER_PRODUCT_OVERRIDE');
+    expect(itemsJson as string).toContain('override-db-1');
+    expect(itemsJson as string).toContain('priceResolvedAt');
+  });
+
   it('order save upserts only the order row without mutating source quote row', async () => {
     const db = new FakeSqlExecutor();
     const repository = new PostgresOrderRepository(db);

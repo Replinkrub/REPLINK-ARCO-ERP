@@ -530,14 +530,29 @@ export function createMinimalHttpApi(deps: ApiDeps) {
       if (method === 'PATCH' && url.pathname.startsWith('/v0/quotes/')) {
       const quoteId = url.pathname.split('/')[3] ?? '';
       const body = await request.json() as Record<string, unknown>;
+      const hasItemMutation = Array.isArray(body.addItems) || Array.isArray(body.updateItems);
+      if (hasItemMutation && (!deps.representedCompanyRepository || !deps.productRepository || !deps.customerProductPriceOverrideRepository || !deps.customerRepresentedCommercialProfileRepository || !deps.priceTableRepository || !deps.priceTableItemRepository)) {
+        return dependencyUnavailable('Quote item price resolution dependencies unavailable');
+      }
       const result = await updateQuote(
-        { quoteRepository: deps.quoteRepository, customerRepository: deps.customerRepository },
+        {
+          quoteRepository: deps.quoteRepository,
+          customerRepository: deps.customerRepository,
+          representedCompanyRepository: deps.representedCompanyRepository,
+          productRepository: deps.productRepository,
+          customerProductPriceOverrideRepository: deps.customerProductPriceOverrideRepository,
+          customerRepresentedCommercialProfileRepository: deps.customerRepresentedCommercialProfileRepository,
+          priceTableRepository: deps.priceTableRepository,
+          priceTableItemRepository: deps.priceTableItemRepository,
+        },
         {
           id: quoteId,
+          actor,
           customerId: body.customerId as string | undefined,
           addItems: body.addItems as never,
           updateItems: body.updateItems as never,
           removeItemIds: body.removeItemIds as string[] | undefined,
+          pricedAt: typeof body.pricedAt === 'string' ? body.pricedAt : typeof body.priced_at === 'string' ? body.priced_at : undefined,
         }
       );
       return mapResult(result, 200);
