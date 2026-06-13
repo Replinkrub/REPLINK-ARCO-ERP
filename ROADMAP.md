@@ -108,6 +108,7 @@ Correção adotada:
 - Customer Represented Commercial Profile (PR #52, merge `2fb945a`).
 - Customer Product Price Overrides + Price Resolution Core (PR #53, merge `8b039cb`).
 - Quote Item Snapshot Foundation (PR #55, merge `79aeef3`).
+- Order Confirmation Snapshot Carryover (PR #57, merge `ca9201f`).
 
 ### Concluído nesta frente documental
 
@@ -603,9 +604,19 @@ Implementar API por fatias funcionais sem quebrar contratos.
   - Payment term não é duplicado por item.
   - Tests: 177/177, smoke: 13/13.
 
+### Estado entregue no order confirmation snapshot carryover
+
+- **Order Confirmation Snapshot Carryover** — PR #57 (merge `ca9201f`):
+  - `sourceQuoteSnapshot.items` preserva campos comerciais do item: produto, representada, quantidade, preço unitário, total de linha, total, origem do preço, ID da origem, tabela quando aplicável e data de resolução.
+  - `convertQuoteToOrder` bloqueia confirmação se algum item não possuir snapshot mínimo (`MISSING_ITEM_SNAPSHOT`).
+  - Pedido confirmado copia o snapshot salvo no orçamento sem repricing.
+  - `resolvePriceUseCase` não é chamado na confirmação ORC→PED.
+  - `saveFromQuoteOnce`/idempotência preservada.
+  - Tests: 179/179, smoke: 13/13.
+
 ### Próximo passo do Gate H
 
-Planejar o próximo slice técnico com autorização explícita: **Order Confirmation Snapshot Carryover**. Não avançar para implementação de ORC→PED carryover, frontend ou RBAC runtime sem plano/review/autorização.
+Planejar o próximo slice técnico com autorização explícita. Não avançar para frontend, RBAC runtime ou novo slice de backend sem plano/review/autorização.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 
