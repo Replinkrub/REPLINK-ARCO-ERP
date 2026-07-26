@@ -320,3 +320,111 @@ Status atualizado:
 - PR #31 mergeado em `main` (`6d7cd19`) com fundação inicial ORC→PED e migration runner controlado.
 - Próximo slice recomendado: **Gate G PR 3 — security/tenant/roles/audit base**.
 - A primeira migration funcional nova deve partir da sequência deste plano, com `schema_migrations` já ativo e validação de skip/checksum/advisory lock.
+
+## 12) IPRO 019 — reprocessamento controlado
+
+`019_ipro_controlled_reprocessing.sql` permite uma nova geração de processamento para o mesmo conteúdo imutável sem duplicar a origem:
+
+- `ipro.source_files` permanece globalmente deduplicada por `content_hash`; uma nova geração reutiliza o mesmo `source_file_id`;
+- `ipro.ingestion_batches.processing_fingerprint` passa a ser obrigatório e não vazio após `BTRIM`; linhas anteriores recebem primeiro o valor não vazio de `metadata.processing_fingerprint` e, na ausência dele, o fallback determinístico `legacy:idempotency:<idempotency_key>` antes de `NOT NULL` e do `CHECK` serem aplicados;
+- `ipro.product_entities`, `ipro.product_aliases` e `ipro.product_resolutions` recebem `represented_company_id TEXT` como escopo estável de máquina, sem tabela mestre, FK ou mudança no modelo de cliente; `ipro.canonical_represented_company_id(text)` remove POSIX whitespace/controle somente das bordas, converte resultado vazio em `NULL` e também retorna `NULL` para valor que ainda contenha whitespace/controle internamente;
+- IDs preexistentes são normalizados por essa função antes das constraints; depois do rollout, cada coluna aceita somente `NULL` ou valor não vazio idêntico ao seu resultado canônico, portanto espaço, tab, newline, carriage return, form feed, vertical tab e controles internos/bordas são rejeitados;
+- o ID estável é recuperado de `metadata.represented_company_stable_id` quando disponível; aliases sem valor próprio podem herdá-lo da entidade de produto;
+- `represented_company` continua preservado como snapshot textual de exibição e fallback de compatibilidade; nenhum texto histórico é reescrito;
+- os índices unique de SKU, código e lookup de alias usam `COALESCE(ipro.canonical_represented_company_id(represented_company_id), represented_company, '')`, a mesma semântica defensiva das constraints e da preflight, sem permitir que ID vazio, whitespace/control ou padded contorne o fallback textual;
+- a unicidade de `ipro.transactions` passa de global para o escopo do lote: `(batch_id, source_file_id, source_row_hash)` e `(batch_id, business_event_hash)`;
+- a chave primária da transação não muda; o IPRO deve gerar IDs distintos e conscientes da geração;
+- a idempotência da geração continua em `ipro.ingestion_batches.idempotency_key`; a aplicação deriva essa chave do conteúdo e do `processing_fingerprint`, fazendo a mesma combinação reencontrar o mesmo lote e uma combinação nova criar outro lote;
+- não há unique ou índice somente em `processing_fingerprint`: o mesmo fingerprint de transformação pode ser válido para conteúdos, períodos e escopos distintos;
+- a migration não supersede lotes, não cria triggers e não reescreve clientes. O cutover do repositório IPRO deve continuar em uma transação: marcar a geração anterior `SUPERSEDED` com `superseded_at`, marcar a nova `READY` com `completed_at` e então fazer `COMMIT`;
+- `ipro.active_canonical_transactions` não é recriada porque a definição de `017` já exige lote `READY` e preserva os filtros de `data_scope`, resolução de cliente, resolução de produto, status canônico e status da origem. Antes do commit, leitores continuam vendo a geração anterior; depois do commit, veem somente a nova, sem janela de dupla contagem.
+
+### Preflight obrigatório de colisões
+
+Antes do rollout, executar estas consultas sobre o estado pós-`018`. Todas devem retornar zero linhas. Elas projetam o mesmo escopo que o backfill da `019` usará:
+
+```sql
+WITH projected_products AS (
+  SELECT pe.*,
+         REGEXP_REPLACE(
+           REGEXP_REPLACE(metadata->>'represented_company_stable_id', '^[[:space:][:cntrl:]]+', ''),
+           '[[:space:][:cntrl:]]+$', ''
+         ) AS candidate_id
+  FROM ipro.product_entities AS pe
+), canonical_products AS (
+  SELECT pp.*,
+         CASE
+           WHEN candidate_id = '' OR candidate_id ~ '[[:space:][:cntrl:]]' THEN NULL
+           ELSE candidate_id
+         END AS stable_id
+  FROM projected_products AS pp
+), product_keys AS (
+  SELECT key_type, key_value,
+         COALESCE(stable_id, represented_company, '') AS stable_scope
+  FROM canonical_products
+  CROSS JOIN LATERAL (
+    VALUES ('sku', sku), ('product_code', product_code)
+  ) AS keys(key_type, key_value)
+  WHERE key_value IS NOT NULL
+)
+SELECT key_type, key_value, stable_scope, COUNT(*) AS collision_count
+FROM product_keys
+GROUP BY key_type, key_value, stable_scope
+HAVING COUNT(*) > 1;
+
+WITH projected_aliases AS (
+  SELECT pa.*,
+         REGEXP_REPLACE(
+           REGEXP_REPLACE(pa.metadata->>'represented_company_stable_id', '^[[:space:][:cntrl:]]+', ''),
+           '[[:space:][:cntrl:]]+$', ''
+         ) AS alias_candidate_id,
+         REGEXP_REPLACE(
+           REGEXP_REPLACE(pe.metadata->>'represented_company_stable_id', '^[[:space:][:cntrl:]]+', ''),
+           '[[:space:][:cntrl:]]+$', ''
+         ) AS entity_candidate_id
+  FROM ipro.product_aliases AS pa
+  JOIN ipro.product_entities AS pe ON pe.id = pa.product_entity_id
+), canonical_aliases AS (
+  SELECT projected_aliases.*,
+         CASE
+           WHEN alias_candidate_id = '' OR alias_candidate_id ~ '[[:space:][:cntrl:]]' THEN NULL
+           ELSE alias_candidate_id
+         END AS alias_stable_id,
+         CASE
+           WHEN entity_candidate_id = '' OR entity_candidate_id ~ '[[:space:][:cntrl:]]' THEN NULL
+           ELSE entity_candidate_id
+         END AS entity_stable_id
+  FROM projected_aliases
+)
+SELECT source_type, alias_type,
+       COALESCE(alias_stable_id, entity_stable_id, represented_company, '') AS stable_scope,
+       COALESCE(normalized_value, '') AS normalized_value,
+       COALESCE(safe_hash, '') AS safe_hash,
+       COUNT(*) AS collision_count
+FROM canonical_aliases
+GROUP BY source_type, alias_type, stable_scope,
+         COALESCE(normalized_value, ''), COALESCE(safe_hash, '')
+HAVING COUNT(*) > 1;
+```
+
+Se houver resultado, pausar o rollout e resolver a divergência de identidade com evidência de domínio; não mesclar nem apagar linhas automaticamente. A própria migration define uma única função canônica imutável, normaliza IDs com controles apenas nas bordas e valores compostos somente por whitespace/controle antes das constraints, repete a preflight e cria os índices com essa mesma função. Whitespace/controle interno preexistente permanece inválido e faz a constraint abortar a migration em vez de alterar identidade silenciosamente. Colisão levanta `IPRO_019_STABLE_SCOPE_COLLISION` antes de remover os índices legados. Como o runner canônico executa cada arquivo em transação, a falha reverte função, colunas, backfills, constraints e alterações de índice e não registra a `019` em `schema_migrations`.
+
+### Rollout, compatibilidade e forward-fix
+
+1. Usar somente `npm run db:migrate`; não aplicar o SQL manualmente em ambiente compartilhado.
+2. Confirmar backup/restore e executar a preflight acima.
+3. Aplicar em janela controlada e confirmar `019_ipro_controlled_reprocessing.sql` em `schema_migrations`.
+4. Executar `npm run db:migrate` novamente; o resultado esperado com esta árvore é `0 applied, 19 skipped`.
+5. Fazer o primeiro reprocessamento com a aplicação IPRO usando seu cutover transacional já existente; não adicionar trigger de banco.
+6. Reconciliar contagens da view antes/depois: apenas uma geração `READY` deve contribuir para `active_canonical_transactions`.
+
+Em ambiente compartilhado, preferir forward-fix. Restaurar a unicidade global após existirem gerações repetidas bloquearia ou exigiria apagar histórico válido. A coluna e a constraint de fingerprint, os campos estáveis e os índices nomeados são reaplicáveis, mas o checksum do runner impede editar silenciosamente uma migration já registrada. Qualquer correção futura deve preservar `source_files`, IDs históricos e lotes `SUPERSEDED`; não fazer deduplicação destrutiva para simular rollback.
+
+### Prova PostgreSQL descartável
+
+```bash
+IPRO_REPROCESSING_TEST_DATABASE_URL=postgresql://test_user:test_password@127.0.0.1:5432/ipro_reprocessing_test \
+  npx vitest run tests/iproReprocessingMigration.integration.spec.js
+```
+
+O teste aceita somente a variável dedicada, host local e database com nome `ipro_reprocessing_test`/`ipro_reprocessing_ci`; não consulta `DATABASE_URL`, remove apenas o schema `ipro` e `schema_migrations` dentro desse database descartável e permanece skipped sem a variável. Ele cobre normalização de legado com controles; rejeição de `represented_company_id` vazio, space-only, tab-only, newline-only, carriage-return-only, form-feed, vertical-tab, padded e controle interno nas três tabelas; unicidade do fallback textual por SKU e alias; fingerprint; unicidade por lote; origem imutável; rollback por colisão; e cutover observado por uma segunda conexão. O workflow `.github/workflows/ipro-migration-019.yml` provisiona PostgreSQL 16 sem secrets, executa typecheck/testes, aplica o runner canônico duas vezes e roda a integração em banco descartável.
