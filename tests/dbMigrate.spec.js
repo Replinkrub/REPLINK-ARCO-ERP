@@ -110,6 +110,36 @@ describe('db migration runner', () => {
 });
 
 describe('IPRO controlled reprocessing migration contract', () => {
+  it('loads migration 020 immediately after 019', async () => {
+    const filenames = (await readMigrationFiles(migrationsDir)).map(({ filename }) => filename);
+    expect(filenames.indexOf('020_ipro_orphan_recovery_audit.sql')).toBe(
+      filenames.indexOf('019_ipro_controlled_reprocessing.sql') + 1
+    );
+  });
+
+  it('keeps the ARCO-owned audit contract compatible with IPRO and defers runtime role grants', async () => {
+    const migration020 = (await readMigrationFiles(migrationsDir)).find(
+      ({ filename }) => filename === '020_ipro_orphan_recovery_audit.sql'
+    );
+    expect(migration020.sql).toContain('CREATE TABLE IF NOT EXISTS ipro.import_recovery_events');
+    for (const column of [
+      'action TEXT NOT NULL', 'reason TEXT NOT NULL', 'actor TEXT NOT NULL', 'request_id TEXT',
+      'recovery_mode TEXT NOT NULL', 'recovery_version TEXT NOT NULL', 'manifest_hash TEXT',
+      'object_receipt TEXT', 'eligible_at TIMESTAMPTZ NOT NULL',
+    ]) expect(migration020.sql).toContain(column);
+    for (const action of [
+      'LEGACY_ORPHAN_ATTESTED', 'RECOVERY_CLAIMED', 'RECOVERY_COMPLETED',
+      'RECOVERY_BLOCKED', 'RECOVERY_FAILED',
+    ]) expect(migration020.sql).toContain(`'${action}'`);
+    expect(migration020.sql).toContain('IPRO_IMPORT_RECOVERY_EVENT_IMMUTABLE');
+    expect(migration020.sql).toContain('import_recovery_runtime_role_contract');
+    expect(migration020.sql).toContain('register_import_recovery_runtime_role');
+    expect(migration020.sql).toContain('REVOKE ALL PRIVILEGES ON FUNCTION ipro.register_import_recovery_runtime_role(NAME) FROM PUBLIC;');
+    expect(migration020.sql).not.toMatch(/^GRANT\s+/im);
+    expect(migration020.sql).not.toMatch(/CREATE TABLE IF NOT EXISTS ipro\.(?:import_source_objects|batch_activation_events)/i);
+    expect(migration020.sql).not.toMatch(/ALTER TABLE ipro\.ingestion_batches\s+ADD COLUMN.*workflow_status/i);
+  });
+
   it('loads migration 019 immediately after 018 and preserves checksum idempotency', async () => {
     const migrations = await readMigrationFiles(migrationsDir);
     const filenames = migrations.map((migration) => migration.filename);
