@@ -419,8 +419,8 @@ BEGIN
     )
   $candidate$ INTO candidate_requires_digest;
   IF NOT candidate_requires_digest THEN RETURN; END IF;
-  IF to_regprocedure('digest(bytea,text)') IS NULL THEN EXECUTE 'CREATE EXTENSION IF NOT EXISTS pgcrypto'; END IF;
-  IF to_regprocedure('digest(bytea,text)') IS NULL THEN RAISE EXCEPTION 'IPRO_020_PGCRYPTO_REQUIRED'; END IF;
+  IF to_regprocedure('extensions.digest(bytea,text)') IS NULL THEN EXECUTE 'CREATE EXTENSION IF NOT EXISTS pgcrypto'; END IF;
+  IF to_regprocedure('extensions.digest(bytea,text)') IS NULL THEN RAISE EXCEPTION 'IPRO_020_PGCRYPTO_REQUIRED'; END IF;
   EXECUTE $attest$
     INSERT INTO ipro.import_recovery_events
       (id,batch_id,action,reason,actor,request_id,recovery_mode,recovery_version,manifest_hash,object_receipt,eligible_at)
@@ -430,7 +430,7 @@ BEGIN
            batch.metadata #>> '{preview,manifest_hash}', receipt.object_receipt, batch.updated_at
     FROM ipro.ingestion_batches batch
     CROSS JOIN LATERAL (
-      SELECT encode(digest(convert_to(
+       SELECT encode(extensions.digest(convert_to(
         'ipro.orphan_recovery.object_receipt.v1' || E'\n' ||
         string_agg(object.content_hash, E'\n' ORDER BY object.created_at, object.id), 'UTF8'), 'sha256'), 'hex') AS object_receipt
       FROM ipro.import_source_objects object WHERE object.batch_id = batch.id
@@ -438,13 +438,13 @@ BEGIN
      WHERE batch.id = 'import_597ce7ad1da070861b95fc7e'
        -- The stored hash is proof only if it is the exact Python preview
        -- serialization, not merely a well-formed SHA-looking value.
-       AND encode(digest(convert_to(
+        AND encode(extensions.digest(convert_to(
          ipro.ipro_020_canonical_json(batch.metadata #> '{preview,files}'), 'UTF8'), 'sha256'), 'hex')
            = batch.metadata #>> '{preview,manifest_hash}'
       AND NOT EXISTS (SELECT 1 FROM ipro.import_recovery_events event WHERE event.id = 'ipro_recovery_event_legacy_orphan_attestation_v1')
       AND NOT EXISTS (
         SELECT 1 FROM ipro.import_source_objects object
-        WHERE object.batch_id = batch.id AND encode(digest(object.object_bytes, 'sha256'), 'hex') <> object.content_hash
+         WHERE object.batch_id = batch.id AND encode(extensions.digest(object.object_bytes, 'sha256'), 'hex') <> object.content_hash
       )
   $attest$;
 END;
