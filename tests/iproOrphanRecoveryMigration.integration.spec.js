@@ -30,6 +30,7 @@ describeDisposable('IPRO migration 020 orphan recovery audit', () => {
       await runMigrations(client, base, silentLogger());
       await createIproRuntimeSchema(client);
       const { manifest, receipt } = await seedEligibleOrphan(client);
+      await installExtensionsPgcrypto(client);
       await runMigrations(client, [migration020], silentLogger());
 
       const event = await client.query('SELECT * FROM ipro.import_recovery_events WHERE action=$1', ['LEGACY_ORPHAN_ATTESTED']);
@@ -127,6 +128,7 @@ describeDisposable('IPRO migration 020 orphan recovery audit', () => {
     ]) await withDatabase(async (client) => {
       const { base, migration020 } = await prepareBase(client);
       await runMigrations(client, base, silentLogger()); await createIproRuntimeSchema(client); await seedEligibleOrphan(client);
+      await installExtensionsPgcrypto(client);
       await client.query(mutate); await runMigrations(client, [migration020], silentLogger());
       expect(await eventCount(client)).toBe(0);
     });
@@ -167,6 +169,7 @@ async function seedEligibleOrphan(client) {
 function manifestFile(file_name, content_hash, byte_size, report_type, row_count) { return { file_name, content_hash, byte_size, report_type, row_count, recognized_columns: [], missing_columns: [], period_start: null, period_end: null, duplicate_exact: 0, source_rows: row_count, accepted_rows: row_count, rejected_rows: 0, duplicate_rows: 0, collapsed_rows: 0, unique_records: row_count }; }
 async function withDatabase(test) { assertDisposableUrl(databaseUrl); const client = new Client({ connectionString: databaseUrl }); await client.connect(); try { await test(client); } finally { await clean(client); await client.end(); } }
 async function clean(client) { await client.query('DROP SCHEMA IF EXISTS ipro CASCADE'); await client.query('DROP TABLE IF EXISTS schema_migrations'); await client.query('DROP EXTENSION IF EXISTS pgcrypto'); }
+async function installExtensionsPgcrypto(client) { await client.query('CREATE SCHEMA IF NOT EXISTS extensions'); await client.query('CREATE EXTENSION pgcrypto WITH SCHEMA extensions'); }
 async function relationExists(client, relation) { return (await client.query('SELECT to_regclass($1) AS relation', [relation])).rows[0].relation !== null; }
 async function eventCount(client) { return Number((await client.query('SELECT count(*) FROM ipro.import_recovery_events')).rows[0].count); }
 async function expectPgError(action, code, message) { try { await action(); throw new Error('Expected PostgreSQL error'); } catch (error) { if (error?.code !== code) throw error; expect(error?.code).toBe(code); if (message) expect(error?.message).toContain(message); } }
