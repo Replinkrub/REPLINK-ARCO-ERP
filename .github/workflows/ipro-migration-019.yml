@@ -81,7 +81,7 @@ jobs:
           npm run db:migrate
           second_run="$(npm run db:migrate)"
           printf '%s\n' "$second_run"
-          [[ "$second_run" == *"Migration run completed (0 applied, 20 skipped)."* ]]
+          [[ "$second_run" == *"Migration run completed (0 applied, 21 skipped)."* ]]
 
       - name: Reset disposable database for migration integration
         run: |
