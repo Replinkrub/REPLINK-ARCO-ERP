@@ -200,6 +200,7 @@ describeDisposable('IPRO migration 020 orphan recovery audit', () => {
       await runMigrations(client, base, silentLogger());
       await createIproRuntimeSchema(client);
       const { manifest, receipt } = await seedEligibleOrphan(client);
+      await installExtensionsPgcrypto(client);
       await runMigrations(client, [migration020], silentLogger());
 
       const event = await client.query('SELECT * FROM ipro.import_recovery_events WHERE action=$1', ['LEGACY_ORPHAN_ATTESTED']);
@@ -297,6 +298,7 @@ describeDisposable('IPRO migration 020 orphan recovery audit', () => {
     ]) await withDatabase(async (client) => {
       const { base, migration020 } = await prepareBase(client);
       await runMigrations(client, base, silentLogger()); await createIproRuntimeSchema(client); await seedEligibleOrphan(client);
+      await installExtensionsPgcrypto(client);
       await client.query(mutate); await runMigrations(client, [migration020], silentLogger());
       expect(await eventCount(client)).toBe(0);
     });
@@ -383,6 +385,7 @@ async function clean(client) {
     disposablePrivilegedParentRoleCreated = false;
   }
 }
+async function installExtensionsPgcrypto(client) { await client.query('CREATE SCHEMA IF NOT EXISTS extensions'); await client.query('CREATE EXTENSION pgcrypto WITH SCHEMA extensions'); }
 async function relationExists(client, relation) { return (await client.query('SELECT to_regclass($1) AS relation', [relation])).rows[0].relation !== null; }
 async function eventCount(client) { return Number((await client.query('SELECT count(*) FROM ipro.import_recovery_events')).rows[0].count); }
 async function expectPgError(action, code, message) { try { await action(); throw new Error('Expected PostgreSQL error'); } catch (error) { if (error?.code !== code) throw error; expect(error?.code).toBe(code); if (message) expect(error?.message).toContain(message); } }
