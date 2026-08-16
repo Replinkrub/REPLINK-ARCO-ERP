@@ -10,6 +10,8 @@ const databaseUrl = process.env.IPRO_REPROCESSING_TEST_DATABASE_URL?.trim();
 const describeDisposable = databaseUrl ? describe : describe.skip;
 const orphanId = 'import_597ce7ad1da070861b95fc7e';
 let disposableArcoAppRoleCreated = false;
+let disposableOtherRuntimeRoleCreated = false;
+const otherRuntimeRole = 'ipro_binding_other_runtime_test';
 
 describeDisposable('IPRO migration 020 orphan recovery audit', () => {
   it('applies to the clean 016-019 schema without creating IPRO runtime relations or pgcrypto', async () => {
@@ -95,6 +97,60 @@ describeDisposable('IPRO migration 020 orphan recovery audit', () => {
       } finally {
         await runtime.end();
       }
+    });
+  }, 60_000);
+
+  it('repairs least-privilege grants when arco_app is already the validated runtime', async () => {
+    await withDatabase(async (client) => {
+      const { base, migration020, migration021 } = await prepareBase(client);
+      await runMigrations(client, base, silentLogger());
+      await runMigrations(client, [migration020], silentLogger());
+      await createDisposableArcoAppRole(client);
+      await client.query("SELECT ipro.register_import_recovery_runtime_role('arco_app'::name)");
+      await assignProtectedRecoveryObjectsToArcoApp(client);
+
+      expect(await runMigrations(client, [migration021], silentLogger())).toEqual({ applied: 1, skipped: 0 });
+      expect((await client.query('SELECT status, runtime_role_name FROM ipro.import_recovery_runtime_role_contract')).rows)
+        .toEqual([{ status: 'VALIDATED', runtime_role_name: 'arco_app' }]);
+      expect((await client.query(`SELECT
+        has_schema_privilege('arco_app', 'ipro', 'USAGE') AS schema_usage,
+        has_schema_privilege('arco_app', 'ipro', 'CREATE') AS schema_create,
+        has_table_privilege('arco_app', 'ipro.import_recovery_events', 'SELECT') AS audit_select,
+        has_table_privilege('arco_app', 'ipro.import_recovery_events', 'INSERT,UPDATE,DELETE') AS audit_dml,
+        has_function_privilege('arco_app', 'ipro.append_import_recovery_outcome(text,text,text,text,text,text)', 'EXECUTE') AS writer_execute,
+        has_function_privilege('arco_app', 'ipro.register_import_recovery_runtime_role(name)', 'EXECUTE') AS registrar_execute`)).rows[0])
+        .toEqual({
+          schema_usage: true, schema_create: false, audit_select: true, audit_dml: false,
+          writer_execute: true, registrar_execute: false,
+        });
+      expect((await client.query(`SELECT pg_get_userbyid(relowner) AS owner_name
+        FROM pg_class WHERE oid = 'ipro.import_recovery_events'::regclass`)).rows[0].owner_name)
+        .not.toBe('arco_app');
+    });
+  }, 60_000);
+
+  it('fails before changes when a different runtime role is already validated', async () => {
+    await withDatabase(async (client) => {
+      const { base, migration020, migration021 } = await prepareBase(client);
+      await runMigrations(client, base, silentLogger());
+      await runMigrations(client, [migration020], silentLogger());
+      await createDisposableArcoAppRole(client);
+      await client.query(`CREATE ROLE ${otherRuntimeRole} NOLOGIN`);
+      disposableOtherRuntimeRoleCreated = true;
+      await client.query(`SELECT ipro.register_import_recovery_runtime_role('${otherRuntimeRole}'::name)`);
+      await assignProtectedRecoveryObjectsToArcoApp(client);
+
+      const before = await protectedRecoverySnapshot(client);
+      await expect(runMigrations(client, [migration021], silentLogger())).rejects
+        .toThrow('IPRO_021_RUNTIME_ROLE_CONTRACT_CONFLICT');
+      expect((await client.query("SELECT filename FROM schema_migrations WHERE filename = '021_ipro_runtime_role_binding_hardening.sql'"))
+        .rowCount).toBe(0);
+      expect((await client.query('SELECT status, runtime_role_name FROM ipro.import_recovery_runtime_role_contract')).rows)
+        .toEqual([{ status: 'VALIDATED', runtime_role_name: otherRuntimeRole }]);
+      expect(await protectedRecoverySnapshot(client)).toEqual(before);
+      expect((await client.query(`SELECT pg_get_userbyid(relowner) AS owner_name
+        FROM pg_class WHERE oid = 'ipro.import_recovery_events'::regclass`)).rows[0].owner_name)
+        .toBe('arco_app');
     });
   }, 60_000);
 
@@ -218,6 +274,31 @@ async function prepareBase(client) {
     migration021: migrations.find((migration) => migration.filename === '021_ipro_runtime_role_binding_hardening.sql'),
   };
 }
+async function createDisposableArcoAppRole(client) {
+  await client.query("CREATE ROLE arco_app LOGIN PASSWORD 'arco-app-disposable-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT");
+  disposableArcoAppRoleCreated = true;
+}
+async function assignProtectedRecoveryObjectsToArcoApp(client) {
+  await client.query('ALTER TABLE ipro.import_recovery_events OWNER TO arco_app');
+  await client.query('ALTER TABLE ipro.import_recovery_runtime_role_contract OWNER TO arco_app');
+  await client.query('ALTER FUNCTION ipro.append_import_recovery_outcome(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) OWNER TO arco_app');
+  await client.query('ALTER FUNCTION ipro.register_import_recovery_runtime_role(NAME) OWNER TO arco_app');
+  await client.query('ALTER FUNCTION ipro.prevent_import_recovery_event_mutation() OWNER TO arco_app');
+}
+async function protectedRecoverySnapshot(client) {
+  return (await client.query(`SELECT
+    (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'ipro.import_recovery_events'::regclass) AS events_owner,
+    (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'ipro.import_recovery_runtime_role_contract'::regclass) AS contract_owner,
+    (SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'ipro.append_import_recovery_outcome(text,text,text,text,text,text)'::regprocedure) AS writer_owner,
+    (SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'ipro.register_import_recovery_runtime_role(name)'::regprocedure) AS registrar_owner,
+    (SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'ipro.prevent_import_recovery_event_mutation()'::regprocedure) AS mutation_guard_owner,
+    (SELECT relacl::text FROM pg_class WHERE oid = 'ipro.import_recovery_events'::regclass) AS events_acl,
+    (SELECT relacl::text FROM pg_class WHERE oid = 'ipro.import_recovery_runtime_role_contract'::regclass) AS contract_acl,
+    (SELECT proacl::text FROM pg_proc WHERE oid = 'ipro.append_import_recovery_outcome(text,text,text,text,text,text)'::regprocedure) AS writer_acl,
+    (SELECT proacl::text FROM pg_proc WHERE oid = 'ipro.register_import_recovery_runtime_role(name)'::regprocedure) AS registrar_acl,
+    (SELECT proacl::text FROM pg_proc WHERE oid = 'ipro.prevent_import_recovery_event_mutation()'::regprocedure) AS mutation_guard_acl,
+    (SELECT nspacl::text FROM pg_namespace WHERE nspname = 'ipro') AS schema_acl`)).rows;
+}
 async function createIproRuntimeSchema(client) {
   await client.query(`ALTER TABLE ipro.ingestion_batches ADD COLUMN workflow_status TEXT, ADD COLUMN confirmation_idempotency_key TEXT;
     CREATE TABLE ipro.import_source_objects (
@@ -252,6 +333,10 @@ async function clean(client) {
   if (disposableArcoAppRoleCreated) {
     await client.query('DROP ROLE IF EXISTS arco_app');
     disposableArcoAppRoleCreated = false;
+  }
+  if (disposableOtherRuntimeRoleCreated) {
+    await client.query(`DROP ROLE IF EXISTS ${otherRuntimeRole}`);
+    disposableOtherRuntimeRoleCreated = false;
   }
 }
 async function relationExists(client, relation) { return (await client.query('SELECT to_regclass($1) AS relation', [relation])).rows[0].relation !== null; }

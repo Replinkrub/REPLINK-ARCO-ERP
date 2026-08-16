@@ -6,12 +6,30 @@ DO $ipro_runtime_role_binding$
 DECLARE
   controlled_owner NAME;
   caller_is_superuser BOOLEAN;
+  contract_status TEXT;
+  contract_runtime_role NAME;
   protected_object RECORD;
 BEGIN
   -- An ARCO-only clean schema has no application runtime role.  There is
   -- nothing to bind or repair in that case, and this migration remains safe.
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'arco_app') THEN
     RETURN;
+  END IF;
+
+  SELECT status, runtime_role_name
+    INTO contract_status, contract_runtime_role
+    FROM ipro.import_recovery_runtime_role_contract
+   WHERE contract_key = 'ipro_orphan_recovery_runtime_role_v1';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'IPRO_021_RUNTIME_ROLE_CONTRACT_MISSING';
+  END IF;
+
+  IF contract_status = 'VALIDATED'
+     AND contract_runtime_role IS DISTINCT FROM 'arco_app'::NAME THEN
+    RAISE EXCEPTION
+      'IPRO_021_RUNTIME_ROLE_CONTRACT_CONFLICT: validated runtime role % is not arco_app',
+      contract_runtime_role;
   END IF;
 
   SELECT pg_get_userbyid(namespace.nspowner)::NAME
@@ -107,7 +125,12 @@ BEGIN
 
   -- The immutable 020 registrar is the sole grant path for the runtime: it
   -- verifies the role and grants only schema usage, audit SELECT, and writer
-  -- EXECUTE.  It does not grant direct audit DML or schema CREATE.
+  -- EXECUTE.  Its matching VALIDATED path intentionally returns without
+  -- changing ACLs, so reapply exactly that least-privilege grant set here.
+  -- This does not grant direct audit DML or schema CREATE.
   PERFORM ipro.register_import_recovery_runtime_role('arco_app'::NAME);
+  EXECUTE 'GRANT USAGE ON SCHEMA ipro TO arco_app';
+  EXECUTE 'GRANT SELECT ON TABLE ipro.import_recovery_events TO arco_app';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION ipro.append_import_recovery_outcome(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) TO arco_app';
 END;
 $ipro_runtime_role_binding$;
