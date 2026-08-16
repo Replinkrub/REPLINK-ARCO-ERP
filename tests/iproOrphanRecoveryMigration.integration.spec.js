@@ -11,7 +11,9 @@ const describeDisposable = databaseUrl ? describe : describe.skip;
 const orphanId = 'import_597ce7ad1da070861b95fc7e';
 let disposableArcoAppRoleCreated = false;
 let disposableOtherRuntimeRoleCreated = false;
+let disposablePrivilegedParentRoleCreated = false;
 const otherRuntimeRole = 'ipro_binding_other_runtime_test';
+const privilegedParentRole = 'ipro_binding_privileged_parent_test';
 
 describeDisposable('IPRO migration 020 orphan recovery audit', () => {
   it('applies to the clean 016-019 schema without creating IPRO runtime relations or pgcrypto', async () => {
@@ -41,6 +43,7 @@ describeDisposable('IPRO migration 020 orphan recovery audit', () => {
       await client.query('ALTER FUNCTION ipro.append_import_recovery_outcome(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) OWNER TO arco_app');
       await client.query('ALTER FUNCTION ipro.register_import_recovery_runtime_role(NAME) OWNER TO arco_app');
       await client.query('ALTER FUNCTION ipro.prevent_import_recovery_event_mutation() OWNER TO arco_app');
+      await client.query('GRANT CREATE ON SCHEMA ipro TO PUBLIC');
 
       expect(await runMigrations(client, [migration021], silentLogger())).toEqual({ applied: 1, skipped: 0 });
       expect((await client.query('SELECT status, runtime_role_name FROM ipro.import_recovery_runtime_role_contract')).rows)
@@ -107,7 +110,6 @@ describeDisposable('IPRO migration 020 orphan recovery audit', () => {
       await runMigrations(client, [migration020], silentLogger());
       await createDisposableArcoAppRole(client);
       await client.query("SELECT ipro.register_import_recovery_runtime_role('arco_app'::name)");
-      await assignProtectedRecoveryObjectsToArcoApp(client);
 
       expect(await runMigrations(client, [migration021], silentLogger())).toEqual({ applied: 1, skipped: 0 });
       expect((await client.query('SELECT status, runtime_role_name FROM ipro.import_recovery_runtime_role_contract')).rows)
@@ -126,6 +128,44 @@ describeDisposable('IPRO migration 020 orphan recovery audit', () => {
       expect((await client.query(`SELECT pg_get_userbyid(relowner) AS owner_name
         FROM pg_class WHERE oid = 'ipro.import_recovery_events'::regclass`)).rows[0].owner_name)
         .not.toBe('arco_app');
+    });
+  }, 60_000);
+
+  it('fails before changes when a privileged parent is granted after arco_app validation', async () => {
+    await withDatabase(async (client) => {
+      const { base, migration020, migration021 } = await prepareBase(client);
+      await runMigrations(client, base, silentLogger());
+      await runMigrations(client, [migration020], silentLogger());
+      await createDisposableArcoAppRole(client);
+      await client.query("SELECT ipro.register_import_recovery_runtime_role('arco_app'::name)");
+      await client.query(`CREATE ROLE ${privilegedParentRole} NOLOGIN CREATEDB`);
+      disposablePrivilegedParentRoleCreated = true;
+      await client.query(`GRANT ${privilegedParentRole} TO arco_app`);
+
+      const before = await protectedRecoverySnapshot(client);
+      await expect(runMigrations(client, [migration021], silentLogger())).rejects
+        .toThrow('IPRO_021_VALIDATED_RUNTIME_ROLE_PRIVILEGED');
+      expect((await client.query("SELECT filename FROM schema_migrations WHERE filename = '021_ipro_runtime_role_binding_hardening.sql'"))
+        .rowCount).toBe(0);
+      expect(await protectedRecoverySnapshot(client)).toEqual(before);
+    });
+  }, 60_000);
+
+  it('fails before changes when PUBLIC has schema CREATE after arco_app validation', async () => {
+    await withDatabase(async (client) => {
+      const { base, migration020, migration021 } = await prepareBase(client);
+      await runMigrations(client, base, silentLogger());
+      await runMigrations(client, [migration020], silentLogger());
+      await createDisposableArcoAppRole(client);
+      await client.query("SELECT ipro.register_import_recovery_runtime_role('arco_app'::name)");
+      await client.query('GRANT CREATE ON SCHEMA ipro TO PUBLIC');
+
+      const before = await protectedRecoverySnapshot(client);
+      await expect(runMigrations(client, [migration021], silentLogger())).rejects
+        .toThrow('IPRO_021_VALIDATED_RUNTIME_ROLE_PRIVILEGED');
+      expect((await client.query("SELECT filename FROM schema_migrations WHERE filename = '021_ipro_runtime_role_binding_hardening.sql'"))
+        .rowCount).toBe(0);
+      expect(await protectedRecoverySnapshot(client)).toEqual(before);
     });
   }, 60_000);
 
@@ -337,6 +377,10 @@ async function clean(client) {
   if (disposableOtherRuntimeRoleCreated) {
     await client.query(`DROP ROLE IF EXISTS ${otherRuntimeRole}`);
     disposableOtherRuntimeRoleCreated = false;
+  }
+  if (disposablePrivilegedParentRoleCreated) {
+    await client.query(`DROP ROLE IF EXISTS ${privilegedParentRole}`);
+    disposablePrivilegedParentRoleCreated = false;
   }
 }
 async function relationExists(client, relation) { return (await client.query('SELECT to_regclass($1) AS relation', [relation])).rows[0].relation !== null; }

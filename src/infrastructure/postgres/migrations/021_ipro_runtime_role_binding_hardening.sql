@@ -8,6 +8,7 @@ DECLARE
   caller_is_superuser BOOLEAN;
   contract_status TEXT;
   contract_runtime_role NAME;
+  arco_app_oid OID;
   protected_object RECORD;
 BEGIN
   -- An ARCO-only clean schema has no application runtime role.  There is
@@ -30,6 +31,84 @@ BEGIN
     RAISE EXCEPTION
       'IPRO_021_RUNTIME_ROLE_CONTRACT_CONFLICT: validated runtime role % is not arco_app',
       contract_runtime_role;
+  END IF;
+
+  -- A matching validated binding cannot rely on the 020 registrar because its
+  -- idempotent path returns without rechecking a role that may have drifted
+  -- since registration.  Reuse its complete recursive closure checks before
+  -- any ownership or ACL mutation.  PENDING intentionally skips this block:
+  -- this repair must first remove arco_app's erroneous object ownership.
+  IF contract_status = 'VALIDATED' THEN
+    SELECT oid INTO arco_app_oid FROM pg_roles WHERE rolname = 'arco_app';
+    IF EXISTS (
+         WITH RECURSIVE role_closure(role_oid) AS (
+           VALUES (arco_app_oid)
+           UNION
+           SELECT membership.roleid
+           FROM pg_auth_members AS membership
+           JOIN role_closure AS inherited ON inherited.role_oid = membership.member
+         )
+         SELECT 1
+         FROM pg_roles AS inherited_role
+         JOIN role_closure ON role_closure.role_oid = inherited_role.oid
+         WHERE inherited_role.rolsuper OR inherited_role.rolcreaterole
+            OR inherited_role.rolcreatedb OR inherited_role.rolreplication
+            OR inherited_role.rolbypassrls
+      )
+      OR EXISTS (
+         WITH RECURSIVE role_closure(role_oid) AS (
+           VALUES (arco_app_oid)
+           UNION
+           SELECT membership.roleid
+           FROM pg_auth_members AS membership
+           JOIN role_closure AS inherited ON inherited.role_oid = membership.member
+         )
+         SELECT 1 FROM role_closure
+         WHERE has_table_privilege(role_oid, 'ipro.import_recovery_events', 'INSERT')
+            OR has_table_privilege(role_oid, 'ipro.import_recovery_events', 'UPDATE')
+            OR has_table_privilege(role_oid, 'ipro.import_recovery_events', 'DELETE')
+      )
+      OR EXISTS (
+         WITH RECURSIVE role_closure(role_oid) AS (
+           VALUES (arco_app_oid)
+           UNION
+           SELECT membership.roleid
+           FROM pg_auth_members AS membership
+           JOIN role_closure AS inherited ON inherited.role_oid = membership.member
+         )
+         SELECT 1
+         FROM role_closure
+         CROSS JOIN pg_attribute AS attribute
+         WHERE attribute.attrelid = 'ipro.import_recovery_events'::regclass
+           AND attribute.attnum > 0 AND NOT attribute.attisdropped
+           AND (
+             has_column_privilege(role_oid, 'ipro.import_recovery_events', attribute.attname, 'INSERT')
+             OR has_column_privilege(role_oid, 'ipro.import_recovery_events', attribute.attname, 'UPDATE')
+           )
+      )
+      OR EXISTS (
+         WITH RECURSIVE role_closure(role_oid) AS (
+           VALUES (arco_app_oid)
+           UNION
+           SELECT membership.roleid
+           FROM pg_auth_members AS membership
+           JOIN role_closure AS inherited ON inherited.role_oid = membership.member
+         )
+         SELECT 1 FROM role_closure
+         WHERE has_schema_privilege(role_oid, 'ipro', 'CREATE')
+      )
+      OR EXISTS (
+         SELECT 1
+         FROM pg_namespace AS namespace
+         CROSS JOIN LATERAL aclexplode(
+           COALESCE(namespace.nspacl, acldefault('n', namespace.nspowner))
+         ) AS schema_privilege
+         WHERE namespace.nspname = 'ipro'
+           AND schema_privilege.grantee = 0
+           AND schema_privilege.privilege_type = 'CREATE'
+      ) THEN
+      RAISE EXCEPTION 'IPRO_021_VALIDATED_RUNTIME_ROLE_PRIVILEGED';
+    END IF;
   END IF;
 
   SELECT pg_get_userbyid(namespace.nspowner)::NAME
@@ -122,6 +201,7 @@ BEGIN
   EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION ipro.register_import_recovery_runtime_role(NAME) FROM arco_app';
   EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION ipro.prevent_import_recovery_event_mutation() FROM arco_app';
   EXECUTE 'REVOKE CREATE ON SCHEMA ipro FROM arco_app';
+  REVOKE CREATE ON SCHEMA ipro FROM PUBLIC;
 
   -- The immutable 020 registrar is the sole grant path for the runtime: it
   -- verifies the role and grants only schema usage, audit SELECT, and writer
