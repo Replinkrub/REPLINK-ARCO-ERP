@@ -364,3 +364,190 @@ describe('IPRO controlled reprocessing migration contract', () => {
     expect(migration019.sql).not.toMatch(/product_resolution_(?:state|method)\s+IN\s*\(/i);
   });
 });
+
+describe('IPRO customer identity reconciliation migration contract', () => {
+  it('loads migration 022 immediately after retired migration 021 and preserves checksum idempotency', async () => {
+    const migrations = await readMigrationFiles(migrationsDir);
+    const filenames = migrations.map(({ filename }) => filename);
+    const migration021Index = filenames.indexOf('021_ipro_runtime_role_binding_hardening.sql');
+    const migration022Index = filenames.indexOf('022_ipro_customer_identity_reconciliation.sql');
+    const migration022 = migrations[migration022Index];
+
+    expect(migration021Index).toBeGreaterThanOrEqual(0);
+    expect(migration022Index).toBe(migration021Index + 1);
+    expect(migration022).toBeDefined();
+
+    const client = new FakeMigrationClient();
+    expect(await runMigrations(client, [migration022], silentLogger())).toEqual({
+      applied: 1,
+      skipped: 0,
+    });
+    expect(await runMigrations(client, [migration022], silentLogger())).toEqual({
+      applied: 0,
+      skipped: 1,
+    });
+    expect(client.applied.get(migration022.filename)).toBe(calculateChecksum(migration022.sql));
+  });
+
+  it('defines immutable apply runs and reusable append-only order-document evidence', async () => {
+    const sql = await identityReconciliationMigrationSql();
+
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS ipro.identity_reconciliation_runs');
+    for (const field of [
+      'idempotency_key TEXT NOT NULL UNIQUE',
+      'plan_hash TEXT NOT NULL UNIQUE',
+      'evidence_manifest_hash TEXT NOT NULL',
+      'actor TEXT NOT NULL',
+      'mode TEXT NOT NULL',
+      "scope JSONB NOT NULL DEFAULT '{}'::jsonb",
+      "summary JSONB NOT NULL DEFAULT '{}'::jsonb",
+      'created_at TIMESTAMPTZ NOT NULL DEFAULT now()',
+    ]) expect(sql).toContain(field);
+    expect(sql).toContain("plan_hash ~ '^[0-9a-f]{64}$'");
+    expect(sql).toContain("evidence_manifest_hash ~ '^[0-9a-f]{64}$'");
+    expect(sql).toContain("CHECK (mode = 'APPLY')");
+    expect(sql).toContain("actor = BTRIM(actor) AND actor <> ''");
+    const runsTable = sql.slice(
+      sql.indexOf('CREATE TABLE IF NOT EXISTS ipro.identity_reconciliation_runs'),
+      sql.indexOf('CREATE TABLE IF NOT EXISTS ipro.order_document_evidence')
+    );
+    expect(runsTable).not.toMatch(/\bstatus\b|completed_at/i);
+
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS ipro.order_document_evidence');
+    for (const field of [
+      'evidence_hash TEXT NOT NULL UNIQUE',
+      'order_key TEXT NOT NULL',
+      'document_type TEXT NOT NULL',
+      'normalized_document TEXT NOT NULL',
+      'source_content_hash TEXT NOT NULL',
+      'source_row_number INTEGER',
+      'source_kind TEXT NOT NULL',
+      'metadata JSONB NOT NULL',
+    ]) expect(sql).toContain(field);
+    expect(sql).toContain("source_kind = 'SOURCE_ORDER_DOCUMENT'");
+    expect(sql).toContain('source_row_number IS NULL OR source_row_number > 0');
+    expect(sql).toContain("document_type = 'CPF'");
+    expect(sql).toContain("normalized_document ~ '^[0-9]{11}$'");
+    expect(sql).toContain("normalized_document !~ '^([0-9])\\1{10}$'");
+    expect(sql).toContain("document_type = 'CNPJ'");
+    expect(sql).toContain("normalized_document ~ '^[0-9]{14}$'");
+    expect(sql).toContain("normalized_document !~ '^([0-9])\\1{13}$'");
+    expect(sql).toMatch(
+      /CREATE INDEX IF NOT EXISTS idx_ipro_order_document_evidence_order_key\s+ON ipro\.order_document_evidence \(order_key\);/
+    );
+    expect(sql).not.toMatch(/UNIQUE\s*(?:INDEX[^;]*ON ipro\.order_document_evidence\s*)?\(order_key\)/i);
+    const evidenceTable = sql.slice(
+      sql.indexOf('CREATE TABLE IF NOT EXISTS ipro.order_document_evidence'),
+      sql.indexOf('CREATE TABLE IF NOT EXISTS ipro.identity_reconciliation_events')
+    );
+    expect(evidenceTable).not.toMatch(/acceptance_state|reconciliation_run_id/i);
+  });
+
+  it('defines the target-exclusive reconciliation ledger, foreign keys, and idempotency indexes', async () => {
+    const sql = await identityReconciliationMigrationSql();
+
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS ipro.identity_reconciliation_events');
+    expect(sql).toContain('run_id TEXT NOT NULL REFERENCES ipro.identity_reconciliation_runs(id) ON DELETE RESTRICT');
+    expect(sql).toContain('transaction_id TEXT REFERENCES ipro.transactions(id) ON DELETE RESTRICT');
+    expect(sql).toContain('customer_document_id TEXT REFERENCES ipro.customer_documents(id) ON DELETE RESTRICT');
+    expect(sql).toContain('evidence_id TEXT');
+    expect(sql).toMatch(
+      /FOREIGN KEY \(evidence_id, evidence_hash\)\s+REFERENCES ipro\.order_document_evidence\(id, evidence_hash\) ON DELETE RESTRICT/
+    );
+    expect(sql).toContain("'TRANSACTION_IDENTITY_RECONCILED', 'CUSTOMER_DOCUMENT_TYPE_CORRECTED'");
+    for (const kind of [
+      'DIRECT_DOCUMENT',
+      'SOURCE_ORDER_DOCUMENT',
+      'STABLE_REGISTRY_DOCUMENT',
+      'DOCUMENT_TYPE_SHAPE_CORRECTION',
+    ]) expect(sql).toContain(`'${kind}'`);
+    for (const field of [
+      'prior_customer_entity_id TEXT', 'new_customer_entity_id TEXT',
+      'prior_resolution_state TEXT', 'new_resolution_state TEXT',
+      'prior_document_type TEXT', 'new_document_type TEXT',
+      'prior_document TEXT', 'new_document TEXT',
+      'preserved_event_identity_hash TEXT', 'preserved_material_content_hash TEXT',
+      'evidence_kind TEXT NOT NULL', 'evidence_hash TEXT NOT NULL',
+    ]) expect(sql).toContain(field);
+
+    const targetCheck = sql.slice(
+      sql.indexOf('CONSTRAINT ipro_identity_reconciliation_events_target_ck'),
+      sql.indexOf('CREATE INDEX IF NOT EXISTS idx_ipro_identity_reconciliation_events_run_created')
+    );
+    expect(targetCheck).toContain("action = 'TRANSACTION_IDENTITY_RECONCILED'");
+    expect(targetCheck).toContain('transaction_id IS NOT NULL');
+    expect(targetCheck).toContain('customer_document_id IS NULL');
+    expect(targetCheck).toContain("(evidence_id IS NOT NULL AND evidence_kind = 'SOURCE_ORDER_DOCUMENT')");
+    expect(targetCheck).toContain("evidence_kind IN ('DIRECT_DOCUMENT', 'STABLE_REGISTRY_DOCUMENT')");
+    expect(targetCheck).toContain("action = 'CUSTOMER_DOCUMENT_TYPE_CORRECTED'");
+    expect(targetCheck).toContain('transaction_id IS NULL');
+    expect(targetCheck).toContain('customer_document_id IS NOT NULL');
+    expect(targetCheck).toContain("evidence_kind = 'DOCUMENT_TYPE_SHAPE_CORRECTION'");
+    expect(targetCheck).toContain('preserved_event_identity_hash IS NOT NULL');
+    expect(targetCheck).toContain('preserved_material_content_hash IS NOT NULL');
+
+    expect(sql).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS ux_ipro_identity_reconciliation_events_run_transaction\s+ON ipro\.identity_reconciliation_events \(run_id, transaction_id\)\s+WHERE action = 'TRANSACTION_IDENTITY_RECONCILED';/
+    );
+    expect(sql).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS ux_ipro_identity_reconciliation_events_run_document_correction\s+ON ipro\.identity_reconciliation_events \(run_id, customer_document_id\)\s+WHERE action = 'CUSTOMER_DOCUMENT_TYPE_CORRECTED';/
+    );
+    expect(sql).toContain('idx_ipro_identity_reconciliation_events_run_created');
+    expect(sql).toContain('idx_ipro_identity_reconciliation_events_evidence');
+  });
+
+  it('adds only the nullable effective-event link to transactions and leaves the active view untouched', async () => {
+    const sql = await identityReconciliationMigrationSql();
+
+    expect(sql).toMatch(
+      /ALTER TABLE ipro\.transactions\s+ADD COLUMN IF NOT EXISTS effective_identity_reconciliation_event_id TEXT;/
+    );
+    expect(sql).toContain('ipro_transactions_effective_identity_reconciliation_event_fk');
+    expect(sql).toMatch(
+      /FOREIGN KEY \(effective_identity_reconciliation_event_id\)\s+REFERENCES ipro\.identity_reconciliation_events\(id\) ON DELETE RESTRICT;/
+    );
+    expect(sql).toMatch(
+      /CREATE INDEX IF NOT EXISTS idx_ipro_transactions_effective_identity_reconciliation_event\s+ON ipro\.transactions \(effective_identity_reconciliation_event_id\)/
+    );
+    expect(sql.match(/ALTER TABLE ipro\.transactions/g)).toHaveLength(2);
+    expect(sql).not.toContain('CREATE OR REPLACE VIEW ipro.active_canonical_transactions');
+  });
+
+  it('uses one immutable trigger function, revokes PUBLIC access, and grants no unknown role', async () => {
+    const sql = await identityReconciliationMigrationSql();
+
+    expect(sql.match(/CREATE OR REPLACE FUNCTION ipro\.prevent_identity_reconciliation_audit_mutation\(\)/g)).toHaveLength(1);
+    expect(sql.match(/EXECUTE FUNCTION ipro\.prevent_identity_reconciliation_audit_mutation\(\)/g)).toHaveLength(3);
+    for (const table of [
+      'identity_reconciliation_runs',
+      'order_document_evidence',
+      'identity_reconciliation_events',
+    ]) {
+      expect(sql).toMatch(new RegExp(`BEFORE UPDATE OR DELETE ON ipro\\.${table}`));
+      expect(sql).toContain(`REVOKE ALL PRIVILEGES ON TABLE ipro.${table} FROM PUBLIC;`);
+    }
+    expect(sql).toContain('IPRO_IDENTITY_RECONCILIATION_AUDIT_IMMUTABLE');
+    expect(sql).not.toMatch(/^GRANT\s+/im);
+  });
+
+  it('is structural only and excludes name-based reconciliation evidence', async () => {
+    const sql = await identityReconciliationMigrationSql();
+
+    expect(sql).not.toMatch(/\bDELETE\s+FROM\b/i);
+    expect(sql).not.toMatch(/\bINSERT\s+INTO\s+ipro\.transactions\b/i);
+    expect(sql).not.toMatch(/\bUPDATE\s+ipro\.transactions\b/i);
+    expect(sql).not.toMatch(/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+ipro\.customer_(?:entities|documents)\b/i);
+    expect(sql).not.toMatch(/\b(?:SET|DROP|ALTER)\s+(?:COLUMN\s+)?(?:business_event_hash|event_identity_hash|material_content_hash|event_version)\b/i);
+    expect(sql).not.toMatch(/evidence_kind\s+IN\s*\([^)]*(?:NAME|FUZZY)/i);
+    expect(sql).not.toMatch(/resolution_method/i);
+  });
+});
+
+async function identityReconciliationMigrationSql() {
+  const migrations = await readMigrationFiles(migrationsDir);
+  const migration = migrations.find(
+    ({ filename }) => filename === '022_ipro_customer_identity_reconciliation.sql'
+  );
+  expect(migration).toBeDefined();
+  return migration.sql;
+}

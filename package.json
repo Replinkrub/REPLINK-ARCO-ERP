@@ -6,7 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude tests/smokeDb.spec.ts --exclude tests/**/*.integration.spec.js",
-    "test:ipro:migrations:db": "vitest run tests/iproReprocessingMigration.integration.spec.js && vitest run tests/iproOrphanRecoveryMigration.integration.spec.js",
+    "test:ipro:migrations:db": "vitest run tests/iproReprocessingMigration.integration.spec.js && vitest run tests/iproOrphanRecoveryMigration.integration.spec.js && vitest run tests/iproIdentityReconciliationMigration.integration.spec.js",
     "db:migrate": "node ./scripts/db-migrate.mjs",
     "db:bootstrap": "node ./scripts/db-bootstrap.mjs",
     "test:smoke:db": "vitest run tests/smokeDb.spec.ts"
