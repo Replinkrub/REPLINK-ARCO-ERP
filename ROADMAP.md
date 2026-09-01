@@ -109,6 +109,7 @@ Correção adotada:
 - Customer Product Price Overrides + Price Resolution Core (PR #53, merge `8b039cb`).
 - Quote Item Snapshot Foundation (PR #55, merge `79aeef3`).
 - Order Confirmation Snapshot Carryover (PR #57, merge `ca9201f`).
+- Payment Terms Snapshot Carryover (PR #59, merge `0f0b39a`).
 
 ### Concluído nesta frente documental
 
@@ -614,9 +615,19 @@ Implementar API por fatias funcionais sem quebrar contratos.
   - `saveFromQuoteOnce`/idempotência preservada.
   - Tests: 179/179, smoke: 13/13.
 
+### Estado entregue no payment terms snapshot carryover
+
+- **Payment Terms Snapshot Carryover** — PR #59 (merge `0f0b39a`):
+  - `updateQuote` aceita condição de pagamento e gera `paymentTermSnapshot` + `paymentSchedule`.
+  - Pedido confirmado e `sourceQuoteSnapshot` preservam condição de pagamento e vencimentos sem recalcular.
+  - `convertQuoteToOrder` bloqueia confirmação quando há `paymentTermId` sem snapshot/vencimentos mínimos (`MISSING_PAYMENT_SNAPSHOT`).
+  - Migration `015`: `commercial_documents.payment_term_id`, `payment_term_snapshot`, `payment_schedule`.
+  - `saveFromQuoteOnce`/idempotência preservada.
+  - Tests: 181/181, smoke: 13/13.
+
 ### Próximo passo do Gate H
 
-Planejar o próximo slice técnico com autorização explícita. Não avançar para frontend, RBAC runtime ou novo slice de backend sem plano/review/autorização.
+Encerrar ciclo atual. Próximo slice técnico deve começar somente com novo plano/autorização explícita; não avançar para frontend, RBAC runtime ou novo backend sem review de escopo.
 
 ## Gate I — Frontend Shell + Operational Flow Implementation
 

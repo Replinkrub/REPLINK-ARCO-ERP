@@ -3,14 +3,14 @@
 ## Estado atual
 
 - Projeto: ARCO-ERP
-- Estado: **Gates A–F documentais mergeados; Gate H integrado até Order Confirmation Snapshot Carryover**
+- Estado: **Gates A–F documentais mergeados; Gate H integrado até Payment Terms Snapshot Carryover**
 - Sprint 0: concluída
 - Sprint 1: concluída
 - Sprint 2: concluída
 - Sprint 3 (Slices 1–5): concluída e mergeada
 - P0+P1 (persistência real + API HTTP mínima): concluído e mergeado (PR #25)
 - P1.5 (Supabase runtime readiness / DB smoke): ✅ **concluído e mergeado** (PR #28)
-- `main` em: `ca9201f` (merge PR #57 — Order Confirmation Snapshot Carryover)
+- `main` em: `0f0b39a` (merge PR #59 — Payment Terms Snapshot Carryover)
 - Frente documental V1 operacional: ✅ **Gates A–F fechados**
 - Gate F — Migration Plan + Test Strategy: ✅ **PASS**
 - Commit Gate F: `406e043 docs(erp): define migration plan and test strategy`
@@ -41,12 +41,88 @@
 - PR Customer Product Price Overrides + Price Resolution Core: #53 — merge commit `8b039cb`
 - PR Quote Item Snapshot Foundation: #55 — merge commit `79aeef3`
 - PR Order Confirmation Snapshot Carryover: #57 — merge commit `ca9201f`
+- PR Payment Terms Snapshot Carryover: #59 — merge commit `0f0b39a`
 - Typecheck: ✅ PASS
-- Tests: ✅ PASS — 179/179 (18 test files)
+- Tests: ✅ PASS — 181/181 (18 test files)
 - Smoke DB real contra Supabase dev: ✅ PASS — 13/13
 - Próximo ponto: **planejar próximo slice técnico do Gate H com autorização explícita**.
 - Regra: não iniciar frontend, RBAC runtime ou novo slice de backend sem plano/review/autorização.
-- Itens de orçamento em `QUOTE_DRAFT` salvam snapshot comercial mínimo usando Price Resolution Core; confirmação ORC→PED agora copia esse snapshot sem repricing.
+- Itens de orçamento e condição de pagamento em `QUOTE_DRAFT` salvam snapshots comerciais; confirmação ORC→PED copia snapshots de item/preço/pagamento sem repricing/recalcular vencimentos.
+
+## Decisão pendente — ARCO ERP Reference Scan
+
+Estamos avaliando se vale criar um laboratório de referência com ERPNext/Frappe e Odoo/OCA Brazil para comparar arquitetura, módulos, schema, fluxos e padrões técnicos com o ARCO ERP.
+
+A decisão ainda não está fechada.
+
+Plano de viabilidade: `docs/PLANO_ARCO_ERP_REFERENCE_SCAN.md`.
+
+Objetivo da avaliação:
+
+- entender se a varredura reduz tempo de código;
+- entender se aumenta complexidade;
+- medir risco de desvio de escopo;
+- medir risco jurídico/licença;
+- medir se cabe em sprint único;
+- decidir se deve ser executado agora, depois ou descartado.
+
+Regras vigentes:
+
+- Não executar clone ainda.
+- Não copiar código externo.
+- Não alterar arquitetura atual por causa dessa hipótese.
+
+Separação canônica:
+
+- Twenty = CRM;
+- ARCO ERP = motor operacional;
+- REPLINK CONTROL = orquestrador;
+- Odoo/OCA = referência fiscal futura;
+- ERPNext/Frappe = referência operacional/arquitetural.
+
+## Checkpoint da sessão (2026-06-13 pós-PR #59 merge)
+
+### PR #59 — Payment Terms Snapshot Carryover integrado
+
+- PR #59 — `Payment Terms Snapshot Carryover`
+- PR: https://github.com/Replinkrub/REPLINK-ARCO-ERP/pull/59
+- Merge commit: `0f0b39a`
+- Branch: `feat/payment-terms-snapshot-carryover`
+- Commit técnico: `43828a0`
+- Handoff: `docs/SESSION-HANDOFF-GATE-H-PR59.md`
+
+### Estado técnico PR #59 — Snapshot de pagamento e vencimentos
+
+- `updateQuote` passa a aceitar `paymentTermId`/`payment_term_id` e gerar `paymentTermSnapshot` + `paymentSchedule`.
+- `paymentSchedule` distribui o total do orçamento por parcelas e datas de vencimento com base em `installmentsCount`, `firstDueDays` e `intervalDays`.
+- `convertQuoteToOrder` bloqueia confirmação quando existe `paymentTermId` sem snapshot/vencimentos mínimos (`MISSING_PAYMENT_SNAPSHOT`).
+- Pedido confirmado e `sourceQuoteSnapshot` preservam condição de pagamento e vencimentos sem recalcular.
+- Migration `015_commercial_document_payment_snapshot.sql` adiciona persistência em `commercial_documents`.
+- `saveFromQuoteOnce`/idempotência preservada.
+
+### Validações registradas PR #59
+
+| Validação | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ PASS |
+| `npm run test` | ✅ PASS — 181/181 |
+| `npm run db:migrate` com `.env.local` | ✅ PASS — 1 applied, 14 skipped |
+| `npm run test:smoke:db` com `.env.local` | ✅ PASS — 13/13 |
+| `git diff --check` | ✅ PASS |
+| Finalizer `npx ai-workflow collect-evidence --mode=standard --task=payment-terms-snapshot-carryover` | ✅ COMPLETED |
+
+### Fora de escopo mantido
+
+- Sem frontend.
+- Sem RBAC runtime completo.
+- Sem fiscal/NF-e/SEFAZ.
+- Sem boleto automático, gateway, crédito automático ou conciliação.
+- Sem promoções, faixas de preço, margem, comissão ou desconto avançado.
+- `erp_app_flow_map.html`: continua fora dos PRs.
+
+### Próximo ponto
+
+Encerrar ciclo aqui. Próximo trabalho técnico só deve iniciar com novo plano/autorização explícita.
 
 ## Checkpoint da sessão (2026-06-13 pós-PR #57 merge)
 
